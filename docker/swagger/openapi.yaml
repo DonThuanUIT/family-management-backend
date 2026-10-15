@@ -1,0 +1,261 @@
+openapi: 3.0.3
+info:
+  title: Family Management Fund API (familyfund-api)
+  version: 1.0.0
+  description: |
+    Core RESTful API documentation for Family Management Backend system.
+    Supports Family Tree Management, Event Planning & Registration, Advance/Settlement Vouchers,
+    Immutable Ledgers (Audit Trail), and Multi-channel Contributions.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Spring Boot Backend Server
+paths:
+  /auth/login:
+    post:
+      summary: Đăng nhập hệ thống
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - loginIdentifier
+                - password
+              properties:
+                loginIdentifier:
+                  type: string
+                  example: admin_hoang
+                password:
+                  type: string
+                  format: password
+                  example: Admin@123
+      responses:
+        '200':
+          description: Đăng nhập thành công, trả về JWT Token và thông tin tài khoản
+        '401':
+          description: Sai thông tin đăng nhập
+
+  /clans:
+    get:
+      summary: Lấy danh sách dòng họ (Multi-tenant)
+      tags:
+        - Clan & Family Tree
+      responses:
+        '200':
+          description: Danh sách dòng họ
+    post:
+      summary: Khởi tạo dòng họ mới
+      tags:
+        - Clan & Family Tree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - clanName
+              properties:
+                clanName:
+                  type: string
+                  example: Dòng họ Nguyễn Trọng
+                establishedDate:
+                  type: string
+                  format: date
+                  example: 1850-01-01
+                inviteCode:
+                  type: string
+                  example: CLAN-NGUYEN-1850
+      responses:
+        '201':
+          description: Tạo thành công
+
+  /clans/{clanId}/members:
+    get:
+      summary: Lấy danh sách thành viên trong dòng họ
+      tags:
+        - Clan & Family Tree
+      parameters:
+        - name: clanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thành viên
+
+  /events:
+    get:
+      summary: Danh sách sự kiện của dòng họ
+      tags:
+        - Events & Registration
+      parameters:
+        - name: clanId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách sự kiện
+    post:
+      summary: Khởi tạo kế hoạch sự kiện mới
+      tags:
+        - Events & Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - clanId
+                - eventName
+                - eventDatetime
+                - location
+              properties:
+                clanId:
+                  type: string
+                  example: CLAN_NGUYENTRONG
+                eventName:
+                  type: string
+                  example: Giỗ Tổ 2026
+                eventDatetime:
+                  type: string
+                  format: date-time
+                  example: "2026-04-26T08:00:00Z"
+                location:
+                  type: string
+                  example: Nhà thờ tổ Chi 1
+                estimatedBudget:
+                  type: number
+                  example: 50000000.00
+      responses:
+        '201':
+          description: Tạo sự kiện thành công
+
+  /events/{eventId}/advance-vouchers:
+    post:
+      summary: Lập phiếu cấp phát kinh phí tạm ứng (Phân hệ 3)
+      tags:
+        - Finance & Vouchers
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - taskId
+                - recipientMemberId
+                - advanceAmount
+                - receivedDate
+                - settlementDeadline
+              properties:
+                taskId:
+                  type: string
+                  example: TASK_001
+                recipientMemberId:
+                  type: string
+                  example: MEM_001
+                advanceAmount:
+                  type: number
+                  example: 5000000.00
+                receivedDate:
+                  type: string
+                  format: date-time
+                settlementDeadline:
+                  type: string
+                  format: date-time
+                commitmentNotes:
+                  type: string
+                  example: Chi phí mua hoa quả, bánh kẹo
+      responses:
+        '201':
+          description: Lập phiếu tạm ứng thành công
+
+  /events/{eventId}/contributions:
+    post:
+      summary: Tiếp nhận đóng góp / cúng tiến (Tiền mặt hoặc Hiện vật)
+      tags:
+        - Contributions & Assets
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payerMemberId
+                - contributionType
+                - memberAllocations
+              properties:
+                payerMemberId:
+                  type: string
+                  example: MEM_001
+                contributionType:
+                  type: string
+                  enum: [Cash, InKind]
+                  example: Cash
+                cashDetail:
+                  type: object
+                  properties:
+                    amount:
+                      type: number
+                      example: 2000000.00
+                    paymentMethod:
+                      type: string
+                      enum: [Cash, BankTransfer]
+                      example: BankTransfer
+                    receiptNumber:
+                      type: string
+                      example: REC-2026-0001
+                memberAllocations:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - memberId
+                      - recordedAmount
+                    properties:
+                      memberId:
+                        type: string
+                        example: MEM_001
+                      recordedAmount:
+                        type: number
+                        example: 2000000.00
+      responses:
+        '201':
+          description: Ghi nhận đóng góp thành công
+
+  /ledger/immutable:
+    get:
+      summary: Tra cứu Sổ cái Quỹ chung bất biến (Audit Trail NFR-01)
+      tags:
+        - Finance & Vouchers
+      parameters:
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách các bút toán sổ cái bất biến
+
