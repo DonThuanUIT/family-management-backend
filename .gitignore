@@ -32,3 +32,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### AI md local
+.agent/
+
+### Environment & Local Build ###
+.env
+bin/

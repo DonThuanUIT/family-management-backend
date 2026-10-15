@@ -118,12 +118,22 @@ Xem toàn bộ cây thư viện phụ thuộc và kiểm tra phiên bản:
 ```
 
 
-## 📁 Cấu Trúc Dự Án
-
 ```text
 family-management-backend/
-├── .gitignore
-├── README.md
+├── .env                       # Biến môi trường cho Docker Compose
+├── .env.example               # Mẫu cấu hình biến môi trường
+├── docker-compose.yml         # Khởi tạo Postgres, Adminer, Swagger UI
+├── docker/
+│   ├── postgres/
+│   │   └── init.sql           # Kịch bản DDL khởi tạo 21 bảng cốt lõi & dữ liệu mẫu
+│   └── swagger/
+│       └── openapi.yaml       # Tài liệu API OpenAPI 3.0 cho Swagger UI
+├── docs/                      # Tài liệu kỹ thuật chi tiết của dự án
+│   ├── README.md              # Mục lục tài liệu & thứ tự đọc
+│   ├── 01-architecture.md     # Kiến trúc hệ thống & Hạ tầng Docker
+│   ├── 02-database-schema.md  # Đặc tả 21 bảng PostgreSQL Schema
+│   ├── 03-business-flows.md   # Các luồng nghiệp vụ cốt lõi
+│   └── project-status.md      # Trạng thái dự án & Kế hoạch tiếp theo
 ├── build.gradle.kts           # Kịch bản build & dependencies (Kotlin DSL)
 ├── settings.gradle.kts        # Cấu hình root project
 ├── gradlew                    # Gradle wrapper script cho Linux/macOS
@@ -139,4 +149,43 @@ family-management-backend/
     │       └── application.yaml
     └── test/
         └── java/com/familyfund/...
+```
+
+> 📖 **Xem chi tiết tài liệu hệ thống tại thư mục [docs/](file:///d:/WorkSpace/Family-Management/family-management-backend/docs/README.md)**.
+
+
+---
+
+## 🐳 Môi Trường Docker (PostgreSQL, Adminer, Swagger)
+
+Dự án cung cấp bộ kịch bản `docker-compose.yml` tích hợp sẵn 3 dịch vụ phụ trợ quan trọng:
+
+1. **PostgreSQL 16 + PGVector (`familyfund-postgres`)**:
+   - Port: `5432`
+   - Database: `familyfund_db`
+   - User: `familyfund_user`
+   - Password: `familyfund_secret`
+   - Tự động chạy kịch bản `docker/postgres/init.sql` khởi tạo toàn bộ 21 bảng thuộc 4 phân hệ và seed data cơ sở.
+2. **Adminer Database Manager (`familyfund-adminer`)**:
+   - Port: `8088` (truy cập tại: `http://localhost:8088`)
+   - Tự động kết nối tới container `postgres`.
+3. **Swagger UI (`familyfund-swagger`)**:
+   - Port: `8082` (truy cập tại: `http://localhost:8082`)
+   - Tải trực tiếp tài liệu OpenAPI từ `docker/swagger/openapi.yaml`.
+
+### Khởi chạy các container:
+
+```bash
+# 1. Khởi động Docker Desktop trên máy
+# 2. Khởi chạy 3 container ở chế độ nền:
+docker compose up -d
+
+# Kiểm tra trạng thái các container:
+docker compose ps
+
+# Xem log khởi tạo database:
+docker compose logs postgres
+
+# Dừng các container:
+docker compose down
 ```
