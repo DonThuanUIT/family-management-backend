@@ -34,8 +34,10 @@ dependencies {
     // Spring AI
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
-    // Database Driver
+    // Database Driver & Migration
     runtimeOnly("org.postgresql:postgresql")
+    implementation("org.flywaydb:flyway-core")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")

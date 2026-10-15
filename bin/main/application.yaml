@@ -3,14 +3,20 @@ spring:
     name: familyfund-api
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:familyfund_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:familyfund_db}}
     username: ${DB_USER:familyfund_user}
     password: ${DB_PASSWORD:familyfund_secret}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     show-sql: false
     open-in-view: false
     properties:
