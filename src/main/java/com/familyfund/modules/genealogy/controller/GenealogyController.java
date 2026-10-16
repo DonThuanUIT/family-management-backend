@@ -2,10 +2,12 @@ package com.familyfund.modules.genealogy.controller;
 
 import com.familyfund.core.common.ApiResponse;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
 import com.familyfund.modules.genealogy.service.GenealogyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,5 +29,13 @@ public class GenealogyController {
             @Valid @RequestBody UpdateRootBranchRequest request) {
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin nhánh gốc thành công", response));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<BranchDetailResponse>> createChildBranch(
+            @Valid @RequestBody CreateChildBranchRequest request) {
+        BranchDetailResponse response = genealogyService.createChildBranch(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Tạo mới nhánh gia đình con thành công", response));
     }
 }

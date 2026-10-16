@@ -3,12 +3,14 @@ package com.familyfund.modules.genealogy.service.impl;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
 import com.familyfund.modules.genealogy.entity.Member;
 import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
 import com.familyfund.modules.genealogy.repository.MemberRepository;
 import com.familyfund.modules.genealogy.service.GenealogyService;
+import com.familyfund.modules.genealogy.validator.GenealogyValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     private final FamilyBranchRepository branchRepository;
     private final MemberRepository memberRepository;
+    private final GenealogyValidator genealogyValidator;
 
     @Override
     @Transactional(readOnly = true)
@@ -60,6 +63,40 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         FamilyBranch saved = branchRepository.save(rootBranch);
+        return BranchDetailResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BranchDetailResponse createChildBranch(CreateChildBranchRequest request) {
+        FamilyBranch parent = branchRepository.findById(request.getParentBranchId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy nhánh cha có ID: " + request.getParentBranchId()
+                ));
+
+        // Kiểm tra chống chu trình và kiểm tra đời thứ
+        genealogyValidator.kiemTraChuTrinh(null, request.getParentBranchId());
+        int childGenerationLevel = parent.getGenerationLevel() + 1;
+        genealogyValidator.kiemTraDoiThu(parent.getGenerationLevel(), childGenerationLevel);
+
+        FamilyBranch childBranch = FamilyBranch.builder()
+                .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .clanName(parent.getClanName())
+                .branchName(request.getBranchName())
+                .generationLevel(childGenerationLevel)
+                .parentBranch(parent)
+                .description(request.getDescription())
+                .build();
+
+        if (request.getRepresentativeId() != null && !request.getRepresentativeId().trim().isEmpty()) {
+            Member rep = memberRepository.findById(request.getRepresentativeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy người đại diện có ID: " + request.getRepresentativeId()
+                    ));
+            childBranch.setRepresentative(rep);
+        }
+
+        FamilyBranch saved = branchRepository.save(childBranch);
         return BranchDetailResponse.fromEntity(saved);
     }
 }
