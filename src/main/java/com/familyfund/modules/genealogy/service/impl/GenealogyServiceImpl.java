@@ -4,6 +4,7 @@ import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
 import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
 import com.familyfund.modules.genealogy.entity.Member;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -98,5 +100,68 @@ public class GenealogyServiceImpl implements GenealogyService {
 
         FamilyBranch saved = branchRepository.save(childBranch);
         return BranchDetailResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BranchDetailResponse updateBranch(String branchId, UpdateBranchRequest request) {
+        FamilyBranch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhánh có ID: " + branchId));
+
+        // Nếu chuyển nhánh cha
+        if (request.getParentBranchId() != null) {
+            String currentParentId = branch.getParentBranch() != null ? branch.getParentBranch().getBranchId() : null;
+            if (!request.getParentBranchId().equals(currentParentId)) {
+                // Không cho phép gán cha cho nhánh gốc
+                if (branch.getParentBranch() == null && branch.getGenerationLevel() == 1) {
+                    throw new BusinessRuleException("Không thể gán nhánh cha cho Nhánh Gốc của dòng họ");
+                }
+
+                // Kiểm tra chống chu trình khép kín
+                genealogyValidator.kiemTraChuTrinh(branchId, request.getParentBranchId());
+
+                FamilyBranch newParent = branchRepository.findById(request.getParentBranchId())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Không tìm thấy nhánh cha mới có ID: " + request.getParentBranchId()
+                        ));
+
+                int newGenLevel = newParent.getGenerationLevel() + 1;
+                genealogyValidator.kiemTraDoiThu(newParent.getGenerationLevel(), newGenLevel);
+
+                int delta = newGenLevel - branch.getGenerationLevel();
+                branch.setParentBranch(newParent);
+                branch.setGenerationLevel(newGenLevel);
+
+                // Cập nhật đời thứ đệ quy cho toàn bộ cây con cháu bên dưới
+                if (delta != 0) {
+                    cascadeUpdateGenerationLevel(branch, delta);
+                }
+            }
+        }
+
+        branch.setBranchName(request.getBranchName());
+        branch.setDescription(request.getDescription());
+
+        if (request.getRepresentativeId() != null && !request.getRepresentativeId().trim().isEmpty()) {
+            Member rep = memberRepository.findById(request.getRepresentativeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy người đại diện có ID: " + request.getRepresentativeId()
+                    ));
+            branch.setRepresentative(rep);
+        } else {
+            branch.setRepresentative(null);
+        }
+
+        FamilyBranch saved = branchRepository.save(branch);
+        return BranchDetailResponse.fromEntity(saved);
+    }
+
+    private void cascadeUpdateGenerationLevel(FamilyBranch current, int delta) {
+        List<FamilyBranch> children = branchRepository.findByParentBranch_BranchId(current.getBranchId());
+        for (FamilyBranch child : children) {
+            child.setGenerationLevel(child.getGenerationLevel() + delta);
+            branchRepository.save(child);
+            cascadeUpdateGenerationLevel(child, delta);
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.familyfund.modules.genealogy.controller;
 import com.familyfund.core.common.ApiResponse;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
 import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
 import com.familyfund.modules.genealogy.service.GenealogyService;
 import jakarta.validation.Valid;
@@ -37,5 +38,13 @@ public class GenealogyController {
         BranchDetailResponse response = genealogyService.createChildBranch(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tạo mới nhánh gia đình con thành công", response));
+    }
+
+    @PutMapping("/{branchId}")
+    public ResponseEntity<ApiResponse<BranchDetailResponse>> updateBranch(
+            @PathVariable String branchId,
+            @Valid @RequestBody UpdateBranchRequest request) {
+        BranchDetailResponse response = genealogyService.updateBranch(branchId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin chi nhánh thành công", response));
     }
 }
