@@ -35,6 +35,8 @@ build/
 
 ### AI md local
 .agent/
+agent/
+.rules/
 
 ### Environment & Local Build ###
 .env

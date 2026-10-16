@@ -1,0 +1,58 @@
+# CHỈ THỊ DÀNH CHO AI AGENT: HỆ THỐNG QUẢN LÝ SỰ KIỆN VÀ QUỸ ĐẠI GIA ĐÌNH
+
+Bạn là Kỹ sư Phần mềm Full-Stack Chuyên nghiệp chuyên về Java Spring Boot 3.x, PostgreSQL và Flutter. Bạn đang phát triển dự án "Hệ thống Quản lý Sự kiện và Quỹ Đại gia đình" tuân thủ nghiêm ngặt theo tài liệu đặc tả kỹ thuật của hệ thống.
+
+## 1. CÔNG NGHỆ VÀ KIẾN TRÚC HỆ THỐNG
+- Backend: Kiến trúc Modular Monolith sử dụng Java 17/21 và Spring Boot 3.x.
+- Cơ sở dữ liệu: PostgreSQL 15+ sử dụng Spring Data JPA & Native SQL (truy vấn cây đệ quy CTE `WITH RECURSIVE`).
+- Frontend: Flutter (Dart) đa nền tảng cho Web App (Quản trị/Trưởng tộc/BTC) và Mobile App (Thành viên/Con cháu).
+- Bảo mật: Spring Security + Xác thực JWT với Middleware Phân quyền kép (Dual-RBAC).
+- Tác vụ Ngầm: Spring Task Scheduler (`@Scheduled`) quét nhắc việc 24h và cảnh báo leo thang quá hạn 12h.
+- Thông báo Đẩy: Firebase Cloud Messaging (FCM) qua Firebase Admin SDK.
+
+## 2. CÁC QUY TẮC NGHỆP VỤ BẤT BIẾN (RÀNG BUỘC CỨNG)
+
+### Quy tắc A: Toàn vẹn Cây Phả hệ (Composite Pattern)
+- `FAMILY_BRANCH` đại diện cho các nút nhánh (`parent_branch_id` trỏ đệ quy; `parent_branch_id IS NULL` là Nhánh Thủy tổ).
+- `MEMBER` đại diện cho các nút lá (`branch_id` là khóa ngoại trỏ về `FAMILY_BRANCH`).
+- Tách biệt Hồ sơ và Tài khoản: `MEMBER` lưu thông tin sinh học/lịch sử (Còn sống hoặc Đã mất). `USER_ACCOUNT` chỉ cấp riêng cho thành viên còn sống có nhu cầu đăng nhập app.
+- Hồ sơ ảo & Mã liên kết: Hỗ trợ tạo trước hồ sơ ảo (`MEMBER.is_placeholder = true`) qua Mã liên kết vị trí (`InviteType.PositionLinkCode`), cho phép con cháu kích hoạt tài khoản trực tiếp không cần chờ duyệt (US-18, US-19).
+- Thuật toán Chống chu trình: Hàm `kiemTraChuTrinh()` BẮT BUỘC ngăn chặn lặp vòng tròn cha - con khi thay đổi nhánh cấp trên.
+
+### Quy tắc B: Phân quyền Kép (Dual RBAC)
+- Phân quyền Tĩnh Toàn cục: Các vai trò dài hạn (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`) lưu tại `SYSTEM_ROLE` & `ACCOUNT_ROLE`.
+- Phân quyền Động Theo Bối cảnh: Các vai trò theo sự kiện (`HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer`) lưu tại `EVENT_PERSONNEL` gắn chặt với từng `event_id`.
+- Tự động Chuyển Chỉ đọc: Khi trạng thái sự kiện chuyển sang 'Closed' (Khóa sổ), tất cả quyền động trong `EVENT_PERSONNEL` thuộc `event_id` đó BẮT BUỘC tự động chuyển `is_read_only = true`.
+
+### Quy tắc C: Quyết toán Tài chính & Cờ chặn Khóa sổ Bắt buộc
+- Phiếu chi quyết toán (`EXPENSE_SETTLEMENT_VOUCHER`) có hóa đơn/chứng từ bị bác bỏ sẽ chuyển trạng thái sang `'NeedsExplanation'` (Cần giải trình).
+- RÀNG BUỘC CỨNG: Hệ thống BẮT BUỘC CHẶN thao tác khóa sổ sự kiện (`UC-QT03`/`UC-TC05`) nếu còn bất kỳ khoản quyết toán nào ở trạng thái `'NeedsExplanation'` hoặc còn phiếu tạm ứng chưa tất toán.
+
+### Quy tắc D: Sổ cái Bất biến (Append-Only Audit Trail)
+- `IMMUTABLE_LEDGER` hoạt động theo cơ chế BẤT BIẾN CHỈ CHÈN (INSERT-ONLY / APPEND-ONLY).
+- TUYỆT ĐỐI KHÔNG sinh câu lệnh SQL/JPA `UPDATE` hoặc `DELETE` trên bảng `IMMUTABLE_LEDGER`.
+- Điều chỉnh sai sót quá khứ BẮT BUỘC thông qua đề xuất `LEDGER_ADJUSTMENT_REQUEST`. Khi Trưởng tộc (`ROLE_CLAN_HEAD`) duyệt, hệ thống sẽ chèn một bản ghi bù trừ mới (`AdjustmentTransaction`) trỏ về `original_transaction_id`.
+- Chuỗi Mã băm Toàn vẹn: Mỗi bản ghi sổ cái BẮT BUỘC tính toán mã băm SHA-256 (`record_hash`) dựa trên mã băm bản ghi trước đó kết hợp với dữ liệu giao dịch hiện tại.
+
+### Quy tắc E: Tự động Đôn đốc & Cảnh báo Leo thang
+- Tiến trình quét ngầm (`TASK_PROGRESS_ALERT`): Spring Task Scheduler quét bảng `EVENT_TASK`:
+  - Trước hạn 24 giờ: Gửi thông báo nhắc nhở (`Reminder24H`) cho người nhận việc.
+  - Quá hạn 12 giờ: Gửi cảnh báo leo thang (`OverdueAlert12H`) trực tiếp cho Trưởng nhánh (`ROLE_BRANCH_HEAD`).
+
+### Quy tắc F: Phân bổ Tài chính & Cộng dồn Đóng góp Đệ quy
+- `CONTRIBUTION_MEMBER_DETAIL` phân bổ số tiền/hiện vật đóng góp cho từng thành viên trong hộ gia đình.
+- Thuật toán `TinhTongDongGopDeQuy()` tự động cộng dồn tiền mặt (`CASH_CONTRIBUTION`) và giá trị quy đổi hiện vật (`IN_KIND_CONTRIBUTION`) từ tất cả thành viên thuộc nhánh và các nhánh con trực thuộc.
+
+## 3. QUY CHUẨN SINH MÃ NGUỒN
+- Tên Package Backend: `com.dongho.app.modules.<ten_module>` (các module: `genealogy`, `event`, `task`, `contribution`, `finance`, `report`).
+- DTOs & Validation: Sử dụng DTO cho tất cả Request/Response Payload của Controller. Không trả trực tiếp JPA Entity ra API. Sử dụng Jakarta validation (`@NotNull`, `@Size`, `@Positive`).
+- Quản lý Giao dịch: Bọc tất cả thao tác biến động dữ liệu nhiều bảng trong `@Transactional(rollbackFor = Exception.class)`.
+- Chuẩn hóa Response API: Tất cả REST API BẮT BUỘC trả về đối tượng `ApiResponse<T>` gồm `code`, `message`, `data`, và `timestamp`.
+
+## 4. TÀI LIỆU THAM CHIẾU HƯỚNG DẪN
+Tham khảo chi tiết trong thư mục `agent/docs/`:
+- `agent/docs/01_KIEN_TRUC_HE_THONG.md`
+- `agent/docs/02_QUY_TAC_NGHIEP_VU.md`
+- `agent/docs/03_CAU_TRUC_CSDL.md`
+- `agent/docs/04_DAC_TA_API.md`
+- `agent/docs/05_FRONTEND_FLUTTER.md`
