@@ -3,6 +3,7 @@ package com.familyfund.modules.genealogy.service.impl;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
 import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
@@ -163,5 +164,36 @@ public class GenealogyServiceImpl implements GenealogyService {
             branchRepository.save(child);
             cascadeUpdateGenerationLevel(child, delta);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BranchTreeNodeResponse getBranchTree() {
+        FamilyBranch root = branchRepository.findByParentBranchIsNull()
+                .orElse(null);
+        if (root == null) {
+            return null;
+        }
+        return buildTreeNode(root);
+    }
+
+    private BranchTreeNodeResponse buildTreeNode(FamilyBranch branch) {
+        int memberCount = memberRepository.findByBranch_BranchId(branch.getBranchId()).size();
+        List<FamilyBranch> children = branchRepository.findByParentBranch_BranchId(branch.getBranchId());
+        List<BranchTreeNodeResponse> childNodes = children.stream()
+                .map(this::buildTreeNode)
+                .toList();
+
+        return BranchTreeNodeResponse.builder()
+                .branchId(branch.getBranchId())
+                .branchName(branch.getBranchName())
+                .clanName(branch.getClanName())
+                .generationLevel(branch.getGenerationLevel())
+                .parentBranchId(branch.getParentBranch() != null ? branch.getParentBranch().getBranchId() : null)
+                .representativeId(branch.getRepresentative() != null ? branch.getRepresentative().getMemberId() : null)
+                .representativeName(branch.getRepresentative() != null ? branch.getRepresentative().getFullName() : null)
+                .memberCount(memberCount)
+                .children(childNodes)
+                .build();
     }
 }

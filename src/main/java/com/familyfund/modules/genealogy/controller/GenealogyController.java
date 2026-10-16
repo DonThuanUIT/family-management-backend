@@ -2,6 +2,7 @@ package com.familyfund.modules.genealogy.controller;
 
 import com.familyfund.core.common.ApiResponse;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
 import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
@@ -46,5 +47,11 @@ public class GenealogyController {
             @Valid @RequestBody UpdateBranchRequest request) {
         BranchDetailResponse response = genealogyService.updateBranch(branchId, request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin chi nhánh thành công", response));
+    }
+
+    @GetMapping("/tree")
+    public ResponseEntity<ApiResponse<BranchTreeNodeResponse>> getBranchTree() {
+        BranchTreeNodeResponse tree = genealogyService.getBranchTree();
+        return ResponseEntity.ok(ApiResponse.success(tree));
     }
 }
