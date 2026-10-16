@@ -39,3 +39,4 @@ build/
 ### Environment & Local Build ###
 .env
 bin/
+*.class
