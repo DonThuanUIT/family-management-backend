@@ -196,4 +196,29 @@ public class GenealogyServiceImpl implements GenealogyService {
                 .children(childNodes)
                 .build();
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteBranch(String branchId) {
+        FamilyBranch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhánh có ID: " + branchId));
+
+        if (branch.getParentBranch() == null && branch.getGenerationLevel() == 1) {
+            throw new BusinessRuleException("Không được phép xóa Nhánh Gốc của dòng họ");
+        }
+
+        if (branchRepository.existsByParentBranch_BranchId(branchId)) {
+            throw new BusinessRuleException(
+                    "Không thể xóa nhánh đang có nhánh con trực thuộc. Vui lòng chuyển hoặc xóa các nhánh con trước."
+            );
+        }
+
+        if (memberRepository.existsByBranch_BranchId(branchId)) {
+            throw new BusinessRuleException(
+                    "Không thể xóa nhánh đang có thành viên gia đình trực thuộc. Vui lòng chuyển các thành viên sang nhánh khác trước."
+            );
+        }
+
+        branchRepository.delete(branch);
+    }
 }

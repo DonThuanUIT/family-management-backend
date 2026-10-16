@@ -17,4 +17,6 @@ public interface GenealogyService {
     BranchDetailResponse updateBranch(String branchId, UpdateBranchRequest request);
 
     BranchTreeNodeResponse getBranchTree();
+
+    void deleteBranch(String branchId);
 }

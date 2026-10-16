@@ -54,4 +54,10 @@ public class GenealogyController {
         BranchTreeNodeResponse tree = genealogyService.getBranchTree();
         return ResponseEntity.ok(ApiResponse.success(tree));
     }
+
+    @DeleteMapping("/{branchId}")
+    public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable String branchId) {
+        genealogyService.deleteBranch(branchId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa nhánh gia đình thành công", null));
+    }
 }
