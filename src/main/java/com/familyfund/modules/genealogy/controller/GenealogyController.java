@@ -60,4 +60,12 @@ public class GenealogyController {
         genealogyService.deleteBranch(branchId);
         return ResponseEntity.ok(ApiResponse.success("Xóa nhánh gia đình thành công", null));
     }
+
+    @PutMapping("/{branchId}/members/{memberId}")
+    public ResponseEntity<ApiResponse<Void>> assignMember(
+            @PathVariable String branchId,
+            @PathVariable String memberId) {
+        genealogyService.assignMemberToBranch(memberId, branchId);
+        return ResponseEntity.ok(ApiResponse.success("Gán thành viên vào nhánh thành công", null));
+    }
 }

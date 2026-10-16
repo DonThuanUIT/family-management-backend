@@ -19,4 +19,6 @@ public interface GenealogyService {
     BranchTreeNodeResponse getBranchTree();
 
     void deleteBranch(String branchId);
+
+    void assignMemberToBranch(String memberId, String branchId);
 }

@@ -1,6 +1,7 @@
 package com.familyfund.modules.genealogy.service.impl;
 
 import com.familyfund.core.exception.BusinessRuleException;
+import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
 import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
@@ -220,5 +221,26 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         branchRepository.delete(branch);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void assignMemberToBranch(String memberId, String branchId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thành viên có ID: " + memberId));
+
+        FamilyBranch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh có ID: " + branchId));
+
+        // Kiểm tra đời thứ của thành viên không được nhỏ hơn đời thứ của chi nhánh
+        if (member.getGeneration() < branch.getGenerationLevel()) {
+            throw new InvalidGenerationException(
+                    "Sai lệch đời thứ: Đời thứ của thành viên (" + member.getGeneration() +
+                            ") không thể nhỏ hơn đời thứ của chi nhánh (" + branch.getGenerationLevel() + ")"
+            );
+        }
+
+        member.setBranch(branch);
+        memberRepository.save(member);
     }
 }
