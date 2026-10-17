@@ -1,11 +1,11 @@
 package com.familyfund.modules.genealogy.controller;
 
 import com.familyfund.core.common.ApiResponse;
-import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
-import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
-import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.response.BranchTreeNodeResponse;
 import com.familyfund.modules.genealogy.service.GenealogyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,7 @@ public class GenealogyController {
     public ResponseEntity<ApiResponse<BranchDetailResponse>> updateRootBranch(
             @Valid @RequestBody UpdateRootBranchRequest request) {
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin nhánh gốc thành công", response));
+        return ResponseEntity.ok(ApiResponse.success("Root branch details updated successfully", response));
     }
 
     @PostMapping
@@ -38,7 +38,7 @@ public class GenealogyController {
             @Valid @RequestBody CreateChildBranchRequest request) {
         BranchDetailResponse response = genealogyService.createChildBranch(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Tạo mới nhánh gia đình con thành công", response));
+                .body(ApiResponse.success("Child branch created successfully", response));
     }
 
     @PutMapping("/{branchId}")
@@ -46,7 +46,7 @@ public class GenealogyController {
             @PathVariable String branchId,
             @Valid @RequestBody UpdateBranchRequest request) {
         BranchDetailResponse response = genealogyService.updateBranch(branchId, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin chi nhánh thành công", response));
+        return ResponseEntity.ok(ApiResponse.success("Branch details updated successfully", response));
     }
 
     @GetMapping("/tree")
@@ -58,7 +58,7 @@ public class GenealogyController {
     @DeleteMapping("/{branchId}")
     public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable String branchId) {
         genealogyService.deleteBranch(branchId);
-        return ResponseEntity.ok(ApiResponse.success("Xóa nhánh gia đình thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("Branch deleted successfully", null));
     }
 
     @PutMapping("/{branchId}/members/{memberId}")
@@ -66,6 +66,6 @@ public class GenealogyController {
             @PathVariable String branchId,
             @PathVariable String memberId) {
         genealogyService.assignMemberToBranch(memberId, branchId);
-        return ResponseEntity.ok(ApiResponse.success("Gán thành viên vào nhánh thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("Member assigned to branch successfully", null));
     }
 }

@@ -23,7 +23,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .code(200)
-                .message("Thành công")
+                .message("Success")
                 .data(data)
                 .timestamp(Instant.now())
                 .build();

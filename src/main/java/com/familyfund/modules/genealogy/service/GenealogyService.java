@@ -1,10 +1,10 @@
 package com.familyfund.modules.genealogy.service;
 
-import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
-import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
-import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.response.BranchTreeNodeResponse;
 
 public interface GenealogyService {
 

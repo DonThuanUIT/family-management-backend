@@ -3,11 +3,11 @@ package com.familyfund.modules.genealogy.service.impl;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
-import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
-import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
-import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.response.BranchTreeNodeResponse;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
 import com.familyfund.modules.genealogy.entity.Member;
 import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
@@ -33,7 +33,7 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(readOnly = true)
     public BranchDetailResponse getRootBranch() {
         FamilyBranch rootBranch = branchRepository.findByParentBranchIsNull()
-                .orElseThrow(() -> new ResourceNotFoundException("Chưa tìm thấy nhánh gốc trong hệ thống"));
+                .orElseThrow(() -> new ResourceNotFoundException("Root branch not found in the system"));
         return BranchDetailResponse.fromEntity(rootBranch);
     }
 
@@ -47,9 +47,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                         .parentBranch(null)
                         .build());
 
-        // Ràng buộc nghiệp vụ: Nhánh gốc bắt buộc generation_level = 1 và không có nhánh cha
+        // Business rule: Root branch must have generation_level = 1 and no parent branch
         if (rootBranch.getParentBranch() != null || rootBranch.getGenerationLevel() != 1) {
-            throw new BusinessRuleException("Nhánh này không phải là nhánh gốc hợp lệ của dòng họ");
+            throw new BusinessRuleException("This branch is not a valid root branch of the clan");
         }
 
         rootBranch.setClanName(request.getClanName());
@@ -59,7 +59,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         if (request.getRepresentativeId() != null && !request.getRepresentativeId().trim().isEmpty()) {
             Member rep = memberRepository.findById(request.getRepresentativeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy thông tin Thủy tổ/Người đại diện có ID: " + request.getRepresentativeId()
+                            "Representative/ancestor not found with ID: " + request.getRepresentativeId()
                     ));
             rootBranch.setRepresentative(rep);
         } else {
@@ -75,10 +75,10 @@ public class GenealogyServiceImpl implements GenealogyService {
     public BranchDetailResponse createChildBranch(CreateChildBranchRequest request) {
         FamilyBranch parent = branchRepository.findById(request.getParentBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhánh cha có ID: " + request.getParentBranchId()
+                        "Parent branch not found with ID: " + request.getParentBranchId()
                 ));
 
-        // Kiểm tra chống chu trình và kiểm tra đời thứ
+        // Cycle check and generation level check
         genealogyValidator.kiemTraChuTrinh(null, request.getParentBranchId());
         int childGenerationLevel = parent.getGenerationLevel() + 1;
         genealogyValidator.kiemTraDoiThu(parent.getGenerationLevel(), childGenerationLevel);
@@ -95,7 +95,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         if (request.getRepresentativeId() != null && !request.getRepresentativeId().trim().isEmpty()) {
             Member rep = memberRepository.findById(request.getRepresentativeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy người đại diện có ID: " + request.getRepresentativeId()
+                            "Representative not found with ID: " + request.getRepresentativeId()
                     ));
             childBranch.setRepresentative(rep);
         }
@@ -108,23 +108,23 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(rollbackFor = Exception.class)
     public BranchDetailResponse updateBranch(String branchId, UpdateBranchRequest request) {
         FamilyBranch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhánh có ID: " + branchId));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId));
 
-        // Nếu chuyển nhánh cha
+        // If reparenting
         if (request.getParentBranchId() != null) {
             String currentParentId = branch.getParentBranch() != null ? branch.getParentBranch().getBranchId() : null;
             if (!request.getParentBranchId().equals(currentParentId)) {
-                // Không cho phép gán cha cho nhánh gốc
+                // Cannot assign parent to root branch
                 if (branch.getParentBranch() == null && branch.getGenerationLevel() == 1) {
-                    throw new BusinessRuleException("Không thể gán nhánh cha cho Nhánh Gốc của dòng họ");
+                    throw new BusinessRuleException("Cannot assign parent branch to the root branch of the clan");
                 }
 
-                // Kiểm tra chống chu trình khép kín
+                // Check closed cycle
                 genealogyValidator.kiemTraChuTrinh(branchId, request.getParentBranchId());
 
                 FamilyBranch newParent = branchRepository.findById(request.getParentBranchId())
                         .orElseThrow(() -> new ResourceNotFoundException(
-                                "Không tìm thấy nhánh cha mới có ID: " + request.getParentBranchId()
+                                "New parent branch not found with ID: " + request.getParentBranchId()
                         ));
 
                 int newGenLevel = newParent.getGenerationLevel() + 1;
@@ -134,7 +134,7 @@ public class GenealogyServiceImpl implements GenealogyService {
                 branch.setParentBranch(newParent);
                 branch.setGenerationLevel(newGenLevel);
 
-                // Cập nhật đời thứ đệ quy cho toàn bộ cây con cháu bên dưới
+                // Cascade update generation levels for all descendants
                 if (delta != 0) {
                     cascadeUpdateGenerationLevel(branch, delta);
                 }
@@ -147,7 +147,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         if (request.getRepresentativeId() != null && !request.getRepresentativeId().trim().isEmpty()) {
             Member rep = memberRepository.findById(request.getRepresentativeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy người đại diện có ID: " + request.getRepresentativeId()
+                            "Representative not found with ID: " + request.getRepresentativeId()
                     ));
             branch.setRepresentative(rep);
         } else {
@@ -202,21 +202,21 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteBranch(String branchId) {
         FamilyBranch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhánh có ID: " + branchId));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId));
 
         if (branch.getParentBranch() == null && branch.getGenerationLevel() == 1) {
-            throw new BusinessRuleException("Không được phép xóa Nhánh Gốc của dòng họ");
+            throw new BusinessRuleException("Cannot delete the root branch of the clan");
         }
 
         if (branchRepository.existsByParentBranch_BranchId(branchId)) {
             throw new BusinessRuleException(
-                    "Không thể xóa nhánh đang có nhánh con trực thuộc. Vui lòng chuyển hoặc xóa các nhánh con trước."
+                    "Cannot delete a branch that has child branches. Please reassign or delete child branches first."
             );
         }
 
         if (memberRepository.existsByBranch_BranchId(branchId)) {
             throw new BusinessRuleException(
-                    "Không thể xóa nhánh đang có thành viên gia đình trực thuộc. Vui lòng chuyển các thành viên sang nhánh khác trước."
+                    "Cannot delete a branch that has associated family members. Please reassign members to another branch first."
             );
         }
 
@@ -227,16 +227,16 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(rollbackFor = Exception.class)
     public void assignMemberToBranch(String memberId, String branchId) {
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thành viên có ID: " + memberId));
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId));
 
         FamilyBranch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh có ID: " + branchId));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId));
 
-        // Kiểm tra đời thứ của thành viên không được nhỏ hơn đời thứ của chi nhánh
+        // Validate member generation is not less than branch generation level
         if (member.getGeneration() < branch.getGenerationLevel()) {
             throw new InvalidGenerationException(
-                    "Sai lệch đời thứ: Đời thứ của thành viên (" + member.getGeneration() +
-                            ") không thể nhỏ hơn đời thứ của chi nhánh (" + branch.getGenerationLevel() + ")"
+                    "Generation level mismatch: Member generation (" + member.getGeneration() +
+                            ") cannot be less than branch generation level (" + branch.getGenerationLevel() + ")"
             );
         }
 

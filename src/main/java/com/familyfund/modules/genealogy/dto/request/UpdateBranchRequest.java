@@ -1,4 +1,4 @@
-package com.familyfund.modules.genealogy.dto;
+package com.familyfund.modules.genealogy.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -13,13 +13,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpdateBranchRequest {
 
-    @NotBlank(message = "Tên chi/nhánh không được để trống")
-    @Size(max = 100, message = "Tên chi/nhánh không được vượt quá 100 ký tự")
+    @NotBlank(message = "Branch name must not be blank")
+    @Size(max = 100, message = "Branch name must not exceed 100 characters")
     private String branchName;
 
     private String parentBranchId;
 
-    @Size(max = 1000, message = "Mô tả không được vượt quá 1000 ký tự")
+    @Size(max = 1000, message = "Description must not exceed 1000 characters")
     private String description;
 
     private String representativeId;

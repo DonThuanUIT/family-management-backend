@@ -1,4 +1,4 @@
-package com.familyfund.modules.genealogy.dto;
+package com.familyfund.modules.genealogy.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -12,6 +12,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AssignMemberRequest {
 
-    @NotBlank(message = "Mã chi nhánh không được để trống")
+    @NotBlank(message = "Branch ID must not be blank")
     private String branchId;
 }

@@ -1,4 +1,4 @@
-package com.familyfund.modules.genealogy.dto;
+package com.familyfund.modules.genealogy.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

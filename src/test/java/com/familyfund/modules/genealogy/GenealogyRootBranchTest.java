@@ -1,8 +1,8 @@
 package com.familyfund.modules.genealogy;
 
 import com.familyfund.core.exception.ResourceNotFoundException;
-import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
-import com.familyfund.modules.genealogy.dto.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
+import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
 import com.familyfund.modules.genealogy.entity.Member;
 import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
@@ -40,20 +40,20 @@ class GenealogyRootBranchTest {
     void setUp() {
         mockRootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
-                .clanName("Dòng Họ Mặc Định")
-                .branchName("Nhánh Gốc Mặc Định")
+                .clanName("Default Clan")
+                .branchName("Default Root Branch")
                 .generationLevel(1)
                 .parentBranch(null)
                 .build();
     }
 
     @Test
-    @DisplayName("Cập nhật thành công thông tin nhánh gốc khi đã tồn tại nhánh gốc")
+    @DisplayName("Update root branch successfully when root branch exists")
     void testUpdateRootBranch_Success_WhenRootExists() {
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyễn Tộc")
-                .branchName("Nhánh Đại Tôn")
-                .description("Nhánh khởi tổ làng Cổ Am")
+                .clanName("Nguyen Clan")
+                .branchName("Dai Ton Branch")
+                .description("First branch originating from Co Am village")
                 .build();
 
         when(branchRepository.findByParentBranchIsNull()).thenReturn(Optional.of(mockRootBranch));
@@ -62,26 +62,26 @@ class GenealogyRootBranchTest {
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
 
         assertNotNull(response);
-        assertEquals("Nguyễn Tộc", response.getClanName());
-        assertEquals("Nhánh Đại Tôn", response.getBranchName());
+        assertEquals("Nguyen Clan", response.getClanName());
+        assertEquals("Dai Ton Branch", response.getBranchName());
         assertEquals(1, response.getGenerationLevel());
         assertNull(response.getParentBranchId());
         verify(branchRepository, times(1)).save(mockRootBranch);
     }
 
     @Test
-    @DisplayName("Cập nhật thành công thông tin nhánh gốc kèm người đại diện/thủy tổ")
+    @DisplayName("Update root branch successfully with representative/ancestor")
     void testUpdateRootBranch_Success_WithRepresentative() {
         Member mockRep = Member.builder()
                 .memberId("MEM_001")
-                .fullName("Cụ Thủy Tổ Nguyễn Quý Công")
+                .fullName("Grand Ancestor Nguyen Quy Cong")
                 .generation(1)
                 .gender("Male")
                 .build();
 
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyễn Tộc")
-                .branchName("Nhánh Đại Tôn")
+                .clanName("Nguyen Clan")
+                .branchName("Dai Ton Branch")
                 .representativeId("MEM_001")
                 .build();
 
@@ -93,16 +93,16 @@ class GenealogyRootBranchTest {
 
         assertNotNull(response);
         assertEquals("MEM_001", response.getRepresentativeId());
-        assertEquals("Cụ Thủy Tổ Nguyễn Quý Công", response.getRepresentativeName());
+        assertEquals("Grand Ancestor Nguyen Quy Cong", response.getRepresentativeName());
         verify(memberRepository, times(1)).findById("MEM_001");
     }
 
     @Test
-    @DisplayName("Quăng ngoại lệ ResourceNotFoundException khi không tìm thấy mã người đại diện")
+    @DisplayName("Throws ResourceNotFoundException when representative ID is not found")
     void testUpdateRootBranch_RepresentativeNotFound_ThrowsException() {
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyễn Tộc")
-                .branchName("Nhánh Đại Tôn")
+                .clanName("Nguyen Clan")
+                .branchName("Dai Ton Branch")
                 .representativeId("MEM_NON_EXIST")
                 .build();
 
@@ -114,7 +114,7 @@ class GenealogyRootBranchTest {
     }
 
     @Test
-    @DisplayName("Lấy thông tin nhánh gốc thành công")
+    @DisplayName("Get root branch successfully")
     void testGetRootBranch_Success() {
         when(branchRepository.findByParentBranchIsNull()).thenReturn(Optional.of(mockRootBranch));
 
@@ -126,7 +126,7 @@ class GenealogyRootBranchTest {
     }
 
     @Test
-    @DisplayName("Lấy thông tin nhánh gốc quăng lỗi nếu chưa khởi tạo nhánh gốc")
+    @DisplayName("Throws ResourceNotFoundException when root branch does not exist")
     void testGetRootBranch_NotFound_ThrowsException() {
         when(branchRepository.findByParentBranchIsNull()).thenReturn(Optional.empty());
 

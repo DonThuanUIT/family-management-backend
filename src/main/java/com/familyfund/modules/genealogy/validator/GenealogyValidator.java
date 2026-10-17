@@ -30,7 +30,7 @@ public class GenealogyValidator {
         }
 
         if (currentBranchId != null && currentBranchId.equals(proposedParentBranchId)) {
-            throw new BranchCycleException("Một nhánh không thể là cha của chính nó (branchId: " + currentBranchId + ")");
+            throw new BranchCycleException("A branch cannot be its own parent (branchId: " + currentBranchId + ")");
         }
 
         String checkId = proposedParentBranchId;
@@ -39,37 +39,37 @@ public class GenealogyValidator {
         while (checkId != null) {
             if (currentBranchId != null && checkId.equals(currentBranchId)) {
                 throw new BranchCycleException(
-                        "Phát hiện chu trình phả hệ khép kín: Nhánh cha được chọn [" + proposedParentBranchId +
-                                "] là hậu duệ của nhánh hiện tại [" + currentBranchId + "]!"
+                        "Closed genealogy cycle detected: Selected parent branch [" + proposedParentBranchId +
+                                "] is a descendant of the current branch [" + currentBranchId + "]!"
                 );
             }
 
             if (!visited.add(checkId)) {
-                throw new BranchCycleException("Cơ sở dữ liệu phát hiện chu trình vòng lặp tại nhánh: " + checkId);
+                throw new BranchCycleException("Cycle loop detected in database hierarchy at branch: " + checkId);
             }
 
             final String targetId = checkId;
             FamilyBranch parent = branchRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhánh cha có ID: " + targetId));
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent branch not found with ID: " + targetId));
 
             checkId = parent.getParentBranch() != null ? parent.getParentBranch().getBranchId() : null;
         }
     }
 
     /**
-     * Kiểm tra ràng buộc đời thứ giữa cha và con.
-     * Bắt buộc doiThu_con > doiThu_cha. Cấm hoàn toàn doiThu_con <= doiThu_cha.
+     * Validate generation level constraint between parent and child.
+     * Requires childGeneration > parentGeneration.
      *
-     * @param parentGenerationLevel Đời thứ của nhánh cha
-     * @param childGenerationLevel  Đời thứ của nhánh con
-     * @throws InvalidGenerationException khi đời con nhỏ hơn hoặc bằng đời cha
+     * @param parentGenerationLevel Generation level of parent branch
+     * @param childGenerationLevel  Generation level of child branch
+     * @throws InvalidGenerationException when child generation is less than or equal to parent generation
      */
     public void kiemTraDoiThu(Integer parentGenerationLevel, Integer childGenerationLevel) {
         if (parentGenerationLevel != null && childGenerationLevel != null) {
             if (childGenerationLevel <= parentGenerationLevel) {
                 throw new InvalidGenerationException(
-                        "Sai lệch đời thứ: Đời thứ của nhánh con (" + childGenerationLevel +
-                                ") phải lớn hơn đời thứ của nhánh cha (" + parentGenerationLevel + ")"
+                        "Generation level mismatch: Child branch generation (" + childGenerationLevel +
+                                ") must be greater than parent branch generation (" + parentGenerationLevel + ")"
                 );
             }
         }

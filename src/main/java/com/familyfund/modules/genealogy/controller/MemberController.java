@@ -1,7 +1,7 @@
 package com.familyfund.modules.genealogy.controller;
 
 import com.familyfund.core.common.ApiResponse;
-import com.familyfund.modules.genealogy.dto.AssignMemberRequest;
+import com.familyfund.modules.genealogy.dto.request.AssignMemberRequest;
 import com.familyfund.modules.genealogy.service.GenealogyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +20,6 @@ public class MemberController {
             @PathVariable String memberId,
             @Valid @RequestBody AssignMemberRequest request) {
         genealogyService.assignMemberToBranch(memberId, request.getBranchId());
-        return ResponseEntity.ok(ApiResponse.success("Gán thành viên vào nhánh gia đình thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("Member assigned to family branch successfully", null));
     }
 }

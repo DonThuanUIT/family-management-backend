@@ -3,10 +3,10 @@ package com.familyfund.modules.genealogy;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
-import com.familyfund.modules.genealogy.dto.BranchDetailResponse;
-import com.familyfund.modules.genealogy.dto.BranchTreeNodeResponse;
-import com.familyfund.modules.genealogy.dto.CreateChildBranchRequest;
-import com.familyfund.modules.genealogy.dto.UpdateBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
+import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
+import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
+import com.familyfund.modules.genealogy.dto.response.BranchTreeNodeResponse;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
 import com.familyfund.modules.genealogy.entity.Member;
 import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
@@ -51,28 +51,28 @@ class GenealogyHierarchyTest {
     void setUp() {
         rootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
-                .clanName("Nguyễn Tộc")
-                .branchName("Nhánh Đại Tôn")
+                .clanName("Nguyen Clan")
+                .branchName("Dai Ton Branch")
                 .generationLevel(1)
                 .parentBranch(null)
                 .build();
 
         childBranch = FamilyBranch.builder()
                 .branchId("BR_CHILD_1")
-                .clanName("Nguyễn Tộc")
-                .branchName("Chi Giáp")
+                .clanName("Nguyen Clan")
+                .branchName("Giap Branch")
                 .generationLevel(2)
                 .parentBranch(rootBranch)
                 .build();
     }
 
     @Test
-    @DisplayName("Tạo nhánh con thành công: Đời thứ tự động gán bằng đời cha + 1")
+    @DisplayName("Create child branch successfully: Generation level automatically set to parent generation + 1")
     void testCreateChildBranch_Success() {
         CreateChildBranchRequest request = CreateChildBranchRequest.builder()
-                .branchName("Chi Giáp")
+                .branchName("Giap Branch")
                 .parentBranchId("BR_ROOT")
-                .description("Chi giáp định cư tại Hà Nội")
+                .description("Giap branch located in Hanoi")
                 .build();
 
         when(branchRepository.findById("BR_ROOT")).thenReturn(Optional.of(rootBranch));
@@ -81,7 +81,7 @@ class GenealogyHierarchyTest {
         BranchDetailResponse response = genealogyService.createChildBranch(request);
 
         assertNotNull(response);
-        assertEquals("Chi Giáp", response.getBranchName());
+        assertEquals("Giap Branch", response.getBranchName());
         assertEquals(2, response.getGenerationLevel());
         assertEquals("BR_ROOT", response.getParentBranchId());
         verify(genealogyValidator).kiemTraChuTrinh(null, "BR_ROOT");
@@ -89,10 +89,10 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Tạo nhánh con thất bại khi không tìm thấy nhánh cha")
+    @DisplayName("Create child branch fails when parent branch is not found")
     void testCreateChildBranch_ParentNotFound_ThrowsResourceNotFoundException() {
         CreateChildBranchRequest request = CreateChildBranchRequest.builder()
-                .branchName("Chi Giáp")
+                .branchName("Giap Branch")
                 .parentBranchId("BR_NON_EXIST")
                 .build();
 
@@ -103,15 +103,15 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Cập nhật chuyển nhánh cha và kích hoạt cập nhật đời thứ đệ quy (Cascade)")
+    @DisplayName("Update reparenting branch successfully and triggers cascade generation level update")
     void testUpdateBranch_Reparenting_Success_WithCascade() {
-        // Nhánh cha mới: BR_NEW_PARENT có generation = 2 -> childBranch sẽ chuyển thành generation = 3 (delta = +1)
+        // New parent branch: BR_NEW_PARENT with generation = 2 -> childBranch will become generation = 3 (delta = +1)
         FamilyBranch newParent = FamilyBranch.builder()
                 .branchId("BR_NEW_PARENT")
                 .generationLevel(2)
                 .build();
 
-        // Nhánh cháu: BR_GRANDCHILD trực thuộc childBranch có generation = 3
+        // Grandchild branch: BR_GRANDCHILD under childBranch with generation = 3
         FamilyBranch grandChild = FamilyBranch.builder()
                 .branchId("BR_GRANDCHILD")
                 .generationLevel(3)
@@ -119,7 +119,7 @@ class GenealogyHierarchyTest {
                 .build();
 
         UpdateBranchRequest request = UpdateBranchRequest.builder()
-                .branchName("Chi Giáp Đổi Tên")
+                .branchName("Giap Branch Renamed")
                 .parentBranchId("BR_NEW_PARENT")
                 .build();
 
@@ -133,16 +133,16 @@ class GenealogyHierarchyTest {
         assertNotNull(response);
         assertEquals(3, response.getGenerationLevel());
         assertEquals("BR_NEW_PARENT", response.getParentBranchId());
-        // Verify nhánh cháu được tăng lên đời 4 (3 + delta 1)
+        // Verify grandchild generation increased to 4 (3 + delta 1)
         assertEquals(4, grandChild.getGenerationLevel());
         verify(genealogyValidator).kiemTraChuTrinh("BR_CHILD_1", "BR_NEW_PARENT");
     }
 
     @Test
-    @DisplayName("Chặn gán nhánh cha cho Nhánh Gốc -> Tung BusinessRuleException")
+    @DisplayName("Reject assigning parent to Root Branch -> Throws BusinessRuleException")
     void testUpdateBranch_RootCannotHaveParent_ThrowsBusinessRuleException() {
         UpdateBranchRequest request = UpdateBranchRequest.builder()
-                .branchName("Đổi tên gốc")
+                .branchName("Rename root")
                 .parentBranchId("BR_SOME_PARENT")
                 .build();
 
@@ -152,10 +152,10 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Xóa nhánh thất bại khi nhánh vẫn còn nhánh con trực thuộc")
+    @DisplayName("Delete branch fails when branch still has child branches")
     void testDeleteBranch_HasChildren_ThrowsBusinessRuleException() {
         when(branchRepository.findById("BR_ROOT")).thenReturn(Optional.of(rootBranch));
-        // Đổi parentBranch để không bị chặn bởi luật root
+        // Change parentBranch so it is not blocked by root rule
         rootBranch.setParentBranch(FamilyBranch.builder().branchId("BR_ANCESTOR").build());
         rootBranch.setGenerationLevel(2);
 
@@ -166,7 +166,7 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Xóa nhánh thất bại khi nhánh vẫn còn thành viên gia đình")
+    @DisplayName("Delete branch fails when branch still has family members")
     void testDeleteBranch_HasMembers_ThrowsBusinessRuleException() {
         when(branchRepository.findById("BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.existsByParentBranch_BranchId("BR_CHILD_1")).thenReturn(false);
@@ -177,7 +177,7 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Xóa nhánh thành công khi nhánh không có con và không có thành viên")
+    @DisplayName("Delete branch successfully when branch has no children and no members")
     void testDeleteBranch_Success() {
         when(branchRepository.findById("BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.existsByParentBranch_BranchId("BR_CHILD_1")).thenReturn(false);
@@ -188,11 +188,11 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Gán thành viên vào nhánh thành công khi đời thứ thành viên >= đời thứ nhánh")
+    @DisplayName("Assign member to branch successfully when member generation >= branch generation level")
     void testAssignMemberToBranch_Success() {
         Member member = Member.builder()
                 .memberId("MEM_005")
-                .fullName("Nguyễn Văn An")
+                .fullName("Nguyen Van An")
                 .generation(3)
                 .build();
 
@@ -205,12 +205,12 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Gán thành viên thất bại khi đời thành viên nhỏ hơn đời nhánh -> Tung InvalidGenerationException")
+    @DisplayName("Assign member fails when member generation is smaller than branch generation level -> Throws InvalidGenerationException")
     void testAssignMemberToBranch_MemberGenerationSmallerThanBranch_ThrowsInvalidGenerationException() {
-        // Member generation = 1 nhưng Branch generation = 2 (1 < 2)
+        // Member generation = 1 but Branch generation = 2 (1 < 2)
         Member member = Member.builder()
                 .memberId("MEM_ANCESTOR")
-                .fullName("Cụ Tiên Tổ")
+                .fullName("Ancient Ancestor")
                 .generation(1)
                 .build();
 
@@ -224,7 +224,7 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Truy vấn cây phả hệ phân cấp lồng nhau thành công")
+    @DisplayName("Query nested hierarchical branch tree successfully")
     void testGetBranchTree_Success() {
         when(branchRepository.findByParentBranchIsNull()).thenReturn(Optional.of(rootBranch));
         when(memberRepository.findByBranch_BranchId("BR_ROOT")).thenReturn(Collections.emptyList());

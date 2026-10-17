@@ -28,7 +28,7 @@ class GenealogyValidatorTest {
     private GenealogyValidator validator;
 
     @Test
-    @DisplayName("Bẫy chu trình trực tiếp: Nhánh tự trỏ vào chính nó làm cha -> Tung BranchCycleException")
+    @DisplayName("Direct cycle check: Branch points to itself as parent -> Throws BranchCycleException")
     void testCycle_SelfParent_ThrowsBranchCycleException() {
         assertThrows(BranchCycleException.class, () ->
                 validator.kiemTraChuTrinh("BR_01", "BR_01")
@@ -36,24 +36,24 @@ class GenealogyValidatorTest {
     }
 
     @Test
-    @DisplayName("Bẫy chu trình trực tiếp 2 cấp: A là cha B, đổi cha của A thành B -> Tung BranchCycleException")
+    @DisplayName("Direct 2-level cycle check: A is parent of B, changing parent of A to B -> Throws BranchCycleException")
     void testCycle_DirectLoop_ThrowsBranchCycleException() {
-        // Cấu trúc: A là cha của B
+        // Hierarchy: A is parent of B
         FamilyBranch branchA = FamilyBranch.builder().branchId("BR_A").generationLevel(1).parentBranch(null).build();
         FamilyBranch branchB = FamilyBranch.builder().branchId("BR_B").generationLevel(2).parentBranch(branchA).build();
 
         when(branchRepository.findById("BR_B")).thenReturn(Optional.of(branchB));
 
-        // Thử đổi cha của A thành B: validator.kiemTraChuTrinh("BR_A", "BR_B")
+        // Attempt to change parent of A to B
         assertThrows(BranchCycleException.class, () ->
                 validator.kiemTraChuTrinh("BR_A", "BR_B")
         );
     }
 
     @Test
-    @DisplayName("Bẫy chu trình gián tiếp đa cấp: A -> B -> C -> D, cố tình gán D làm cha của A -> Tung BranchCycleException")
+    @DisplayName("Multi-level indirect cycle check: A -> B -> C -> D, assigning D as parent of A -> Throws BranchCycleException")
     void testCycle_MultiLevelLoop_ThrowsBranchCycleException() {
-        // Cấu trúc chuỗi: A (đời 1) -> B (đời 2) -> C (đời 3) -> D (đời 4)
+        // Hierarchy chain: A (gen 1) -> B (gen 2) -> C (gen 3) -> D (gen 4)
         FamilyBranch branchA = FamilyBranch.builder().branchId("BR_A").generationLevel(1).parentBranch(null).build();
         FamilyBranch branchB = FamilyBranch.builder().branchId("BR_B").generationLevel(2).parentBranch(branchA).build();
         FamilyBranch branchC = FamilyBranch.builder().branchId("BR_C").generationLevel(3).parentBranch(branchB).build();
@@ -63,14 +63,14 @@ class GenealogyValidatorTest {
         when(branchRepository.findById("BR_C")).thenReturn(Optional.of(branchC));
         when(branchRepository.findById("BR_B")).thenReturn(Optional.of(branchB));
 
-        // Thử gán cha của A thành D: duyệt từ D -> C -> B -> A (gặp A là currentBranchId)
+        // Attempt to assign parent of A to D
         assertThrows(BranchCycleException.class, () ->
                 validator.kiemTraChuTrinh("BR_A", "BR_D")
         );
     }
 
     @Test
-    @DisplayName("Cấu trúc hợp lệ không có chu trình -> Hoàn thành không ném ngoại lệ")
+    @DisplayName("Valid hierarchy without cycles -> Completes without throwing exception")
     void testValidHierarchy_NoCycle() {
         FamilyBranch branchRoot = FamilyBranch.builder().branchId("BR_ROOT").generationLevel(1).parentBranch(null).build();
         FamilyBranch branchA = FamilyBranch.builder().branchId("BR_A").generationLevel(2).parentBranch(branchRoot).build();
@@ -78,14 +78,14 @@ class GenealogyValidatorTest {
         when(branchRepository.findById("BR_A")).thenReturn(Optional.of(branchA));
         when(branchRepository.findById("BR_ROOT")).thenReturn(Optional.of(branchRoot));
 
-        // Tạo nhánh con mới BR_NEW dưới BR_A
+        // Create new child branch BR_NEW under BR_A
         assertDoesNotThrow(() ->
                 validator.kiemTraChuTrinh("BR_NEW", "BR_A")
         );
     }
 
     @Test
-    @DisplayName("Bẫy sai lệch đời thứ: Đời con nhỏ hơn đời cha (doiThu_con < doiThu_cha) -> Tung InvalidGenerationException")
+    @DisplayName("Generation level check: Child generation level less than parent -> Throws InvalidGenerationException")
     void testGenerationValidation_ChildSmallerThanParent_ThrowsInvalidGenerationException() {
         assertThrows(InvalidGenerationException.class, () ->
                 validator.kiemTraDoiThu(3, 2)
@@ -93,7 +93,7 @@ class GenealogyValidatorTest {
     }
 
     @Test
-    @DisplayName("Bẫy sai lệch đời thứ: Đời con bằng đời cha (doiThu_con == doiThu_cha) -> Tung InvalidGenerationException")
+    @DisplayName("Generation level check: Child generation level equals parent -> Throws InvalidGenerationException")
     void testGenerationValidation_ChildEqualsParent_ThrowsInvalidGenerationException() {
         assertThrows(InvalidGenerationException.class, () ->
                 validator.kiemTraDoiThu(3, 3)
@@ -101,7 +101,7 @@ class GenealogyValidatorTest {
     }
 
     @Test
-    @DisplayName("Đời thứ hợp lệ: Đời con lớn hơn đời cha (doiThu_con > doiThu_cha) -> Không ném ngoại lệ")
+    @DisplayName("Generation level check: Child generation level greater than parent -> Success")
     void testGenerationValidation_ChildGreaterThanParent_Success() {
         assertDoesNotThrow(() ->
                 validator.kiemTraDoiThu(3, 4)
