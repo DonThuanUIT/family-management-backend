@@ -32,6 +32,9 @@ public class FamilyBranch {
     @Column(name = "branch_id", length = 20, nullable = false)
     private String branchId;
 
+    @Column(name = "clan_id", length = 20)
+    private String clanId;
+
     @Column(name = "clan_name", length = 150)
     private String clanName;
 
