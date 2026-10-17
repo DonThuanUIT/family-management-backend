@@ -53,7 +53,27 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
 
+fun loadDotEnv(): Map<String, String> {
+    val envMap = mutableMapOf<String, String>()
+    val envFile = file(".env")
+    if (envFile.exists()) {
+        envFile.readLines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                val parts = trimmed.split("=", limit = 2)
+                envMap[parts[0].trim()] = parts[1].trim()
+            }
+        }
+    }
+    return envMap
+}
+
+tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun> {
+    environment(loadDotEnv())
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    environment(loadDotEnv())
 }
 
