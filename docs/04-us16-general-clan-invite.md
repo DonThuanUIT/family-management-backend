@@ -318,3 +318,4 @@ curl -X PATCH http://localhost:8080/api/v1/invitations/8K9P2X7N/deactivate
 #### Bước 7: Trực quan hóa và Test trên Swagger UI
 Truy cập giao diện Swagger UI: `http://localhost:8082`.
 Tại nhóm thẻ **Invitations & Onboarding**, bạn có thể bấm **Try it out** để gửi trực tiếp các request trên trình duyệt.
+
