@@ -1,39 +1,4 @@
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: familyfund-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-familyfund_db}
-      POSTGRES_USER: ${POSTGRES_USER:-familyfund_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-familyfund_secret}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-familyfund_user} -d ${POSTGRES_DB:-familyfund_db}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - familyfund-network
-
-  adminer:
-    image: adminer:latest
-    container_name: familyfund-adminer
-    restart: unless-stopped
-    ports:
-      - "${ADMINER_PORT:-8088}:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - familyfund-network
-
   swagger:
     image: swaggerapi/swagger-ui:latest
     container_name: familyfund-swagger
@@ -47,11 +12,15 @@ services:
     networks:
       - familyfund-network
 
-volumes:
-  postgres_data:
-    driver: local
+  adminer:
+    image: adminer:latest
+    container_name: familyfund-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8088}:8080"
+    networks:
+      - familyfund-network
 
 networks:
   familyfund-network:
     driver: bridge
-
