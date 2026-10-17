@@ -259,3 +259,81 @@ paths:
         '200':
           description: Danh sách các bút toán sổ cái bất biến
 
+  /invitations/general:
+    post:
+      summary: Tạo mã mời chung gia phả (US-16)
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetBranchId:
+                  type: string
+                  example: BRANCH_ROOT
+                maxUses:
+                  type: integer
+                  example: 100
+                validityDays:
+                  type: integer
+                  example: 30
+      responses:
+        '201':
+          description: Tạo mã mời thành công
+        '400':
+          description: Tham số không hợp lệ
+        '403':
+          description: Không có quyền (chỉ dành cho ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+    get:
+      summary: Lấy danh sách các mã mời chung đang hoạt động
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Danh sách mã mời chung
+
+  /invitations/{inviteCode}:
+    get:
+      summary: Xem chi tiết thông tin mã mời (Public cho trang đón tiếp US-17)
+      tags:
+        - Invitations & Onboarding
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 8K9P2X7N
+      responses:
+        '200':
+          description: Thông tin mã mời
+        '404':
+          description: Mã mời không tồn tại hoặc đã bị vô hiệu hóa
+
+  /invitations/{inviteCode}/deactivate:
+    patch:
+      summary: Vô hiệu hóa mã mời sớm
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Vô hiệu hóa thành công
+        '403':
+          description: Không có quyền thực hiện
+
+

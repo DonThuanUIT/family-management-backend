@@ -139,3 +139,36 @@ graph LR
 2. **Giao dịch bù trừ (Adjustment Transaction)**: Khi phát hiện sai lệch số liệu sau khi sự kiện đã khóa sổ, Thủ quỹ lập một bút toán điều chỉnh mới mang giá trị chênh lệch (âm hoặc dương) và liên kết với `original_transaction_id` của giao dịch gốc.
 3. **Phê duyệt 2 lớp**: Bút toán điều chỉnh chỉ có hiệu lực khi có chữ ký duyệt của Trưởng tộc (`approved_by_account_id IS NOT NULL`).
 
+---
+
+## 6. Luồng 6: Tạo Mã Mời Chung Gia Phả & Xem Trước Công Khai (US-16)
+
+Để đơn giản hóa việc quy tụ con cháu xa quê gia nhập dòng họ, hệ thống cung cấp luồng sinh mã mời chung gia phả (`GeneralClanInvite`) có khả năng chia sẻ diện rộng:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor ClanHead as Trưởng tộc (ROLE_CLAN_HEAD)
+    participant API as InvitationController (/api/v1/invitations)
+    participant Svc as InvitationService
+    participant DB as PostgreSQL (invitation_codes)
+    actor Guest as Con cháu / Thành viên mới
+
+    ClanHead->>API: POST /api/v1/invitations/general (maxUses, validityDays, targetBranchId)
+    API->>Svc: createGeneralClanInvite(request, principal)
+    Svc->>Svc: Sinh mã 8 ký tự Base32 + URL chia sẻ đầy đủ
+    Svc->>DB: Lưu bản ghi invitation_codes (invite_type='GeneralClanInvite')
+    DB-->>API: Trả về InviteCodeResponse
+    API-->>ClanHead: Mã mời & shareable_url (VD: https://familyfund.vn/join?code=8K9P2X7N)
+    
+    Note over ClanHead,Guest: Trưởng tộc gửi mã/link vào nhóm Zalo/Facebook dòng họ
+    
+    Guest->>API: GET /api/v1/invitations/{code}/verify (Công khai, không cần đăng nhập)
+    API->>Svc: getInvitationByCode(code)
+    Svc->>DB: Truy vấn mã mời & kiểm tra hiệu lực
+    DB-->>API: Trả về trạng thái hợp lệ, số lượt dùng còn lại
+    API-->>Guest: Thông tin xem trước (Tên dòng họ, Chi nhánh) để chuẩn bị nộp đơn (US-17)
+```
+
+Chi tiết kiến trúc, giải thuật sinh mã an toàn mật mã, và quy trình kiểm thử E2E: xem tại **[04-us16-general-clan-invite.md](./04-us16-general-clan-invite.md)**.
+

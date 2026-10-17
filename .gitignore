@@ -42,3 +42,7 @@ agent/
 .env
 bin/
 *.class
+
+### personal documentation: 
+docs/
+
