@@ -77,3 +77,33 @@ Mọi developer bắt buộc phải chạy:
 ```
 Nếu bạn vô tình import một class nội bộ từ module khác hoặc vi phạm ranh giới dependency, bài test `verifyModularity()` sẽ fail ngay lập tức kèm thông báo lỗi chi tiết chỉ rõ vị trí vi phạm.
 
+---
+
+## 5. Tự Động Sinh Tài Liệu & Sơ Đồ Kiến Trúc (Living Documentation)
+
+Dự án sử dụng module `Documenter` của Spring Modulith để tự động phân tích tĩnh (Static Classpath Analysis) và xuất sơ đồ kiến trúc module vào thư mục `docs/architecture/generated/`:
+
+```java
+@Test
+@DisplayName("Generate living documentation and PlantUML diagrams for modules")
+void writesModuleDocumentation() {
+    new Documenter(modules, Documenter.Options.defaults()
+            .withOutputFolder("docs/architecture/generated"))
+            .writeDocumentation();
+}
+```
+
+### Các thành phần được sinh tự động:
+1. **Các file sơ đồ PlantUML (`.puml`)**:
+   - `components.puml`: Sơ đồ C4 Component tổng thể biểu diễn sự phụ thuộc giữa toàn bộ các module.
+   - `module-<name>.puml`: Sơ đồ chi tiết ranh giới và quan hệ cho từng module (`module-identity.puml`, `module-genealogy.puml`...).
+2. **Các file tài liệu AsciiDoc (`.adoc`)**:
+   - `all-docs.adoc`: Tổng hợp tài liệu kiến trúc toàn bộ hệ thống.
+   - `module-<name>.adoc`: Danh mục public APIs, public spring beans và module phụ thuộc.
+
+### Lưu ý quan trọng:
+- **Không commit vào Git**: Thư mục `docs/architecture/generated/` đã được cấu hình trong `.gitignore`.
+- **Cách xem sơ đồ**: Cài plugin **PlantUML** trên IntelliJ IDEA hoặc VS Code để xem trực quan các file `.puml` được sinh tại máy local.
+- **Cập nhật realtime**: Mỗi khi thay đổi ranh giới module hoặc thêm API, chỉ cần chạy lại `ArchitectureTest`, Spring Modulith sẽ tự động vẽ lại toàn bộ sơ đồ chỉ trong 0.5 giây!
+
+
