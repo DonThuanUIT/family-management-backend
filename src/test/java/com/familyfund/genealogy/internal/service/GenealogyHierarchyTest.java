@@ -11,6 +11,7 @@ import com.familyfund.genealogy.internal.dto.response.BranchTreeNodeResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.mapper.BranchMapper;
+import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
@@ -41,6 +42,9 @@ class GenealogyHierarchyTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private ClanRepository clanRepository;
 
     @Mock
     private GenealogyValidator genealogyValidator;
@@ -238,6 +242,7 @@ class GenealogyHierarchyTest {
     @Test
     @DisplayName("Query nested hierarchical branch tree successfully")
     void testGetBranchTree_Success() {
+        when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(true);
         when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(rootBranch));
         when(memberRepository.findByBranch_BranchId("BR_ROOT")).thenReturn(Collections.emptyList());
         when(branchRepository.findByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_ROOT")).thenReturn(List.of(childBranch));

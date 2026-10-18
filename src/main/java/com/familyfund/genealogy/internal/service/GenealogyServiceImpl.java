@@ -9,9 +9,11 @@ import com.familyfund.genealogy.internal.dto.request.UpdateBranchRequest;
 import com.familyfund.genealogy.internal.dto.request.UpdateRootBranchRequest;
 import com.familyfund.genealogy.internal.dto.response.BranchDetailResponse;
 import com.familyfund.genealogy.internal.dto.response.BranchTreeNodeResponse;
+import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.mapper.BranchMapper;
+import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
@@ -28,6 +30,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     private final FamilyBranchRepository branchRepository;
     private final MemberRepository memberRepository;
+    private final ClanRepository clanRepository;
     private final GenealogyValidator genealogyValidator;
     private final BranchMapper branchMapper;
 
@@ -35,6 +38,9 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(readOnly = true)
     public BranchDetailResponse getRootBranch() {
         String clanId = TenantContext.getClanId();
+        if (!clanRepository.existsById(clanId)) {
+            throw new ResourceNotFoundException("Clan not found with ID: " + clanId);
+        }
         FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Root branch not found for clan: " + clanId));
         return branchMapper.toDetailResponse(rootBranch);
@@ -44,6 +50,9 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(rollbackFor = Exception.class)
     public BranchDetailResponse updateRootBranch(UpdateRootBranchRequest request) {
         String clanId = TenantContext.getClanId();
+        Clan clan = clanRepository.findById(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId + ". Please create clan first."));
+
         FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElseGet(() -> FamilyBranch.builder()
                         .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
@@ -57,6 +66,12 @@ public class GenealogyServiceImpl implements GenealogyService {
             throw new BusinessRuleException("This branch is not a valid root branch of the clan");
         }
 
+        // Keep clan name synchronized if updated
+        if (!request.clanName().equals(clan.getClanName())) {
+            clan.setClanName(request.clanName());
+            clanRepository.save(clan);
+        }
+
         rootBranch.setClanId(clanId);
         rootBranch.setClanName(request.clanName());
         rootBranch.setBranchName(request.branchName());
@@ -67,6 +82,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Representative/ancestor not found with ID: " + request.representativeId()
                     ));
+            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
+                throw new BusinessRuleException("Representative member belongs to another clan");
+            }
             rootBranch.setRepresentative(rep);
         } else {
             rootBranch.setRepresentative(null);
@@ -105,6 +123,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Representative not found with ID: " + request.representativeId()
                     ));
+            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
+                throw new BusinessRuleException("Representative member belongs to another clan");
+            }
             childBranch.setRepresentative(rep);
         }
 
@@ -158,6 +179,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Representative not found with ID: " + request.representativeId()
                     ));
+            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
+                throw new BusinessRuleException("Representative member belongs to another clan");
+            }
             branch.setRepresentative(rep);
         } else {
             branch.setRepresentative(null);
@@ -180,6 +204,9 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(readOnly = true)
     public BranchTreeNodeResponse getBranchTree() {
         String clanId = TenantContext.getClanId();
+        if (!clanRepository.existsById(clanId)) {
+            throw new ResourceNotFoundException("Clan not found with ID: " + clanId);
+        }
         FamilyBranch root = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElse(null);
         if (root == null) {
@@ -240,6 +267,11 @@ public class GenealogyServiceImpl implements GenealogyService {
                     "Generation level mismatch: Member generation (" + member.getGeneration() +
                             ") cannot be less than branch generation level (" + branch.getGenerationLevel() + ")"
             );
+        }
+
+        // Validate member does not belong to another clan
+        if (member.getBranch() != null && !clanId.equals(member.getBranch().getClanId())) {
+            throw new BusinessRuleException("Cannot reassign a member belonging to another clan");
         }
 
         member.setBranch(branch);
