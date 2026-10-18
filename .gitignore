@@ -43,6 +43,8 @@ agent/
 bin/
 *.class
 
-### personal documentation: 
-docs/
+### Spring Modulith Generated Documentation ###
+docs/architecture/generated/
+
+
 
