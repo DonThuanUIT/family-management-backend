@@ -8,6 +8,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Entity mapping table `family_branches`.
+ * Represents a hierarchical Chi/Nhánh in the family genealogy tree.
+ */
 @Entity
 @Table(name = "family_branches")
 @Getter
@@ -15,11 +19,15 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"parentBranch", "childBranches", "members", "representative"})
 public class FamilyBranch {
 
     @Id
     @Column(name = "branch_id", length = 20, nullable = false)
     private String branchId;
+
+    @Column(name = "clan_id", length = 20)
+    private String clanId;
 
     @Column(name = "clan_name", length = 150)
     private String clanName;
@@ -46,10 +54,17 @@ public class FamilyBranch {
     private String description;
 
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @OneToMany(mappedBy = "branch", cascade = CascadeType.ALL)
     @Builder.Default
     private List<Member> members = new ArrayList<>();
+
+    @PrePersist
+    public void prePersist() {
+        if (this.createdAt == null) {
+            this.createdAt = Instant.now();
+        }
+    }
 }

@@ -1,28 +1,25 @@
 package com.familyfund.modules.genealogy.dto.response;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.List;
 
-@Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class BranchTreeNodeResponse {
-
-    private String branchId;
-    private String branchName;
-    private String clanName;
-    private Integer generationLevel;
-    private String parentBranchId;
-    private String representativeId;
-    private String representativeName;
-    private int memberCount;
-
-    @Builder.Default
-    private List<BranchTreeNodeResponse> children = new ArrayList<>();
+public record BranchTreeNodeResponse(
+        String branchId,
+        String clanId,
+        String branchName,
+        String clanName,
+        Integer generationLevel,
+        String parentBranchId,
+        String representativeId,
+        String representativeName,
+        int memberCount,
+        List<BranchTreeNodeResponse> children
+) {
+    public BranchTreeNodeResponse {
+        if (children == null) {
+            children = List.of();
+        }
+    }
 }

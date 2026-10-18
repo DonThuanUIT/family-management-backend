@@ -36,14 +36,24 @@ dependencies {
 
     // Database Driver & Migration
     runtimeOnly("org.postgresql:postgresql")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-core")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
+
+    // MapStruct
+    implementation("org.mapstruct:mapstruct:1.6.3")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+    testAnnotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     testCompileOnly("org.projectlombok:lombok")
     testAnnotationProcessor("org.projectlombok:lombok")
+
+    // Lombok MapStruct Binding
+    annotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
+    testAnnotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
 
     // Test Dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -52,7 +62,27 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
 
+fun loadDotEnv(): Map<String, String> {
+    val envMap = mutableMapOf<String, String>()
+    val envFile = file(".env")
+    if (envFile.exists()) {
+        envFile.readLines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                val parts = trimmed.split("=", limit = 2)
+                envMap[parts[0].trim()] = parts[1].trim()
+            }
+        }
+    }
+    return envMap
+}
+
+tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun> {
+    environment(loadDotEnv())
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    environment(loadDotEnv())
 }
 

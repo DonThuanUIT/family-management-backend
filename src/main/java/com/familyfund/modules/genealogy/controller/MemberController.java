@@ -1,6 +1,6 @@
 package com.familyfund.modules.genealogy.controller;
 
-import com.familyfund.core.common.ApiResponse;
+import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.modules.genealogy.dto.request.AssignMemberRequest;
 import com.familyfund.modules.genealogy.service.GenealogyService;
 import jakarta.validation.Valid;
@@ -15,11 +15,24 @@ public class MemberController {
 
     private final GenealogyService genealogyService;
 
+    private String resolveClanId(String headerClanId, String queryClanId) {
+        if (queryClanId != null && !queryClanId.isBlank()) {
+            return queryClanId.trim();
+        }
+        if (headerClanId != null && !headerClanId.isBlank()) {
+            return headerClanId.trim();
+        }
+        return GenealogyService.DEFAULT_CLAN_ID;
+    }
+
     @PutMapping("/{memberId}/assign-branch")
     public ResponseEntity<ApiResponse<Void>> assignMemberToBranch(
+            @RequestHeader(value = "X-Clan-Id", required = false) String headerClanId,
+            @RequestParam(value = "clanId", required = false) String queryClanId,
             @PathVariable String memberId,
             @Valid @RequestBody AssignMemberRequest request) {
-        genealogyService.assignMemberToBranch(memberId, request.getBranchId());
-        return ResponseEntity.ok(ApiResponse.success("Member assigned to family branch successfully", null));
+        String clanId = resolveClanId(headerClanId, queryClanId);
+        genealogyService.assignMemberToBranch(clanId, memberId, request.branchId());
+        return ResponseEntity.ok(ApiResponse.success(null, "Member assigned to family branch successfully"));
     }
 }

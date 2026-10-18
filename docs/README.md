@@ -29,7 +29,14 @@ Chào mừng bạn đến với kho tài liệu kỹ thuật chính thức của
    - Luồng 5: Sổ cái Quỹ chung bất biến (Audit Trail - NFR-01) & Giao dịch bù trừ điều chỉnh sai sót.
 
 4. **[project-status.md](./project-status.md) - Trạng Thái Dự Án & Kế Hoạch Triển Khai**:
-   - Hiện trạng triển khai theo từng task (BE-Task 1: Hoàn thành).
+   - Hiện trạng triển khai theo từng task (BE-Task 1, US-16: Hoàn thành).
    - Kết quả kiểm chứng thực tế (Compile, Test, Docker Compose verification).
-   - Kế hoạch triển khai các task tiếp theo (BE-Task 2: JPA Entities, Repositories, Services, APIs).
+   - Kế hoạch triển khai các task tiếp theo.
+
+5. **[04-us16-general-clan-invite.md](./04-us16-general-clan-invite.md) - Đặc Tả Kỹ Thuật US-16: Tạo Mã Mời Chung Gia Phả**:
+   - Phân tích User Story & Tiêu chí nghiệm thu (AC-01 đến AC-06).
+   - Kiến trúc phân tầng Spring Boot, bảo mật Method Security & Exception Handling.
+   - Thiết kế lược đồ bảng `invitation_codes` & các giải pháp kỹ thuật (SecureRandom, Crockford Base32, Collision Retry).
+   - Sơ đồ luồng tuần tự tạo mã mời và kiểm tra mã công khai không cần đăng nhập.
+   - Hướng dẫn kiểm thử tự động (Unit, MockMvc) & kiểm thử End-to-End thực tế với cURL/Swagger UI.
 
