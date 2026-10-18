@@ -1,5 +1,4 @@
 @org.springframework.modulith.ApplicationModule(
-        allowedDependencies = {"core", "identity::api", "event::api"}
+        allowedDependencies = {"core", "identity::api"}
 )
 package com.familyfund.finance;
-

@@ -3,6 +3,7 @@ package com.familyfund;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModules;
+import org.springframework.modulith.docs.Documenter;
 
 class ArchitectureTest {
 
@@ -19,5 +20,12 @@ class ArchitectureTest {
     void printModules() {
         modules.forEach(System.out::println);
     }
-}
 
+    @Test
+    @DisplayName("Generate living documentation and PlantUML diagrams for modules")
+    void writesModuleDocumentation() {
+        new Documenter(modules, Documenter.Options.defaults()
+                .withOutputFolder("docs/architecture/generated"))
+                .writeDocumentation();
+    }
+}
