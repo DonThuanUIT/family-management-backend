@@ -44,14 +44,14 @@ Tính năng được tổ chức theo chuẩn kiến trúc phân tầng Spring B
 │ 2. BUSINESS LOGIC SERVICE LAYER                                        │
 │    • InvitationService / InvitationServiceImpl (@Transactional)        │
 │    • Kiểm soát bất biến: GeneralClanInvite, targetMemberId = null      │
-│    • Xác thực nhánh: FamilyBranchRepository.existsByBranchId()         │
+│    • Phụ thuộc liên module lỏng lẻo: GenealogyQueryService             │
 │    • Sinh mã & URL: InviteCodeGenerator (SecureRandom + Crockford B32) │
 └────────────────────────────────────────────────────────────────────────┘
                │  Entity State
                ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 3. PERSISTENCE & DATA LAYER                                            │
-│    • InvitationCodeRepository / FamilyBranchRepository (Spring Data)  │
+│    • InvitationCodeRepository (Spring Data JPA)                        │
 │    • InvitationCode Entity (@Table: invitation_codes)                  │
 │    • PostgreSQL 16+ Database (Local Docker / Neon Serverless Postgres) │
 │    • Flyway Migration: V1__init_clan_genealogy_and_events_schema.sql   │
@@ -59,12 +59,13 @@ Tính năng được tổ chức theo chuẩn kiến trúc phân tầng Spring B
 ```
 
 ### Danh mục các file mã nguồn cốt lõi:
-* **Controller:** [`InvitationController.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/controller/InvitationController.java)
-* **Service:** [`InvitationService.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/service/InvitationService.java), [`InvitationServiceImpl.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/service/impl/InvitationServiceImpl.java)
-* **Utility Component:** [`InviteCodeGenerator.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/util/InviteCodeGenerator.java)
-* **Repository:** [`InvitationCodeRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/repository/InvitationCodeRepository.java), [`FamilyBranchRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/genealogy/repository/FamilyBranchRepository.java)
-* **Entity & Enums:** [`InvitationCode.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/entity/InvitationCode.java), [`InviteType.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/entity/InviteType.java), [`FamilyBranch.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/genealogy/entity/FamilyBranch.java)
-* **DTOs & Common:** [`CreateGeneralInviteRequest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/dto/CreateGeneralInviteRequest.java), [`InviteCodeResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/modules/invitation/dto/InviteCodeResponse.java), [`ApiResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/core/dto/ApiResponse.java)
+* **Controller:** [`InvitationController.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/controller/InvitationController.java)
+* **Service:** [`InvitationService.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/api/InvitationService.java), [`InvitationServiceImpl.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/service/InvitationServiceImpl.java)
+* **Cross-Module API Contract:** [`GenealogyQueryService.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/api/GenealogyQueryService.java)
+* **Utility Component:** [`InviteCodeGenerator.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/util/InviteCodeGenerator.java)
+* **Repository:** [`InvitationCodeRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/repository/InvitationCodeRepository.java)
+* **Entity & Enums:** [`InvitationCode.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/entity/InvitationCode.java), [`InviteType.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/internal/entity/InviteType.java)
+* **DTOs & Common:** [`CreateGeneralInviteRequest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/api/dto/CreateGeneralInviteRequest.java), [`InviteCodeResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/identity/api/dto/InviteCodeResponse.java), [`ApiResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/core/dto/ApiResponse.java)
 * **Configuration:** [`SecurityConfig.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/core/config/SecurityConfig.java), [`GlobalExceptionHandler.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/core/exception/GlobalExceptionHandler.java)
 
 ---
@@ -143,7 +144,7 @@ sequenceDiagram
     participant Controller as InvitationController
     participant Service as InvitationServiceImpl
     participant Generator as InviteCodeGenerator
-    participant BranchRepo as FamilyBranchRepository
+    participant GenealogyService as GenealogyQueryService
     participant InviteRepo as InvitationCodeRepository
 
     ClanHead->>Controller: POST /api/v1/invitations/general (Token JWT)
@@ -152,9 +153,9 @@ sequenceDiagram
     Controller->>Service: createGeneralClanInvite(request, accountId)
     
     opt Nếu có targetBranchId
-        Service->>BranchRepo: existsByBranchId(targetBranchId)
+        Service->>GenealogyService: existsBranch(targetBranchId)
         alt Nhánh không tồn tại
-            BranchRepo-->>Service: false
+            GenealogyService-->>Service: false
             Service-->>Controller: throw ResourceNotFoundException
             Controller-->>ClanHead: 404 Not Found
         end
@@ -220,17 +221,17 @@ Hệ thống cung cấp đầy đủ cả kiểm thử tự động (Automated U
 
 ### 6.1. Kiểm thử Tự Động (Automated Tests)
 
-Chạy bộ kiểm thử tự động cho module Lời mời bằng Gradle:
+Chạy bộ kiểm thử tự động cho module Định danh & Lời mời bằng Gradle:
 ```powershell
-.\gradlew.bat test --tests "com.familyfund.modules.invitation.*"
+.\gradlew.bat test --tests "com.familyfund.identity.*"
 ```
 
 | Tên Test Class | Số Test Cases | Mục Tiêu Kiểm Thử |
 | :--- | :---: | :--- |
-| [`InviteCodeGeneratorTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/modules/invitation/util/InviteCodeGeneratorTest.java) | 5 | - Định dạng mã 8 ký tự thuộc bảng Crockford Base32.<br/>- **Sinh 10.000 mã liên tiếp không xảy ra va chạm (0 collision)**.<br/>- Tạo đúng định dạng URL chia sẻ cả khi base-url có hoặc không có dấu gạch chéo cuối (`/`). |
-| [`CreateGeneralInviteRequestTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/modules/invitation/dto/CreateGeneralInviteRequestTest.java) | 3 | - Bắt lỗi `@Min(1)` khi `maxUses = 0`.<br/>- Bắt lỗi `@Future` khi ngày hết hạn ở quá khứ.<br/>- Dữ liệu hợp lệ vượt qua validation. |
-| [`InvitationServiceTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/modules/invitation/service/InvitationServiceTest.java) | 8 | - Mockito test nghiệp vụ tạo mã, gán cờ mặc định.<br/>- Báo lỗi khi chi nhánh mục tiêu không tồn tại.<br/>- Tính đúng ngày hết hạn khi dùng `validityDays`.<br/>- Hủy mã mời chuyển cờ `isActive = false`.<br/>- Tra cứu mã mời hết hạn ném `BadRequestException`. |
-| [`InvitationControllerTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/modules/invitation/controller/InvitationControllerTest.java) | 6 | - MockMvc gọi `POST /api/v1/invitations/general` trả về `201 Created` và Location header.<br/>- Bắt lỗi validation trả về `400 Bad Request` dạng JSON chuẩn.<br/>- Tra cứu danh sách và chi tiết mã trả về `200 OK`.<br/>- Vô hiệu hóa mã qua `PATCH` trả về `200 OK`. |
+| [`InviteCodeGeneratorTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/identity/internal/util/InviteCodeGeneratorTest.java) | 5 | - Định dạng mã 8 ký tự thuộc bảng Crockford Base32.<br/>- **Sinh 10.000 mã liên tiếp không xảy ra va chạm (0 collision)**.<br/>- Tạo đúng định dạng URL chia sẻ cả khi base-url có hoặc không có dấu gạch chéo cuối (`/`). |
+| [`CreateGeneralInviteRequestTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/identity/api/dto/CreateGeneralInviteRequestTest.java) | 3 | - Bắt lỗi `@Min(1)` khi `maxUses = 0`.<br/>- Bắt lỗi `@Future` khi ngày hết hạn ở quá khứ.<br/>- Dữ liệu hợp lệ vượt qua validation. |
+| [`InvitationServiceTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/identity/internal/service/InvitationServiceTest.java) | 8 | - Mockito test nghiệp vụ tạo mã, gán cờ mặc định.<br/>- Báo lỗi khi chi nhánh mục tiêu không tồn tại (qua `GenealogyQueryService`).<br/>- Tính đúng ngày hết hạn khi dùng `validityDays`.<br/>- Hủy mã mời chuyển cờ `isActive = false`.<br/>- Tra cứu mã mời hết hạn ném `BadRequestException`. |
+| [`InvitationControllerTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/identity/internal/controller/InvitationControllerTest.java) | 6 | - MockMvc gọi `POST /api/v1/invitations/general` trả về `201 Created` và Location header.<br/>- Bắt lỗi validation trả về `400 Bad Request` dạng JSON chuẩn.<br/>- Tra cứu danh sách và chi tiết mã trả về `200 OK`.<br/>- Vô hiệu hóa mã qua `PATCH` trả về `200 OK`. |
 
 ---
 

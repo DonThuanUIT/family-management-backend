@@ -1,6 +1,6 @@
 # Kiến Trúc Hệ Thống & Hạ Tầng (System Architecture)
 
-Tài liệu này mô tả kiến trúc tổng thể, công nghệ nền tảng và môi trường hạ tầng của hệ thống **Family Management Backend** (`familyfund-api`).
+Tài liệu này mô tả kiến trúc tổng thể, mô hình Modular Monolith, ranh giới module với Spring Modulith, công nghệ nền tảng và môi trường hạ tầng của hệ thống **Family Management Backend** (`familyfund-api`).
 
 ---
 
@@ -20,6 +20,7 @@ Hệ thống **Family Management Backend** giải quyết bài toán chuyển đ
 ```mermaid
 graph TD
     Client["Clients (Mobile / Web App / Swagger UI)"] -->|RESTful APIs / HTTP JSON| SBApp["Spring Boot 4.1.1 (Java 21 LTS)"]
+    SBApp -->|Spring Modulith 2.1.1| Modules["Domain Bounded Contexts (identity, genealogy, ...)"]
     SBApp -->|Spring Data JPA / Hibernate| PG[("PostgreSQL 16 + pgvector")]
     SBApp -->|Spring AI 2.0.1| VectorExt["Vector Store Extension (AI Embedding)"]
     Admin["Admin / Developers"] -->|Web Browser :8088| Adminer["Adminer Container"]
@@ -31,39 +32,84 @@ graph TD
 | :--- | :--- | :--- |
 | **Ngôn ngữ & Runtime** | Java 21 (LTS) | Khóa cứng qua Gradle Toolchain (`languageVersion.set(21)`), tận dụng Virtual Threads và tính năng hiện đại của Java. |
 | **Framework cốt lõi** | Spring Boot 4.1.1 | Nền tảng Spring Boot thế hệ mới với hiệu năng cao, Spring Data JPA, Spring Security, Validation. |
-| **Công nghệ AI** | Spring AI 2.0.1 (`spring-ai-starter-vector-store-pgvector`) | Hỗ trợ lưu trữ vector embedding gia phả, nghị quyết họ tộc phục vụ trợ lý AI thông minh. |
-| **Cơ sở dữ liệu** | PostgreSQL 16 (`pgvector/pgvector:pg16`) | RDBMS hỗ trợ ACID nghiêm ngặt, JSONB, và mở rộng `vector` cho AI. |
+| **Kiến trúc Module** | Spring Modulith 2.1.1 | Quản lý và kiểm soát ranh giới module (Modular Monolith), đóng gói package nội bộ và kiểm thử kiến trúc tự động (`verify()`). |
+| **Công nghệ AI** | Spring AI 2.0.1 (`spring-ai-starter-vector-store-pgvector`) | Hỗ trợ lưu trữ vector embedding gia phả, nghị quyết họ tộc phục vụ trợ lý AI thông minh (module `com.familyfund.ai`). |
+| **Cơ sở dữ liệu** | PostgreSQL 16 (`pgvector/pgvector:pg16`) | RDBMS hỗ trợ ACID nghiêm ngặt, JSONB, và mở rộng `vector` cho AI. Quản lý schema bằng Flyway Migration. |
 | **Build & Dependency** | Gradle Wrapper 9.x (Kotlin DSL) | Quản lý build nhất quán qua `build.gradle.kts`, độc lập môi trường nhờ wrapper. |
 | **Quản trị CSDL Web** | Adminer (Latest) | Giao diện web trực quan để kiểm tra dữ liệu và truy vấn SQL trên container. |
 | **Đặc tả & Giao diện API** | Swagger UI (`swaggerapi/swagger-ui:latest`) | Hiển thị và tương tác trực tiếp với API thông qua tài liệu OpenAPI 3.0. |
 
 ---
 
-## 3. Kiến Trúc Phân Lớp (Layered Architecture)
+## 3. Kiến Trúc Modular Monolith & Ranh Giới Bounded Contexts
 
-Mã nguồn backend tuân thủ nghiêm ngặt mô hình phân tầng phân định rõ ranh giới trách nhiệm:
+Hệ thống được thiết kế theo mô hình **Modular Monolith**, phân chia ranh giới theo các Bounded Context của Domain-Driven Design (DDD) và được kiểm soát biên giới bằng **Spring Modulith 2.1.1**.
+
+### 3.1. Danh Mục Các Bounded Contexts
 
 ```text
 src/main/java/com/familyfund/
 ├── FamilyfundApiApplication.java    # Điểm khởi chạy ứng dụng Spring Boot
-├── core/                           # Các thành phần dùng chung toàn hệ thống
-│   ├── config/                     # Cấu hình Spring (Security, JPA, Swagger, AI)
-│   ├── exception/                  # Xử lý ngoại lệ tập trung (Global Exception Handler)
-│   ├── security/                   # Xác thực JWT, Authorization filters
-│   └── utils/                      # Helper, Date formatters, Crypto utils
-└── modules/                        # Các phân hệ nghiệp vụ độc lập
-    ├── clan/                       # Phân hệ Cây gia phả & Quản lý dòng họ
-    ├── event/                      # Phân hệ Quản lý Sự kiện & Nhân sự
-    ├── finance/                    # Phân hệ Tạm ứng, Quyết toán & Sổ cái bất biến
-    └── contribution/               # Phân hệ Đóng góp & Quản lý tài sản dòng họ
+│
+├── core/                           # Shared Kernel: Cấu hình chung, Security, Exception, DTO
+│   ├── config/                     # Cấu hình Spring Security, CORS, JPA
+│   ├── dto/                        # ApiResponse<T> chuẩn hóa toàn hệ thống
+│   ├── exception/                  # GlobalExceptionHandler, BadRequestException,...
+│   └── package-info.java           # @ApplicationModule(type = OPEN) - Shared Kernel
+│
+├── identity/                       # Bounded Context: Định danh, Tài khoản, Mã mời & Tiếp nhận
+│   ├── api/                        # Public Contract: InvitationService, DTOs (@NamedInterface("api"))
+│   ├── internal/                   # Private: InvitationController, Entities, Repositories, Utils
+│   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "genealogy::api"})
+│
+├── genealogy/                      # Bounded Context: Quản lý Dòng họ, Chi nhánh, Thành viên phả hệ
+│   ├── api/                        # Public Contract: GenealogyQueryService (@NamedInterface("api"))
+│   ├── internal/                   # Private: Clan, FamilyBranch, Repositories, Service Implementations
+│   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core"})
+│
+├── event/                          # Bounded Context: Quản lý Sự kiện & Contextual RBAC
+│   ├── api/                        # Public Contract
+│   ├── internal/                   # Private Implementation
+│   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "identity::api", "genealogy::api"})
+│
+├── finance/                        # Bounded Context: Tài chính, Tạm ứng, Quyết toán & Sổ cái bất biến
+│   ├── api/                        # Public Contract
+│   ├── internal/                   # Private Implementation
+│   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "event::api"})
+│
+├── contribution/                   # Bounded Context: Đóng góp Quỹ họ & Quản lý Tài sản dòng họ
+│   ├── api/                        # Public Contract
+│   ├── internal/                   # Private Implementation
+│   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "genealogy::api", "finance::api"})
+│
+└── ai/                             # Bounded Context: Trợ lý AI & Vector Store (Tách biệt tương lai)
+    ├── api/                        # Public Contract
+    ├── internal/                   # Private Implementation
+    └── package-info.java           # @ApplicationModule(allowedDependencies = {"core"})
 ```
 
-Mỗi phân hệ (module) được tổ chức theo cấu trúc chuẩn:
-- **`controller/`**: Tiếp nhận HTTP Request, validate dữ liệu đầu vào (`@Valid`), ánh xạ sang DTO response.
-- **`service/`**: Xử lý logic nghiệp vụ, quản lý transaction boundary (`@Transactional`), đảm bảo tính toàn vẹn dữ liệu.
-- **`repository/`**: Giao tiếp cơ sở dữ liệu qua Spring Data JPA (`JpaRepository`), định nghĩa query tối ưu.
-- **`model/entity/`**: Ánh xạ bảng cơ sở dữ liệu sang các JPA Entity.
-- **`model/dto/`**: Request/Response DTOs tách biệt hoàn toàn khỏi Entity nhằm bảo mật và đóng gói dữ liệu.
+### 3.2. Quy Tắc Quy Hoạch Package Chuẩn Hóa
+1. **Quy tắc Public API (`*.api.*`)**:
+   - Chứa interface dịch vụ dùng để gọi giữa các module (ví dụ: `GenealogyQueryService`), public DTOs, hoặc domain events.
+   - Được đánh dấu `@NamedInterface("api")` trong `package-info.java`.
+   - Các module bên ngoài CHỈ ĐƯỢC PHÉP phụ thuộc vào package `api` này.
+2. **Quy tắc Internal Implementation (`*.internal.*`)**:
+   - Chứa Controllers, Entity JPA, Spring Data Repositories, Service Implementations, và tiện ích nội bộ.
+   - **Nghiêm cấm** các module khác import trực tiếp các class trong `internal`.
+   - **Xóa bỏ triệt để rò rỉ Repository**: Ví dụ `InvitationServiceImpl` (thuộc `identity`) không được phép inject `FamilyBranchRepository` (thuộc `genealogy`), mà phải gọi qua `GenealogyQueryService` trong `genealogy.api`.
+3. **Shared Kernel (`com.familyfund.core`)**:
+   - Được đánh dấu `type = ApplicationModule.Type.OPEN` để tất cả các module có thể truy cập các tiện ích bảo mật, DTO phản hồi chung (`ApiResponse<T>`) và ngoại lệ toàn cục.
+
+### 3.3. Tự Động Kiểm Tra Kiến Trúc (Architecture Verification Test)
+Ranh giới và quy tắc phụ thuộc được kiểm tra tự động thông qua Spring Modulith trong class test [`ArchitectureTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/ArchitectureTest.java):
+
+```java
+@Test
+void verifyModularity() {
+    ApplicationModules.of(FamilyfundApiApplication.class).verify();
+}
+```
+Nếu bất kỳ thành viên nào trong nhóm vô tình gọi xuyên module hoặc truy cập vào package `internal` trái phép, lệnh build `.\gradlew.bat test` sẽ lập tức báo lỗi và chặn commit.
 
 ---
 
@@ -96,7 +142,6 @@ Trong mô hình thực tế của phân hệ Gia phả và Định danh, tồn t
 2. `family_branches.representative_id` $\rightarrow$ `members.member_id`, nhưng `members.branch_id` $\rightarrow$ `family_branches.branch_id`.
 
 ### Giải Pháp Kiến Trúc Triển Khai
-- Trong kịch bản DDL [`docker/postgres/init.sql`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql), các bảng `clans` và `family_branches` được khởi tạo trước với cột khóa ngoại cho phép giá trị `NULL`.
+- Trong kịch bản DDL [`docker/postgres/init.sql`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql) và Flyway Migrations, các bảng `clans` và `family_branches` được khởi tạo trước với cột khóa ngoại cho phép giá trị `NULL`.
 - Sau khi toàn bộ các bảng `members` và `user_accounts` được tạo, các ràng buộc khóa ngoại được bổ sung bằng câu lệnh `ALTER TABLE ... ADD CONSTRAINT` kèm tùy chọn `ON DELETE SET NULL`.
 - Ở tầng ứng dụng Spring Boot, quy trình đăng ký dòng họ mới sẽ chia thành 2 bước nguyên tử (atomic transaction): Tạo Clan $\rightarrow$ Tạo Member & Account $\rightarrow$ Cập nhật `founder_account_id` vào Clan.
-
