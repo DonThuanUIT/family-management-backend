@@ -1,42 +1,28 @@
 # Tài Liệu Kỹ Thuật Hệ Thống Family Management Backend (`familyfund-api`)
 
-Chào mừng bạn đến với kho tài liệu kỹ thuật chính thức của dự án **Family Management Backend** (`familyfund-api`). Tài liệu này cung cấp cái nhìn toàn diện từ bức tranh kiến trúc tổng thể, chi tiết mô hình cơ sở dữ liệu PostgreSQL, các luồng nghiệp vụ cốt lõi, đến hướng dẫn vận hành môi trường Docker và trạng thái triển khai dự án.
+Chào mừng bạn đến với kho tài liệu kỹ thuật chính thức của dự án **Family Management Backend** (`familyfund-api`). 
+
+Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền tảng **Java 21 LTS** và **Spring Boot 4.1.1**, kiểm soát ranh giới phụ thuộc nghiêm ngặt bằng **Spring Modulith 2.1.1**.
 
 ---
 
-## 📚 Mục Lục & Thứ Tự Đọc Khuyến Nghị
+## 📚 Bản Đồ Tài Liệu & Thứ Tự Đọc Khuyến Nghị
 
-Để hiểu rõ hệ thống từ ngoài vào trong theo đúng chuẩn kỹ thuật, vui lòng theo dõi tài liệu theo thứ tự sau:
+Để hiểu rõ hệ thống từ kiến trúc tổng thể, cơ sở dữ liệu, quy chuẩn code đến chi tiết từng tính năng nghiệp vụ, vui lòng theo dõi tài liệu theo cấu trúc dưới đây:
 
-1. **[01-architecture.md](./01-architecture.md) - Tổng quan Kiến trúc & Hạ tầng**:
-   - Mục tiêu nghiệp vụ & bài toán giải quyết.
-   - Tech stack chi tiết (Java 21, Spring Boot 4.1.1, Spring AI, PostgreSQL 16 pgvector, Gradle Kotlin DSL).
-   - Kiến trúc phân lớp & các phân hệ cốt lõi.
-   - Môi trường Docker đa dịch vụ (PostgreSQL, Adminer, Swagger UI).
-   - Giải pháp kiến trúc cho các ràng buộc phụ thuộc vòng (Circular Dependencies).
+### 1. 🏛 Kiến Trúc & Thiết Kế Nền Tảng ([`docs/architecture/`](./architecture/))
+* **[`01-system-architecture.md`](./architecture/01-system-architecture.md)**: Tổng quan kiến trúc Modular Monolith, Bounded Contexts, Tech stack (Java 21, Spring Boot 4.1.1, Spring Modulith 2.1.1, Spring AI), hạ tầng Docker Compose, giải pháp xử lý phụ thuộc vòng.
+* **[`02-database-schema.md`](./architecture/02-database-schema.md)**: Đặc tả chi tiết 21 bảng CSDL PostgreSQL, quan hệ khóa ngoại, chiến lược Indexing, và kịch bản DDL / Seed data.
+* **[`03-core-business-flows.md`](./architecture/03-core-business-flows.md)**: 5 luồng nghiệp vụ cốt lõi xuyên module (Định danh gia phả, Contextual RBAC, Tạm ứng $\rightarrow$ Quyết toán, Đóng góp quỹ họ, Sổ cái bất biến NFR-01).
 
-2. **[02-database-schema.md](./02-database-schema.md) - Đặc tả Cơ sở dữ liệu (PostgreSQL Schema)**:
-   - Sơ đồ thực thể liên kết (ERD) hoàn chỉnh 21 bảng.
-   - Chi tiết 4 phân hệ: Cây gia phả & Định danh, Quản lý sự kiện & Contextual RBAC, Tài chính tạm ứng/quyết toán & Sổ cái bất biến, Đóng góp quỹ đa hình & Tài sản dòng họ.
-   - Thiết kế kiểu dữ liệu, ràng buộc khóa ngoại, CHECK constraints và chiến lược Indexes tối ưu hóa truy vấn.
-   - Kịch bản DDL (`docker/postgres/init.sql`) & Seed Data khởi tạo.
+### 2. 📋 Danh Mục Đặc Tả User Stories ([`docs/user-stories/`](./user-stories/))
+* **[`README.md`](./user-stories/README.md)**: Bảng theo dõi toàn bộ danh sách User Stories (đã hoàn thành & kế hoạch) và hướng dẫn bổ sung US mới.
+* **[`TEMPLATE-US.md`](./user-stories/TEMPLATE-US.md)**: **Mẫu chuẩn (Barem)** để các thành viên trong team copy và điền thông tin khi hoàn thành bất kỳ User Story nào.
+* **[`US-16-general-clan-invite.md`](./user-stories/US-16-general-clan-invite.md)**: Đặc tả kỹ thuật đầy đủ của tính năng tạo mã mời chung dòng họ, kiểm soát bất biến, sequence diagram và kiểm thử E2E.
 
-3. **[03-business-flows.md](./03-business-flows.md) - Các Luồng Nghiệp Vụ Cốt Lõi (Business Flows)**:
-   - Luồng 1: Định danh thành viên, cây gia phả & Phân quyền toàn cục.
-   - Luồng 2: Vòng đời sự kiện & Phân quyền động (Contextual RBAC).
-   - Luồng 3: Quy trình Tạm ứng $\rightarrow$ Quyết toán $\rightarrow$ Đối soát và cơ chế chặn khóa sổ khi có giải trình.
-   - Luồng 4: Đóng góp quỹ họ (Tiền mặt/Hiện vật) & Thuật toán phân bổ công đức đệ quy theo nhánh phả hệ.
-   - Luồng 5: Sổ cái Quỹ chung bất biến (Audit Trail - NFR-01) & Giao dịch bù trừ điều chỉnh sai sót.
+### 3. 🛠 Quy Chuẩn & Hướng Dẫn Phát Triển ([`docs/guidelines/`](./guidelines/))
+* **[`development-guide.md`](./guidelines/development-guide.md)**: Hướng dẫn thiết lập môi trường cho dev mới (JDK 21, Docker Desktop, lệnh biên dịch Gradle, chạy test, chạy backend).
+* **[`modulith-rules.md`](./guidelines/modulith-rules.md)**: **Quy tắc vàng khi code Modular Monolith**: quy tắc phân chia `api` (public contract) vs `internal` (private implementation), cấm rò rỉ Repository, và chạy kiểm thử kiến trúc tự động (`ArchitectureTest`).
 
-4. **[project-status.md](./project-status.md) - Trạng Thái Dự Án & Kế Hoạch Triển Khai**:
-   - Hiện trạng triển khai theo từng task (BE-Task 1, US-16: Hoàn thành).
-   - Kết quả kiểm chứng thực tế (Compile, Test, Docker Compose verification).
-   - Kế hoạch triển khai các task tiếp theo.
-
-5. **[04-us16-general-clan-invite.md](./04-us16-general-clan-invite.md) - Đặc Tả Kỹ Thuật US-16: Tạo Mã Mời Chung Gia Phả**:
-   - Phân tích User Story & Tiêu chí nghiệm thu (AC-01 đến AC-06).
-   - Kiến trúc phân tầng Spring Boot, bảo mật Method Security & Exception Handling.
-   - Thiết kế lược đồ bảng `invitation_codes` & các giải pháp kỹ thuật (SecureRandom, Crockford Base32, Collision Retry).
-   - Sơ đồ luồng tuần tự tạo mã mời và kiểm tra mã công khai không cần đăng nhập.
-   - Hướng dẫn kiểm thử tự động (Unit, MockMvc) & kiểm thử End-to-End thực tế với cURL/Swagger UI.
-
+### 4. 📊 Bảng Theo Dõi Dự Án
+* **[`project-status.md`](./project-status.md)**: Dashboard theo dõi tiến độ từng nhiệm vụ (Tasks progress), các hạng mục kỹ thuật đã kiểm chứng thực tế và roadmap tiếp theo.

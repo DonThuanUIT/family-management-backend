@@ -8,8 +8,9 @@ Dự án backend quản lý quỹ gia đình và tài chính xây dựng trên n
 
 - **Java Runtime**: Java 21 (LTS)
 - **Framework**: Spring Boot 4.1.1
+- **Architecture**: Modular Monolith with Spring Modulith 2.1.1
 - **AI Integration**: Spring AI 2.0.1 (Vector Store PGVector)
-- **Database**: PostgreSQL with pgvector extension
+- **Database**: PostgreSQL with pgvector extension (Flyway Migrations)
 - **Build Tool**: Gradle Wrapper 9.x+ (Kotlin DSL: `build.gradle.kts`, `settings.gradle.kts`)
 
 > **Lưu ý về Java Toolchain**: Dự án đã cấu hình `java.toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }`. Ngay cả khi máy tính của bạn cài đặt song song nhiều phiên bản JDK (ví dụ: Java 17, 21, 25), Gradle sẽ luôn tự động nhận diện và ép buộc sử dụng đúng **JDK 21** khi biên dịch và chạy kiểm thử mà không phụ thuộc vào biến môi trường `JAVA_HOME`.
@@ -129,12 +130,20 @@ family-management-backend/
 │   └── swagger/
 │       └── openapi.yaml       # Tài liệu API OpenAPI 3.0 cho Swagger UI
 ├── docs/                      # Tài liệu kỹ thuật chi tiết của dự án
-│   ├── README.md              # Mục lục tài liệu & thứ tự đọc
-│   ├── 01-architecture.md     # Kiến trúc hệ thống & Hạ tầng Docker
-│   ├── 02-database-schema.md  # Đặc tả 21 bảng PostgreSQL Schema
-│   ├── 03-business-flows.md   # Các luồng nghiệp vụ cốt lõi
-│   └── project-status.md      # Trạng thái dự án & Kế hoạch tiếp theo
-├── build.gradle.kts           # Kịch bản build & dependencies (Kotlin DSL)
+│   ├── README.md              # Bản đồ tài liệu & thứ tự đọc
+│   ├── project-status.md      # Trạng thái dự án & Kế hoạch tiếp theo
+│   ├── architecture/          # Kiến trúc hệ thống, Database Schema & Business Flows
+│   │   ├── 01-system-architecture.md
+│   │   ├── 02-database-schema.md
+│   │   └── 03-core-business-flows.md
+│   ├── user-stories/          # Đặc tả kỹ thuật & Hướng dẫn kiểm thử từng User Story
+│   │   ├── README.md          # Danh mục User Stories & hướng dẫn bổ sung
+│   │   ├── TEMPLATE-US.md     # Mẫu chuẩn (Barem) cho US mới
+│   │   └── US-16-general-clan-invite.md
+│   └── guidelines/            # Quy chuẩn phát triển & coding conventions
+│       ├── development-guide.md
+│       └── modulith-rules.md
+├── build.gradle.kts           # Kịch bản build & dependencies (Kotlin DSL, Java 21)
 ├── settings.gradle.kts        # Cấu hình root project
 ├── gradlew                    # Gradle wrapper script cho Linux/macOS
 ├── gradlew.bat                # Gradle wrapper script cho Windows
@@ -144,11 +153,24 @@ family-management-backend/
 │       └── gradle-wrapper.properties
 └── src/
     ├── main/
-    │   ├── java/com/familyfund/...
+    │   ├── java/com/familyfund/
+    │   │   ├── FamilyfundApiApplication.java
+    │   │   ├── core/          # Shared Kernel (Security, Global Exceptions, ApiResponse)
+    │   │   ├── identity/      # Module Định danh, Tài khoản & Lời mời (api & internal)
+    │   │   ├── genealogy/     # Module Dòng họ, Chi phái & Thành viên (api & internal)
+    │   │   ├── event/         # Module Quản lý Sự kiện & Contextual RBAC
+    │   │   ├── finance/       # Module Tạm ứng, Quyết toán & Sổ cái bất biến
+    │   │   ├── contribution/  # Module Đóng góp & Quản lý tài sản
+    │   │   └── ai/            # Module Trợ lý AI & Vector Store
     │   └── resources/
-    │       └── application.yaml
+    │       ├── application.yaml
+    │       └── db/migration/  # Flyway database migrations
     └── test/
-        └── java/com/familyfund/...
+        └── java/com/familyfund/
+            ├── ArchitectureTest.java # Spring Modulith Architecture Verification
+            ├── DatabaseMigrationTest.java
+            ├── FamilyfundApiApplicationTests.java
+            └── identity/      # Unit & Controller Tests cho Identity & Invitation
 ```
 
 > 📖 **Xem chi tiết tài liệu hệ thống tại thư mục [docs/](file:///d:/WorkSpace/Family-Management/family-management-backend/docs/README.md)**.
