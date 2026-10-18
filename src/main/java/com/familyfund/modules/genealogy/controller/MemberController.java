@@ -15,24 +15,11 @@ public class MemberController {
 
     private final GenealogyService genealogyService;
 
-    private String resolveClanId(String headerClanId, String queryClanId) {
-        if (queryClanId != null && !queryClanId.isBlank()) {
-            return queryClanId.trim();
-        }
-        if (headerClanId != null && !headerClanId.isBlank()) {
-            return headerClanId.trim();
-        }
-        return GenealogyService.DEFAULT_CLAN_ID;
-    }
-
     @PutMapping("/{memberId}/assign-branch")
     public ResponseEntity<ApiResponse<Void>> assignMemberToBranch(
-            @RequestHeader(value = "X-Clan-Id", required = false) String headerClanId,
-            @RequestParam(value = "clanId", required = false) String queryClanId,
             @PathVariable String memberId,
             @Valid @RequestBody AssignMemberRequest request) {
-        String clanId = resolveClanId(headerClanId, queryClanId);
-        genealogyService.assignMemberToBranch(clanId, memberId, request.branchId());
+        genealogyService.assignMemberToBranch(memberId, request.branchId());
         return ResponseEntity.ok(ApiResponse.success(null, "Member assigned to family branch successfully"));
     }
 }

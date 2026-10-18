@@ -3,6 +3,7 @@ package com.familyfund.modules.genealogy.service.impl;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
@@ -31,30 +32,23 @@ public class GenealogyServiceImpl implements GenealogyService {
     private final GenealogyValidator genealogyValidator;
     private final BranchMapper branchMapper;
 
-    private String resolveClanId(String clanId) {
-        if (clanId != null && !clanId.isBlank()) {
-            return clanId.trim();
-        }
-        return DEFAULT_CLAN_ID;
-    }
-
     @Override
     @Transactional(readOnly = true)
-    public BranchDetailResponse getRootBranch(String clanId) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(effectiveClanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Root branch not found for clan: " + effectiveClanId));
+    public BranchDetailResponse getRootBranch() {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Root branch not found for clan: " + clanId));
         return branchMapper.toDetailResponse(rootBranch);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public BranchDetailResponse updateRootBranch(String clanId, UpdateRootBranchRequest request) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(effectiveClanId)
+    public BranchDetailResponse updateRootBranch(UpdateRootBranchRequest request) {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElseGet(() -> FamilyBranch.builder()
                         .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                        .clanId(effectiveClanId)
+                        .clanId(clanId)
                         .generationLevel(1)
                         .parentBranch(null)
                         .build());
@@ -64,7 +58,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             throw new BusinessRuleException("This branch is not a valid root branch of the clan");
         }
 
-        rootBranch.setClanId(effectiveClanId);
+        rootBranch.setClanId(clanId);
         rootBranch.setClanName(request.clanName());
         rootBranch.setBranchName(request.branchName());
         rootBranch.setDescription(request.description());
@@ -85,11 +79,11 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public BranchDetailResponse createChildBranch(String clanId, CreateChildBranchRequest request) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch parent = branchRepository.findByClanIdAndBranchId(effectiveClanId, request.parentBranchId())
+    public BranchDetailResponse createChildBranch(CreateChildBranchRequest request) {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch parent = branchRepository.findByClanIdAndBranchId(clanId, request.parentBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Parent branch not found with ID: " + request.parentBranchId() + " in clan: " + effectiveClanId
+                        "Parent branch not found with ID: " + request.parentBranchId() + " in clan: " + clanId
                 ));
 
         // Cycle check and generation level check
@@ -99,7 +93,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
         FamilyBranch childBranch = FamilyBranch.builder()
                 .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                .clanId(effectiveClanId)
+                .clanId(clanId)
                 .clanName(parent.getClanName())
                 .branchName(request.branchName())
                 .generationLevel(childGenerationLevel)
@@ -121,10 +115,10 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public BranchDetailResponse updateBranch(String clanId, String branchId, UpdateBranchRequest request) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(effectiveClanId, branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + effectiveClanId));
+    public BranchDetailResponse updateBranch(String branchId, UpdateBranchRequest request) {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId));
 
         // If reparenting
         if (request.parentBranchId() != null) {
@@ -138,9 +132,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                 // Check closed cycle
                 genealogyValidator.kiemTraChuTrinh(branchId, request.parentBranchId());
 
-                FamilyBranch newParent = branchRepository.findByClanIdAndBranchId(effectiveClanId, request.parentBranchId())
+                FamilyBranch newParent = branchRepository.findByClanIdAndBranchId(clanId, request.parentBranchId())
                         .orElseThrow(() -> new ResourceNotFoundException(
-                                "New parent branch not found with ID: " + request.parentBranchId() + " in clan: " + effectiveClanId
+                                "New parent branch not found with ID: " + request.parentBranchId() + " in clan: " + clanId
                         ));
 
                 int newGenLevel = newParent.getGenerationLevel() + 1;
@@ -152,7 +146,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
                 // Cascade update generation levels for all descendants
                 if (delta != 0) {
-                    cascadeUpdateGenerationLevel(effectiveClanId, branch, delta);
+                    cascadeUpdateGenerationLevel(clanId, branch, delta);
                 }
             }
         }
@@ -185,14 +179,14 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(readOnly = true)
-    public BranchTreeNodeResponse getBranchTree(String clanId) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch root = branchRepository.findByClanIdAndParentBranchIsNull(effectiveClanId)
+    public BranchTreeNodeResponse getBranchTree() {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch root = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElse(null);
         if (root == null) {
             return null;
         }
-        return buildTreeNode(effectiveClanId, root);
+        return buildTreeNode(clanId, root);
     }
 
     private BranchTreeNodeResponse buildTreeNode(String clanId, FamilyBranch branch) {
@@ -207,16 +201,16 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteBranch(String clanId, String branchId) {
-        String effectiveClanId = resolveClanId(clanId);
-        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(effectiveClanId, branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + effectiveClanId));
+    public void deleteBranch(String branchId) {
+        String clanId = TenantContext.getClanId();
+        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId));
 
         if (branch.getParentBranch() == null && branch.getGenerationLevel() == 1) {
             throw new BusinessRuleException("Cannot delete the root branch of the clan");
         }
 
-        if (branchRepository.existsByClanIdAndParentBranch_BranchId(effectiveClanId, branchId)) {
+        if (branchRepository.existsByClanIdAndParentBranch_BranchId(clanId, branchId)) {
             throw new BusinessRuleException(
                     "Cannot delete a branch that has child branches. Please reassign or delete child branches first."
             );
@@ -233,13 +227,13 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void assignMemberToBranch(String clanId, String memberId, String branchId) {
-        String effectiveClanId = resolveClanId(clanId);
+    public void assignMemberToBranch(String memberId, String branchId) {
+        String clanId = TenantContext.getClanId();
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId));
 
-        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(effectiveClanId, branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + effectiveClanId));
+        FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId));
 
         // Validate member generation is not less than branch generation level
         if (member.getGeneration() < branch.getGenerationLevel()) {

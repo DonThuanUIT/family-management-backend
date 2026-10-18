@@ -3,6 +3,7 @@ package com.familyfund.modules.genealogy;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.modules.genealogy.dto.request.CreateChildBranchRequest;
 import com.familyfund.modules.genealogy.dto.request.UpdateBranchRequest;
 import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
@@ -14,6 +15,7 @@ import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
 import com.familyfund.modules.genealogy.repository.MemberRepository;
 import com.familyfund.modules.genealogy.service.impl.GenealogyServiceImpl;
 import com.familyfund.modules.genealogy.validator.GenealogyValidator;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,7 @@ class GenealogyHierarchyTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.clear();
         rootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
@@ -72,6 +75,11 @@ class GenealogyHierarchyTest {
                 .generationLevel(2)
                 .parentBranch(rootBranch)
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

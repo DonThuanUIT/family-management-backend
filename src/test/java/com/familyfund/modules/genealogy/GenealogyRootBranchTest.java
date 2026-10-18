@@ -1,6 +1,7 @@
 package com.familyfund.modules.genealogy;
 
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.modules.genealogy.dto.request.UpdateRootBranchRequest;
 import com.familyfund.modules.genealogy.dto.response.BranchDetailResponse;
 import com.familyfund.modules.genealogy.entity.FamilyBranch;
@@ -9,6 +10,7 @@ import com.familyfund.modules.genealogy.mapper.BranchMapper;
 import com.familyfund.modules.genealogy.repository.FamilyBranchRepository;
 import com.familyfund.modules.genealogy.repository.MemberRepository;
 import com.familyfund.modules.genealogy.service.impl.GenealogyServiceImpl;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +46,7 @@ class GenealogyRootBranchTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.clear();
         mockRootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
@@ -53,6 +55,11 @@ class GenealogyRootBranchTest {
                 .generationLevel(1)
                 .parentBranch(null)
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
@@ -78,30 +85,35 @@ class GenealogyRootBranchTest {
     }
 
     @Test
-    @DisplayName("Update root branch with explicit clanId")
+    @DisplayName("Update root branch with explicit clanId via TenantContext")
     void testUpdateRootBranch_WithCustomClanId() {
-        UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Tran Clan")
-                .branchName("Root Branch Tran")
-                .build();
+        TenantContext.setClanId("CLAN_TRAN");
+        try {
+            UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
+                    .clanName("Tran Clan")
+                    .branchName("Root Branch Tran")
+                    .build();
 
-        FamilyBranch tranRoot = FamilyBranch.builder()
-                .branchId("BR_TRAN_ROOT")
-                .clanId("CLAN_TRAN")
-                .clanName("Tran Clan")
-                .branchName("Root Branch Tran")
-                .generationLevel(1)
-                .parentBranch(null)
-                .build();
+            FamilyBranch tranRoot = FamilyBranch.builder()
+                    .branchId("BR_TRAN_ROOT")
+                    .clanId("CLAN_TRAN")
+                    .clanName("Tran Clan")
+                    .branchName("Root Branch Tran")
+                    .generationLevel(1)
+                    .parentBranch(null)
+                    .build();
 
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_TRAN")).thenReturn(Optional.of(tranRoot));
-        when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_TRAN")).thenReturn(Optional.of(tranRoot));
+            when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BranchDetailResponse response = genealogyService.updateRootBranch("CLAN_TRAN", request);
+            BranchDetailResponse response = genealogyService.updateRootBranch(request);
 
-        assertNotNull(response);
-        assertEquals("CLAN_TRAN", response.clanId());
-        assertEquals("Tran Clan", response.clanName());
+            assertNotNull(response);
+            assertEquals("CLAN_TRAN", response.clanId());
+            assertEquals("Tran Clan", response.clanName());
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test
