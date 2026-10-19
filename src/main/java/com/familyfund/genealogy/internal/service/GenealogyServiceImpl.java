@@ -21,8 +21,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -218,19 +222,53 @@ public class GenealogyServiceImpl implements GenealogyService {
         if (!clanRepository.existsById(clanId)) {
             throw new ResourceNotFoundException("Clan not found with ID: " + clanId);
         }
-        FamilyBranch root = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
+
+        // 1. Fetch all branches of the clan with representative in 1 single query
+        List<FamilyBranch> allBranches = branchRepository.findAllByClanIdWithRepresentative(clanId);
+        if (allBranches.isEmpty()) {
+            return null;
+        }
+
+        // 2. Locate the root branch (parentBranch == null)
+        FamilyBranch root = allBranches.stream()
+                .filter(b -> b.getParentBranch() == null)
+                .findFirst()
                 .orElse(null);
         if (root == null) {
             return null;
         }
-        return buildTreeNode(clanId, root);
+
+        // 3. Aggregate member counts per branch in 1 single GROUP BY query
+        Map<String, Integer> memberCountMap = memberRepository.countMembersByBranchForClan(clanId).stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> ((Number) row[1]).intValue(),
+                        (existing, replacement) -> existing
+                ));
+
+        // 4. Group child branches by parentBranchId in-memory with deterministic ordering
+        Map<String, List<FamilyBranch>> childrenByParentId = allBranches.stream()
+                .filter(b -> b.getParentBranch() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getParentBranch().getBranchId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        // 5. Build tree recursively entirely IN-MEMORY (0 extra database queries!)
+        return buildTreeNodeInMemory(root, childrenByParentId, memberCountMap);
     }
 
-    private BranchTreeNodeResponse buildTreeNode(String clanId, FamilyBranch branch) {
-        int memberCount = memberRepository.findByBranch_BranchId(branch.getBranchId()).size();
-        List<FamilyBranch> children = branchRepository.findByClanIdAndParentBranch_BranchId(clanId, branch.getBranchId());
+    private BranchTreeNodeResponse buildTreeNodeInMemory(
+            FamilyBranch branch,
+            Map<String, List<FamilyBranch>> childrenByParentId,
+            Map<String, Integer> memberCountMap
+    ) {
+        int memberCount = memberCountMap.getOrDefault(branch.getBranchId(), 0);
+        List<FamilyBranch> children = childrenByParentId.getOrDefault(branch.getBranchId(), Collections.emptyList());
+
         List<BranchTreeNodeResponse> childNodes = children.stream()
-                .map(child -> buildTreeNode(clanId, child))
+                .map(child -> buildTreeNodeInMemory(child, childrenByParentId, memberCountMap))
                 .toList();
 
         return branchMapper.toTreeNodeResponse(branch, memberCount, childNodes);

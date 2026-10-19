@@ -2,6 +2,8 @@ package com.familyfund.genealogy.internal.repository;
 
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -22,4 +24,7 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
     boolean existsByClanIdAndBranchId(String clanId, String branchId);
 
     List<FamilyBranch> findByClanIdAndParentBranch_BranchIdOrderByBranchNameAsc(String clanId, String parentBranchId);
+
+    @Query("SELECT fb FROM FamilyBranch fb LEFT JOIN FETCH fb.representative WHERE fb.clanId = :clanId ORDER BY fb.generationLevel ASC, fb.branchName ASC")
+    List<FamilyBranch> findAllByClanIdWithRepresentative(@Param("clanId") String clanId);
 }

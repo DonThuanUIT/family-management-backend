@@ -336,20 +336,22 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Query nested hierarchical branch tree successfully")
+    @DisplayName("Query nested hierarchical branch tree successfully with in-memory assembly")
     void testGetBranchTree_Success() {
         when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(true);
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(rootBranch));
-        when(memberRepository.findByBranch_BranchId("BR_ROOT")).thenReturn(Collections.emptyList());
-        when(branchRepository.findByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_ROOT")).thenReturn(List.of(childBranch));
-        when(memberRepository.findByBranch_BranchId("BR_CHILD_1")).thenReturn(Collections.emptyList());
-        when(branchRepository.findByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Collections.emptyList());
+        when(branchRepository.findAllByClanIdWithRepresentative("CLAN_DEFAULT")).thenReturn(List.of(rootBranch, childBranch));
+        when(memberRepository.countMembersByBranchForClan("CLAN_DEFAULT")).thenReturn(List.of(
+                new Object[]{"BR_ROOT", 5L},
+                new Object[]{"BR_CHILD_1", 2L}
+        ));
 
         BranchTreeNodeResponse tree = genealogyService.getBranchTree();
 
         assertNotNull(tree);
         assertEquals("BR_ROOT", tree.branchId());
+        assertEquals(5, tree.memberCount());
         assertEquals(1, tree.children().size());
         assertEquals("BR_CHILD_1", tree.children().get(0).branchId());
+        assertEquals(2, tree.children().get(0).memberCount());
     }
 }
