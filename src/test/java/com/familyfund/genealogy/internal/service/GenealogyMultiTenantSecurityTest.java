@@ -5,6 +5,7 @@ import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.internal.dto.request.CreateChildBranchRequest;
 import com.familyfund.genealogy.internal.dto.request.UpdateBranchRequest;
+import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.mapper.BranchMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
@@ -50,9 +51,15 @@ class GenealogyMultiTenantSecurityTest {
     @InjectMocks
     private GenealogyServiceImpl genealogyService;
 
+    private Clan mockClanA;
+
     @BeforeEach
     void setUp() {
         TenantContext.setClanId(CLAN_A);
+        mockClanA = Clan.builder()
+                .clanId(CLAN_A)
+                .clanName("Nguyen Clan")
+                .build();
     }
 
     @AfterEach
@@ -68,6 +75,7 @@ class GenealogyMultiTenantSecurityTest {
                 .parentBranchId("BR_CLAN_B_01")
                 .build();
 
+        when(clanRepository.findById(CLAN_A)).thenReturn(Optional.of(mockClanA));
         // In Clan A context, searching for a branch belonging to Clan B must return empty
         when(branchRepository.findByClanIdAndBranchId(CLAN_A, "BR_CLAN_B_01")).thenReturn(Optional.empty());
 
@@ -131,7 +139,6 @@ class GenealogyMultiTenantSecurityTest {
         FamilyBranch parent = FamilyBranch.builder()
                 .branchId("BR_CLAN_A_PARENT")
                 .clanId(CLAN_A)
-                .clanName("Nguyen Toc")
                 .generationLevel(1)
                 .build();
 
@@ -141,6 +148,7 @@ class GenealogyMultiTenantSecurityTest {
                 .representativeId("MEM_CLAN_B_REP")
                 .build();
 
+        when(clanRepository.findById(CLAN_A)).thenReturn(Optional.of(mockClanA));
         when(branchRepository.findByClanIdAndBranchId(CLAN_A, "BR_CLAN_A_PARENT")).thenReturn(Optional.of(parent));
         when(memberRepository.findByBranch_ClanIdAndMemberId(CLAN_A, "MEM_CLAN_B_REP")).thenReturn(Optional.empty());
 

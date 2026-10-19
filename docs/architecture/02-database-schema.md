@@ -78,38 +78,39 @@ erDiagram
 
 ## 2. Chi Tiết 5 Phân Hệ & 23 Bảng Chuẩn Hóa
 
-### Phân Hệ 1: Cây Gia Phả, Định Danh & Lời Mời (7 Bảng)
-1. **`family_branches`**: Quản lý cấu trúc cây phả hệ (Adjacency List). Nhánh gốc lưu `clan_name` (US-00, US-02).
-2. **`members`**: Hồ sơ gia phả cá nhân (gồm cả hồ sơ ảo `is_placeholder = true` chờ gán tài khoản - US-18).
-3. **`user_accounts`**: Tài khoản người dùng (quan hệ 1-1 với `members` sau khi được phê duyệt).
-4. **`system_roles`**: Danh mục vai trò (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
-5. **`account_roles`**: Bảng nối nhiều-nhiều giữa tài khoản và vai trò.
-6. **`invitation_codes`**: Quản lý mã mời chung (`GeneralClanInvite` - US-16) và mã liên kết vị trí (`PositionLinkCode` - US-18, US-19).
-7. **`branch_join_requests`**: Hồ sơ xin gia nhập dòng họ tự đề xuất vị trí (lá có sẵn hoặc tạo nhánh con mới - US-17).
+### Phân Hệ 1: Cây Gia Phả, Định Danh & Lời Mời (8 Bảng)
+1. **`clans`**: Quản lý thông tin từng dòng họ / gia tộc (Tenant). Lưu trữ tên dòng họ (`clan_name`), thủy tổ, quê quán gốc, năm thành lập (V3).
+2. **`family_branches`**: Quản lý cấu trúc cây phả hệ (Adjacency List). Nhánh gốc có `generation_level = 1` và `parent_branch_id = NULL`. Đã chuẩn hóa 3NF loại bỏ `clan_name` ở V4 để `clans.clan_name` là Single Source of Truth (US-04).
+3. **`members`**: Hồ sơ gia phả cá nhân (gồm cả hồ sơ ảo `is_placeholder = true` chờ gán tài khoản - US-18).
+4. **`user_accounts`**: Tài khoản người dùng (quan hệ 1-1 với `members` sau khi được phê duyệt).
+5. **`system_roles`**: Danh mục vai trò (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
+6. **`account_roles`**: Bảng nối nhiều-nhiều giữa tài khoản và vai trò.
+7. **`invitation_codes`**: Quản lý mã mời chung (`GeneralClanInvite` - US-16) và mã liên kết vị trí (`PositionLinkCode` - US-18, US-19).
+8. **`branch_join_requests`**: Hồ sơ xin gia nhập dòng họ tự đề xuất vị trí (lá có sẵn hoặc tạo nhánh con mới - US-17).
 
 ### Phân Hệ 2: Sự Kiện, Đăng Ký & Nhân Sự (5 Bảng)
-8. **`events`**: Quản lý sự kiện giỗ tổ, chạp mã, lễ hội truyền thống kèm ngân sách ước tính và ngày âm lịch.
-9. **`event_personnel`**: Phân quyền theo ngữ cảnh từng sự kiện (`HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer`). Khóa đọc `is_read_only = true` khi sự kiện đóng (US-13).
-10. **`family_registrations`**: Đăng ký tham gia theo hộ gia đình (số suất ăn chay/mặn, nhu cầu đi lại - US-06).
-11. **`registration_member_details`**: Chi tiết thành viên gia đình tham gia và điểm danh thực tế (`is_checked_in`).
-12. **`event_notifications`**: Ghi nhận biến động lịch trình, địa điểm và gửi thông báo tới các thành viên.
+9. **`events`**: Quản lý sự kiện giỗ tổ, chạp mã, lễ hội truyền thống kèm ngân sách ước tính và ngày âm lịch.
+10. **`event_personnel`**: Phân quyền theo ngữ cảnh từng sự kiện (`HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer`). Khóa đọc `is_read_only = true` khi sự kiện đóng (US-13).
+11. **`family_registrations`**: Đăng ký tham gia theo hộ gia đình (số suất ăn chay/mặn, nhu cầu đi lại - US-06).
+12. **`registration_member_details`**: Chi tiết thành viên gia đình tham gia và điểm danh thực tế (`is_checked_in`).
+13. **`event_notifications`**: Ghi nhận biến động lịch trình, địa điểm và gửi thông báo tới các thành viên.
 
 ### Phân Hệ 3: Phân Công & Tiến Độ Công Việc (2 Bảng)
-13. **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
-14. **`task_progress_alerts`**: Cảnh báo nhắc việc 24h và tự động leo thang cảnh báo quá hạn 12h tới Trưởng nhánh (US-08).
+14. **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
+15. **`task_progress_alerts`**: Cảnh báo nhắc việc 24h và tự động leo thang cảnh báo quá hạn 12h tới Trưởng nhánh (US-08).
 
 ### Phân Hệ 4: Đóng Góp & Tài Sản Dòng Họ (5 Bảng)
-15. **`contributions`**: Bảng cha lưu vết mọi khoản công đức (Tiền mặt hoặc Hiện vật quy đổi - US-09, US-10).
-16. **`contribution_member_details`**: Ghi nhận công đức chia nhỏ cho từng cá nhân phục vụ hàm `TinhTongDongGop()` (US-11).
-17. **`cash_contributions`**: Bảng con lưu thông tin chi tiết đóng góp tiền mặt / chuyển khoản + mã biên lai tự sinh (US-09).
-18. **`in_kind_contributions`**: Bảng con lưu chi tiết hiện vật, đơn vị tính, phương pháp quy đổi giá trị và trạng thái xử lý (US-10).
-19. **`clan_assets`**: Tài sản tích lũy dòng họ lưu trữ tại từ đường, chuyển giao từ hiện vật sau sự kiện.
+16. **`contributions`**: Bảng cha lưu vết mọi khoản công đức (Tiền mặt hoặc Hiện vật quy đổi - US-09, US-10).
+17. **`contribution_member_details`**: Ghi nhận công đức chia nhỏ cho từng cá nhân phục vụ hàm `TinhTongDongGop()` (US-11).
+18. **`cash_contributions`**: Bảng con lưu thông tin chi tiết đóng góp tiền mặt / chuyển khoản + mã biên lai tự sinh (US-09).
+19. **`in_kind_contributions`**: Bảng con lưu chi tiết hiện vật, đơn vị tính, phương pháp quy đổi giá trị và trạng thái xử lý (US-10).
+20. **`clan_assets`**: Tài sản tích lũy dòng họ lưu trữ tại từ đường, chuyển giao từ hiện vật sau sự kiện.
 
 ### Phân Hệ 5: Tạm Ứng, Quyết Toán & Sổ Cái Bất Biến (4 Bảng)
-20. **`advance_vouchers`**: Phiếu tạm ứng kinh phí thực hiện công việc cho người phụ trách (US-12).
-21. **`expense_settlement_vouchers`**: Quyết toán hoàn ứng kèm đường dẫn ảnh hóa đơn/chứng từ. Trạng thái `NeedsExplanation` sẽ chặn đóng sự kiện (US-12, US-13).
-22. **`ledger_adjustment_requests`**: Quy trình đề xuất bù trừ sai sót sổ cái trước khi chốt ghi nhận (US-15).
-23. **`immutable_ledgers`**: Sổ cái quỹ chung bất biến (chỉ cho phép `INSERT`, cấm `UPDATE`/`DELETE`), tích hợp chuỗi băm mật mã SHA-256 (`record_hash`) chống giả mạo (US-13, US-15).
+21. **`advance_vouchers`**: Phiếu tạm ứng kinh phí thực hiện công việc cho người phụ trách (US-12).
+22. **`expense_settlement_vouchers`**: Quyết toán hoàn ứng kèm đường dẫn ảnh hóa đơn/chứng từ. Trạng thái `NeedsExplanation` sẽ chặn đóng sự kiện (US-12, US-13).
+23. **`ledger_adjustment_requests`**: Quy trình đề xuất bù trừ sai sót sổ cái trước khi chốt ghi nhận (US-15).
+24. **`immutable_ledgers`**: Sổ cái quỹ chung bất biến (chỉ cho phép `INSERT`, cấm `UPDATE`/`DELETE`), tích hợp chuỗi băm mật mã SHA-256 (`record_hash`) chống giả mạo (US-13, US-15).
 
 ---
 
@@ -117,8 +118,10 @@ erDiagram
 
 ### Cấu trúc file Migration
 Toàn bộ kịch bản DDL và dữ liệu khởi tạo được quản lý trong thư mục `src/main/resources/db/migration`:
-- [`V1__init_clan_genealogy_and_events_schema.sql`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/resources/db/migration/V1__init_clan_genealogy_and_events_schema.sql): Tạo toàn bộ 23 bảng, khóa chính, khóa ngoại, ràng buộc CHECK và Indexes.
-- [`V2__seed_system_roles_and_master_data.sql`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/resources/db/migration/V2__seed_system_roles_and_master_data.sql): Khởi tạo 4 nhóm quyền hệ thống (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
+- [`V1__init_clan_genealogy_and_events_schema.sql`](../../src/main/resources/db/migration/V1__init_clan_genealogy_and_events_schema.sql): Tạo toàn bộ các bảng ban đầu, khóa chính, khóa ngoại, ràng buộc CHECK và Indexes.
+- [`V2__seed_system_roles_and_master_data.sql`](../../src/main/resources/db/migration/V2__seed_system_roles_and_master_data.sql): Khởi tạo 4 nhóm quyền hệ thống (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
+- [`V3__create_clans_and_add_multitenancy_support.sql`](../../src/main/resources/db/migration/V3__create_clans_and_add_multitenancy_support.sql): Khởi tạo bảng `clans` và thiết lập quan hệ Multi-tenancy phân tách các dòng họ độc lập.
+- [`V4__drop_clan_name_from_family_branches.sql`](../../src/main/resources/db/migration/V4__drop_clan_name_from_family_branches.sql): Chuẩn hóa dữ liệu 3NF, loại bỏ cột dư thừa `clan_name` khỏi `family_branches`, quy tụ tên dòng họ về `clans` (Single Source of Truth - US-04).
 
 ### Khởi chạy môi trường Local
 ```bash

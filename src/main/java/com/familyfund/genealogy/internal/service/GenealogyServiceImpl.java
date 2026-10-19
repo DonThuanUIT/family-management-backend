@@ -42,12 +42,12 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(readOnly = true)
     public BranchDetailResponse getRootBranch() {
         String clanId = TenantContext.getClanId();
-        if (!clanRepository.existsById(clanId)) {
-            throw new ResourceNotFoundException("Clan not found with ID: " + clanId);
-        }
+        Clan clan = clanRepository.findById(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
+
         FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Root branch not found for clan: " + clanId));
-        return branchMapper.toDetailResponse(rootBranch);
+        return branchMapper.toDetailResponse(rootBranch, clan.getClanName());
     }
 
     @Override
@@ -70,16 +70,13 @@ public class GenealogyServiceImpl implements GenealogyService {
             throw new BusinessRuleException("This branch is not a valid root branch of the clan");
         }
 
-        // Keep clan name synchronized if updated
-        if (!request.clanName().equals(clan.getClanName())) {
-            clan.setClanName(request.clanName());
-            clanRepository.save(clan);
-        }
-
         rootBranch.setClanId(clanId);
-        rootBranch.setClanName(request.clanName());
-        rootBranch.setBranchName(request.branchName());
-        rootBranch.setDescription(request.description());
+        rootBranch.setBranchName(request.branchName().trim());
+
+        if (request.description() != null) {
+            String cleanDesc = request.description().trim();
+            rootBranch.setDescription(cleanDesc.isEmpty() ? null : cleanDesc);
+        }
 
         if (request.representativeId() != null && !request.representativeId().trim().isEmpty()) {
             Member rep = memberRepository.findByBranch_ClanIdAndMemberId(clanId, request.representativeId().trim())
@@ -92,13 +89,16 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         FamilyBranch saved = branchRepository.save(rootBranch);
-        return branchMapper.toDetailResponse(saved);
+        return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BranchDetailResponse createChildBranch(CreateChildBranchRequest request) {
         String clanId = TenantContext.getClanId();
+        Clan clan = clanRepository.findById(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
+
         FamilyBranch parent = branchRepository.findByClanIdAndBranchId(clanId, request.parentBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Parent branch not found with ID: " + request.parentBranchId() + " in clan: " + clanId
@@ -111,11 +111,10 @@ public class GenealogyServiceImpl implements GenealogyService {
         FamilyBranch childBranch = FamilyBranch.builder()
                 .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .clanId(clanId)
-                .clanName(parent.getClanName())
-                .branchName(request.branchName())
+                .branchName(request.branchName().trim())
                 .generationLevel(childGenerationLevel)
                 .parentBranch(parent)
-                .description(request.description())
+                .description(request.description() != null && !request.description().trim().isEmpty() ? request.description().trim() : null)
                 .build();
 
         if (request.representativeId() != null && !request.representativeId().trim().isEmpty()) {
@@ -127,7 +126,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         FamilyBranch saved = branchRepository.save(childBranch);
-        return branchMapper.toDetailResponse(saved);
+        return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
     @Override
@@ -199,12 +198,14 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         FamilyBranch saved = branchRepository.save(branch);
-        return branchMapper.toDetailResponse(saved);
+        Clan clan = clanRepository.findById(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
+        return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
     private void cascadeUpdateGenerationLevel(String clanId, FamilyBranch current, int delta) {
         // Update member generations for current branch
-        List<Member> members = memberRepository.findByBranch_BranchId(current.getBranchId());
+        List<Member> members = memberRepository.findByBranch_ClanIdAndBranch_BranchId(clanId, current.getBranchId());
         for (Member member : members) {
             member.setGeneration(member.getGeneration() + delta);
         }
@@ -220,9 +221,8 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(readOnly = true)
     public BranchTreeNodeResponse getBranchTree() {
         String clanId = TenantContext.getClanId();
-        if (!clanRepository.existsById(clanId)) {
-            throw new ResourceNotFoundException("Clan not found with ID: " + clanId);
-        }
+        Clan clan = clanRepository.findById(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
 
         // 1. Fetch all branches of the clan with representative in 1 single query
         List<FamilyBranch> allBranches = branchRepository.findAllByClanIdWithRepresentative(clanId);
@@ -257,22 +257,23 @@ public class GenealogyServiceImpl implements GenealogyService {
                 ));
 
         // 5. Build tree recursively entirely IN-MEMORY (0 extra database queries!)
-        return buildTreeNodeInMemory(root, childrenByParentId, memberCountMap);
+        return buildTreeNodeInMemory(root, childrenByParentId, memberCountMap, clan.getClanName());
     }
 
     private BranchTreeNodeResponse buildTreeNodeInMemory(
             FamilyBranch branch,
             Map<String, List<FamilyBranch>> childrenByParentId,
-            Map<String, Integer> memberCountMap
+            Map<String, Integer> memberCountMap,
+            String clanName
     ) {
         int memberCount = memberCountMap.getOrDefault(branch.getBranchId(), 0);
         List<FamilyBranch> children = childrenByParentId.getOrDefault(branch.getBranchId(), Collections.emptyList());
 
         List<BranchTreeNodeResponse> childNodes = children.stream()
-                .map(child -> buildTreeNodeInMemory(child, childrenByParentId, memberCountMap))
+                .map(child -> buildTreeNodeInMemory(child, childrenByParentId, memberCountMap, clanName))
                 .toList();
 
-        return branchMapper.toTreeNodeResponse(branch, memberCount, childNodes);
+        return branchMapper.toTreeNodeResponse(branch, clanName, memberCount, childNodes);
     }
 
     @Override
@@ -292,7 +293,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             );
         }
 
-        if (memberRepository.existsByBranch_BranchId(branchId)) {
+        if (memberRepository.existsByBranch_ClanIdAndBranch_BranchId(clanId, branchId)) {
             throw new BusinessRuleException(
                     "Cannot delete a branch that has associated family members. Please reassign members to another branch first."
             );

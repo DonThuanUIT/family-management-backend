@@ -1,7 +1,6 @@
 package com.familyfund.genealogy.internal.validator;
 
 import com.familyfund.core.exception.BranchCycleException;
-import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
@@ -62,25 +61,6 @@ public class GenealogyValidator {
                     .orElseThrow(() -> new ResourceNotFoundException("Parent branch not found with ID: " + targetId + " in clan: " + clanId));
 
             checkId = parent.getParentBranch() != null ? parent.getParentBranch().getBranchId() : null;
-        }
-    }
-
-    /**
-     * Validate generation level constraint between parent and child.
-     * Requires childGeneration > parentGeneration.
-     *
-     * @param parentGenerationLevel Generation level of parent branch
-     * @param childGenerationLevel  Generation level of child branch
-     * @throws InvalidGenerationException when child generation is less than or equal to parent generation
-     */
-    public void kiemTraDoiThu(Integer parentGenerationLevel, Integer childGenerationLevel) {
-        if (parentGenerationLevel != null && childGenerationLevel != null) {
-            if (childGenerationLevel <= parentGenerationLevel) {
-                throw new InvalidGenerationException(
-                        "Generation level mismatch: Child branch generation (" + childGenerationLevel +
-                                ") must be greater than parent branch generation (" + parentGenerationLevel + ")"
-                );
-            }
         }
     }
 }

@@ -23,7 +23,6 @@ class BranchMapperTest {
         FamilyBranch branch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
-                .clanName("Nguyen Clan")
                 .branchName("Dai Ton")
                 .generationLevel(1)
                 .parentBranch(null)
@@ -32,7 +31,7 @@ class BranchMapperTest {
                 .createdAt(Instant.now())
                 .build();
 
-        BranchDetailResponse response = branchMapper.toDetailResponse(branch);
+        BranchDetailResponse response = branchMapper.toDetailResponse(branch, "Nguyen Clan");
 
         assertNotNull(response);
         assertEquals("BR_ROOT", response.branchId());
@@ -62,7 +61,6 @@ class BranchMapperTest {
         FamilyBranch branch = FamilyBranch.builder()
                 .branchId("BR_CHILD")
                 .clanId("CLAN_DEFAULT")
-                .clanName("Nguyen Clan")
                 .branchName("Chi Hai")
                 .generationLevel(2)
                 .parentBranch(parent)
@@ -71,11 +69,12 @@ class BranchMapperTest {
                 .createdAt(Instant.now())
                 .build();
 
-        BranchDetailResponse response = branchMapper.toDetailResponse(branch);
+        BranchDetailResponse response = branchMapper.toDetailResponse(branch, "Nguyen Clan");
 
         assertNotNull(response);
         assertEquals("BR_CHILD", response.branchId());
         assertEquals("CLAN_DEFAULT", response.clanId());
+        assertEquals("Nguyen Clan", response.clanName());
         assertEquals("BR_ROOT", response.parentBranchId());
         assertEquals("MEM_001", response.representativeId());
         assertEquals("Nguyen Van A", response.representativeName());
@@ -88,7 +87,6 @@ class BranchMapperTest {
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
                 .branchName("Dai Ton")
-                .clanName("Nguyen Clan")
                 .generationLevel(1)
                 .build();
 
@@ -102,11 +100,12 @@ class BranchMapperTest {
                 .memberCount(5)
                 .build();
 
-        BranchTreeNodeResponse treeNode = branchMapper.toTreeNodeResponse(branch, 10, List.of(childNode));
+        BranchTreeNodeResponse treeNode = branchMapper.toTreeNodeResponse(branch, "Nguyen Clan", 10, List.of(childNode));
 
         assertNotNull(treeNode);
         assertEquals("BR_ROOT", treeNode.branchId());
         assertEquals("CLAN_DEFAULT", treeNode.clanId());
+        assertEquals("Nguyen Clan", treeNode.clanName());
         assertEquals(10, treeNode.memberCount());
         assertEquals(1, treeNode.children().size());
         assertEquals("BR_CHILD", treeNode.children().get(0).branchId());

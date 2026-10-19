@@ -22,6 +22,10 @@ public interface MemberRepository extends JpaRepository<Member, String> {
 
     List<Member> findByBranch_ClanId(String clanId);
 
+    boolean existsByBranch_ClanIdAndBranch_BranchId(String clanId, String branchId);
+
+    List<Member> findByBranch_ClanIdAndBranch_BranchId(String clanId, String branchId);
+
     @Query("SELECT m.branch.branchId, COUNT(m) FROM Member m WHERE m.branch.clanId = :clanId GROUP BY m.branch.branchId")
     List<Object[]> countMembersByBranchForClan(@Param("clanId") String clanId);
 }

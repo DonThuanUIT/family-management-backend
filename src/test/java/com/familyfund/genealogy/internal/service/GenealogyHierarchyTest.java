@@ -8,6 +8,7 @@ import com.familyfund.genealogy.internal.dto.request.CreateChildBranchRequest;
 import com.familyfund.genealogy.internal.dto.request.UpdateBranchRequest;
 import com.familyfund.genealogy.internal.dto.response.BranchDetailResponse;
 import com.familyfund.genealogy.internal.dto.response.BranchTreeNodeResponse;
+import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.mapper.BranchMapper;
@@ -57,14 +58,19 @@ class GenealogyHierarchyTest {
 
     private FamilyBranch rootBranch;
     private FamilyBranch childBranch;
+    private Clan mockClan;
 
     @BeforeEach
     void setUp() {
         TenantContext.clear();
+        mockClan = Clan.builder()
+                .clanId("CLAN_DEFAULT")
+                .clanName("Nguyen Clan")
+                .build();
+
         rootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
-                .clanName("Nguyen Clan")
                 .branchName("Dai Ton Branch")
                 .generationLevel(1)
                 .parentBranch(null)
@@ -73,7 +79,6 @@ class GenealogyHierarchyTest {
         childBranch = FamilyBranch.builder()
                 .branchId("BR_CHILD_1")
                 .clanId("CLAN_DEFAULT")
-                .clanName("Nguyen Clan")
                 .branchName("Giap Branch")
                 .generationLevel(2)
                 .parentBranch(rootBranch)
@@ -94,6 +99,7 @@ class GenealogyHierarchyTest {
                 .description("Giap branch located in Hanoi")
                 .build();
 
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_ROOT")).thenReturn(Optional.of(rootBranch));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -101,6 +107,7 @@ class GenealogyHierarchyTest {
 
         assertNotNull(response);
         assertEquals("Giap Branch", response.branchName());
+        assertEquals("Nguyen Clan", response.clanName());
         assertEquals(2, response.generationLevel());
         assertEquals("BR_ROOT", response.parentBranchId());
         verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", null, "BR_ROOT");
@@ -114,6 +121,7 @@ class GenealogyHierarchyTest {
                 .parentBranchId("BR_NON_EXIST")
                 .build();
 
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_NON_EXIST")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.createChildBranch(request));
@@ -145,6 +153,7 @@ class GenealogyHierarchyTest {
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_NEW_PARENT")).thenReturn(Optional.of(newParent));
         when(branchRepository.findByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(List.of(grandChild));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
 
         BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
 
@@ -152,6 +161,7 @@ class GenealogyHierarchyTest {
         assertEquals(3, response.generationLevel());
         assertEquals("BR_NEW_PARENT", response.parentBranchId());
         assertEquals(4, grandChild.getGenerationLevel());
+        assertEquals("Nguyen Clan", response.clanName());
         verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
     }
 
@@ -172,11 +182,13 @@ class GenealogyHierarchyTest {
 
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
 
         BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
 
         assertNotNull(response);
         assertEquals("New Branch Name", response.branchName());
+        assertEquals("Nguyen Clan", response.clanName());
         assertEquals(existingRep, childBranch.getRepresentative());
     }
 
@@ -197,10 +209,12 @@ class GenealogyHierarchyTest {
 
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
 
         BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
 
         assertNotNull(response);
+        assertEquals("Nguyen Clan", response.clanName());
         assertNull(childBranch.getRepresentative());
     }
 
@@ -221,12 +235,14 @@ class GenealogyHierarchyTest {
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_002")).thenReturn(Optional.of(newRep));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
 
         BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
 
         assertNotNull(response);
         assertEquals("Giap Branch", response.branchName());
         assertEquals("MEM_002", response.representativeId());
+        assertEquals("Nguyen Clan", response.clanName());
         assertEquals(newRep, childBranch.getRepresentative());
     }
 
@@ -273,7 +289,7 @@ class GenealogyHierarchyTest {
     void testDeleteBranch_HasMembers_ThrowsBusinessRuleException() {
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.existsByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(false);
-        when(memberRepository.existsByBranch_BranchId("BR_CHILD_1")).thenReturn(true);
+        when(memberRepository.existsByBranch_ClanIdAndBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(true);
 
         assertThrows(BusinessRuleException.class, () -> genealogyService.deleteBranch("BR_CHILD_1"));
         verify(branchRepository, never()).delete(any());
@@ -284,7 +300,7 @@ class GenealogyHierarchyTest {
     void testDeleteBranch_Success() {
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
         when(branchRepository.existsByClanIdAndParentBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(false);
-        when(memberRepository.existsByBranch_BranchId("BR_CHILD_1")).thenReturn(false);
+        when(memberRepository.existsByBranch_ClanIdAndBranch_BranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(false);
 
         assertDoesNotThrow(() -> genealogyService.deleteBranch("BR_CHILD_1"));
         verify(branchRepository, times(1)).delete(childBranch);
@@ -339,7 +355,7 @@ class GenealogyHierarchyTest {
     @Test
     @DisplayName("Query nested hierarchical branch tree successfully with in-memory assembly")
     void testGetBranchTree_Success() {
-        when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(true);
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findAllByClanIdWithRepresentative("CLAN_DEFAULT")).thenReturn(List.of(rootBranch, childBranch));
         when(memberRepository.countMembersByBranchForClan("CLAN_DEFAULT")).thenReturn(List.of(
                 new Object[]{"BR_ROOT", 5L},
@@ -350,6 +366,7 @@ class GenealogyHierarchyTest {
 
         assertNotNull(tree);
         assertEquals("BR_ROOT", tree.branchId());
+        assertEquals("Nguyen Clan", tree.clanName());
         assertEquals(5, tree.memberCount());
         assertEquals(1, tree.children().size());
         assertEquals("BR_CHILD_1", tree.children().get(0).branchId());

@@ -60,7 +60,6 @@ class GenealogyRootBranchTest {
         mockRootBranch = FamilyBranch.builder()
                 .branchId("BR_ROOT")
                 .clanId("CLAN_DEFAULT")
-                .clanName("Default Clan")
                 .branchName("Default Root Branch")
                 .generationLevel(1)
                 .parentBranch(null)
@@ -76,7 +75,6 @@ class GenealogyRootBranchTest {
     @DisplayName("Update root branch successfully when root branch exists")
     void testUpdateRootBranch_Success_WhenRootExists() {
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyen Clan")
                 .branchName("Dai Ton Branch")
                 .description("First branch originating from Co Am village")
                 .build();
@@ -88,7 +86,7 @@ class GenealogyRootBranchTest {
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
 
         assertNotNull(response);
-        assertEquals("Nguyen Clan", response.clanName());
+        assertEquals("Default Clan", response.clanName());
         assertEquals("Dai Ton Branch", response.branchName());
         assertEquals(1, response.generationLevel());
         assertNull(response.parentBranchId());
@@ -101,7 +99,6 @@ class GenealogyRootBranchTest {
         TenantContext.setClanId("CLAN_TRAN");
         try {
             UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                    .clanName("Tran Clan")
                     .branchName("Root Branch Tran")
                     .build();
 
@@ -113,7 +110,6 @@ class GenealogyRootBranchTest {
             FamilyBranch tranRoot = FamilyBranch.builder()
                     .branchId("BR_TRAN_ROOT")
                     .clanId("CLAN_TRAN")
-                    .clanName("Tran Clan")
                     .branchName("Root Branch Tran")
                     .generationLevel(1)
                     .parentBranch(null)
@@ -137,7 +133,6 @@ class GenealogyRootBranchTest {
     @DisplayName("Update root branch throws ResourceNotFoundException when Clan does not exist")
     void testUpdateRootBranch_ClanNotFound_ThrowsException() {
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Unknown Clan")
                 .branchName("Root Branch")
                 .build();
 
@@ -159,7 +154,6 @@ class GenealogyRootBranchTest {
                 .build();
 
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyen Clan")
                 .branchName("Dai Ton Branch")
                 .representativeId("MEM_001")
                 .build();
@@ -181,7 +175,6 @@ class GenealogyRootBranchTest {
     @DisplayName("Throws ResourceNotFoundException when representative ID is not found")
     void testUpdateRootBranch_RepresentativeNotFound_ThrowsException() {
         UpdateRootBranchRequest request = UpdateRootBranchRequest.builder()
-                .clanName("Nguyen Clan")
                 .branchName("Dai Ton Branch")
                 .representativeId("MEM_NON_EXIST")
                 .build();
@@ -197,20 +190,21 @@ class GenealogyRootBranchTest {
     @Test
     @DisplayName("Get root branch successfully")
     void testGetRootBranch_Success() {
-        when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(true);
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
 
         BranchDetailResponse response = genealogyService.getRootBranch();
 
         assertNotNull(response);
         assertEquals("BR_ROOT", response.branchId());
+        assertEquals("Default Clan", response.clanName());
         assertEquals(1, response.generationLevel());
     }
 
     @Test
     @DisplayName("Throws ResourceNotFoundException when Clan does not exist on getRootBranch")
     void testGetRootBranch_ClanNotFound_ThrowsException() {
-        when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(false);
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.getRootBranch());
     }
@@ -218,7 +212,7 @@ class GenealogyRootBranchTest {
     @Test
     @DisplayName("Throws ResourceNotFoundException when root branch does not exist")
     void testGetRootBranch_NotFound_ThrowsException() {
-        when(clanRepository.existsById("CLAN_DEFAULT")).thenReturn(true);
+        when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.getRootBranch());

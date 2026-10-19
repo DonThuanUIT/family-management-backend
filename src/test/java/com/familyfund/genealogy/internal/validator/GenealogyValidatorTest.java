@@ -1,7 +1,6 @@
 package com.familyfund.genealogy.internal.validator;
 
 import com.familyfund.core.exception.BranchCycleException;
-import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -91,30 +90,6 @@ class GenealogyValidatorTest {
         // Create new child branch BR_NEW under BR_A
         assertDoesNotThrow(() ->
                 validator.kiemTraChuTrinh("CLAN_01", "BR_NEW", "BR_A")
-        );
-    }
-
-    @Test
-    @DisplayName("Generation level check: Child generation level less than parent -> Throws InvalidGenerationException")
-    void testGenerationValidation_ChildSmallerThanParent_ThrowsInvalidGenerationException() {
-        assertThrows(InvalidGenerationException.class, () ->
-                validator.kiemTraDoiThu(3, 2)
-        );
-    }
-
-    @Test
-    @DisplayName("Generation level check: Child generation level equals parent -> Throws InvalidGenerationException")
-    void testGenerationValidation_ChildEqualsParent_ThrowsInvalidGenerationException() {
-        assertThrows(InvalidGenerationException.class, () ->
-                validator.kiemTraDoiThu(3, 3)
-        );
-    }
-
-    @Test
-    @DisplayName("Generation level check: Child generation level greater than parent -> Success")
-    void testGenerationValidation_ChildGreaterThanParent_Success() {
-        assertDoesNotThrow(() ->
-                validator.kiemTraDoiThu(3, 4)
         );
     }
 }

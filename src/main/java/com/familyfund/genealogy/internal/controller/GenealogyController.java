@@ -60,12 +60,4 @@ public class GenealogyController {
         genealogyService.deleteBranch(branchId);
         return ResponseEntity.ok(ApiResponse.success(null, "Branch deleted successfully"));
     }
-
-    @PutMapping("/{branchId}/members/{memberId}")
-    public ResponseEntity<ApiResponse<Void>> assignMember(
-            @PathVariable String branchId,
-            @PathVariable String memberId) {
-        genealogyService.assignMemberToBranch(memberId, branchId);
-        return ResponseEntity.ok(ApiResponse.success(null, "Member assigned to branch successfully"));
-    }
 }

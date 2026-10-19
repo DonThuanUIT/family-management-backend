@@ -29,9 +29,6 @@ public class FamilyBranch {
     @Column(name = "clan_id", length = 20)
     private String clanId;
 
-    @Column(name = "clan_name", length = 150)
-    private String clanName;
-
     @Column(name = "branch_name", length = 100, nullable = false)
     private String branchName;
 
@@ -42,7 +39,7 @@ public class FamilyBranch {
     @JoinColumn(name = "parent_branch_id")
     private FamilyBranch parentBranch;
 
-    @OneToMany(mappedBy = "parentBranch", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "parentBranch")
     @Builder.Default
     private List<FamilyBranch> childBranches = new ArrayList<>();
 
@@ -57,7 +54,7 @@ public class FamilyBranch {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @OneToMany(mappedBy = "branch", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "branch")
     @Builder.Default
     private List<Member> members = new ArrayList<>();
 
