@@ -1,5 +1,6 @@
 package com.familyfund.genealogy.internal.service;
 
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,16 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
         if (branchId == null || branchId.isBlank()) {
             return false;
         }
-        return familyBranchRepository.existsByBranchId(branchId.trim());
+        String clanId = TenantContext.getClanId();
+        return existsBranch(clanId, branchId.trim());
+    }
+
+    @Override
+    public boolean existsBranch(String clanId, String branchId) {
+        if (clanId == null || clanId.isBlank() || branchId == null || branchId.isBlank()) {
+            return false;
+        }
+        return familyBranchRepository.existsByClanIdAndBranchId(clanId.trim(), branchId.trim());
     }
 }
 

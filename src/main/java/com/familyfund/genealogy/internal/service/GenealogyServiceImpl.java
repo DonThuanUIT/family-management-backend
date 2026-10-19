@@ -78,13 +78,10 @@ public class GenealogyServiceImpl implements GenealogyService {
         rootBranch.setDescription(request.description());
 
         if (request.representativeId() != null && !request.representativeId().trim().isEmpty()) {
-            Member rep = memberRepository.findById(request.representativeId())
+            Member rep = memberRepository.findByBranch_ClanIdAndMemberId(clanId, request.representativeId().trim())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Representative/ancestor not found with ID: " + request.representativeId()
+                            "Representative/ancestor not found with ID: " + request.representativeId() + " in clan: " + clanId
                     ));
-            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
-                throw new BusinessRuleException("Representative member belongs to another clan");
-            }
             rootBranch.setRepresentative(rep);
         } else {
             rootBranch.setRepresentative(null);
@@ -103,10 +100,9 @@ public class GenealogyServiceImpl implements GenealogyService {
                         "Parent branch not found with ID: " + request.parentBranchId() + " in clan: " + clanId
                 ));
 
-        // Cycle check and generation level check
-        genealogyValidator.kiemTraChuTrinh(null, request.parentBranchId());
+        // Cycle check within clan
+        genealogyValidator.kiemTraChuTrinh(clanId, null, request.parentBranchId());
         int childGenerationLevel = parent.getGenerationLevel() + 1;
-        genealogyValidator.kiemTraDoiThu(parent.getGenerationLevel(), childGenerationLevel);
 
         FamilyBranch childBranch = FamilyBranch.builder()
                 .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
@@ -119,13 +115,10 @@ public class GenealogyServiceImpl implements GenealogyService {
                 .build();
 
         if (request.representativeId() != null && !request.representativeId().trim().isEmpty()) {
-            Member rep = memberRepository.findById(request.representativeId())
+            Member rep = memberRepository.findByBranch_ClanIdAndMemberId(clanId, request.representativeId().trim())
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Representative not found with ID: " + request.representativeId()
+                            "Representative not found with ID: " + request.representativeId() + " in clan: " + clanId
                     ));
-            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
-                throw new BusinessRuleException("Representative member belongs to another clan");
-            }
             childBranch.setRepresentative(rep);
         }
 
@@ -141,7 +134,7 @@ public class GenealogyServiceImpl implements GenealogyService {
                 .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId));
 
         // If reparenting
-        if (request.parentBranchId() != null) {
+        if (request.parentBranchId() != null && !request.parentBranchId().trim().isEmpty()) {
             String currentParentId = branch.getParentBranch() != null ? branch.getParentBranch().getBranchId() : null;
             if (!request.parentBranchId().equals(currentParentId)) {
                 // Cannot assign parent to root branch
@@ -149,42 +142,52 @@ public class GenealogyServiceImpl implements GenealogyService {
                     throw new BusinessRuleException("Cannot assign parent branch to the root branch of the clan");
                 }
 
-                // Check closed cycle
-                genealogyValidator.kiemTraChuTrinh(branchId, request.parentBranchId());
-
+                // 1. Verify and fetch new parent branch within the same clan FIRST
                 FamilyBranch newParent = branchRepository.findByClanIdAndBranchId(clanId, request.parentBranchId())
                         .orElseThrow(() -> new ResourceNotFoundException(
                                 "New parent branch not found with ID: " + request.parentBranchId() + " in clan: " + clanId
                         ));
 
-                int newGenLevel = newParent.getGenerationLevel() + 1;
-                genealogyValidator.kiemTraDoiThu(newParent.getGenerationLevel(), newGenLevel);
+                // 2. Check closed cycle within the clan
+                genealogyValidator.kiemTraChuTrinh(clanId, branchId, request.parentBranchId());
 
+                if (newParent.getGenerationLevel() == null) {
+                    throw new BusinessRuleException("Parent branch generation level cannot be null");
+                }
+
+                int newGenLevel = newParent.getGenerationLevel() + 1;
                 int delta = newGenLevel - branch.getGenerationLevel();
                 branch.setParentBranch(newParent);
                 branch.setGenerationLevel(newGenLevel);
 
-                // Cascade update generation levels for all descendants
+                // Cascade update generation levels for all descendants and their members
                 if (delta != 0) {
                     cascadeUpdateGenerationLevel(clanId, branch, delta);
                 }
             }
         }
 
-        branch.setBranchName(request.branchName());
-        branch.setDescription(request.description());
+        if (request.branchName() != null && !request.branchName().trim().isEmpty()) {
+            branch.setBranchName(request.branchName());
+        }
+        if (request.description() != null) {
+            branch.setDescription(request.description());
+        }
 
-        if (request.representativeId() != null && !request.representativeId().trim().isEmpty()) {
-            Member rep = memberRepository.findById(request.representativeId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Representative not found with ID: " + request.representativeId()
-                    ));
-            if (rep.getBranch() != null && !clanId.equals(rep.getBranch().getClanId())) {
-                throw new BusinessRuleException("Representative member belongs to another clan");
+        // Representative handling:
+        // - If non-empty string provided -> assign representative (must belong to this clan)
+        // - If empty string ("") provided -> unassign current representative
+        // - If null -> keep current representative unchanged
+        if (request.representativeId() != null) {
+            if (!request.representativeId().trim().isEmpty()) {
+                Member rep = memberRepository.findByBranch_ClanIdAndMemberId(clanId, request.representativeId().trim())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Representative not found with ID: " + request.representativeId() + " in clan: " + clanId
+                        ));
+                branch.setRepresentative(rep);
+            } else {
+                branch.setRepresentative(null);
             }
-            branch.setRepresentative(rep);
-        } else {
-            branch.setRepresentative(null);
         }
 
         FamilyBranch saved = branchRepository.save(branch);
@@ -192,10 +195,15 @@ public class GenealogyServiceImpl implements GenealogyService {
     }
 
     private void cascadeUpdateGenerationLevel(String clanId, FamilyBranch current, int delta) {
+        // Update member generations for current branch
+        List<Member> members = memberRepository.findByBranch_BranchId(current.getBranchId());
+        for (Member member : members) {
+            member.setGeneration(member.getGeneration() + delta);
+        }
+
         List<FamilyBranch> children = branchRepository.findByClanIdAndParentBranch_BranchId(clanId, current.getBranchId());
         for (FamilyBranch child : children) {
             child.setGenerationLevel(child.getGenerationLevel() + delta);
-            branchRepository.save(child);
             cascadeUpdateGenerationLevel(clanId, child, delta);
         }
     }
@@ -255,8 +263,8 @@ public class GenealogyServiceImpl implements GenealogyService {
     @Transactional(rollbackFor = Exception.class)
     public void assignMemberToBranch(String memberId, String branchId) {
         String clanId = TenantContext.getClanId();
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId));
+        Member member = memberRepository.findByBranch_ClanIdAndMemberId(clanId, memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId + " in clan: " + clanId));
 
         FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId));
@@ -267,11 +275,6 @@ public class GenealogyServiceImpl implements GenealogyService {
                     "Generation level mismatch: Member generation (" + member.getGeneration() +
                             ") cannot be less than branch generation level (" + branch.getGenerationLevel() + ")"
             );
-        }
-
-        // Validate member does not belong to another clan
-        if (member.getBranch() != null && !clanId.equals(member.getBranch().getClanId())) {
-            throw new BusinessRuleException("Cannot reassign a member belonging to another clan");
         }
 
         member.setBranch(branch);

@@ -22,15 +22,4 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
     boolean existsByClanIdAndBranchId(String clanId, String branchId);
 
     List<FamilyBranch> findByClanIdAndParentBranch_BranchIdOrderByBranchNameAsc(String clanId, String parentBranchId);
-
-    // Legacy queries for backward compatibility
-    Optional<FamilyBranch> findByParentBranchIsNull();
-
-    List<FamilyBranch> findByParentBranch_BranchId(String parentBranchId);
-
-    boolean existsByParentBranch_BranchId(String parentBranchId);
-
-    boolean existsByBranchId(String branchId);
-
-    List<FamilyBranch> findByParentBranch_BranchIdOrderByBranchNameAsc(String parentBranchId);
 }

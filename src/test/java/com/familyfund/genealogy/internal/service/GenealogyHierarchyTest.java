@@ -103,8 +103,7 @@ class GenealogyHierarchyTest {
         assertEquals("Giap Branch", response.branchName());
         assertEquals(2, response.generationLevel());
         assertEquals("BR_ROOT", response.parentBranchId());
-        verify(genealogyValidator).kiemTraChuTrinh(null, "BR_ROOT");
-        verify(genealogyValidator).kiemTraDoiThu(1, 2);
+        verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", null, "BR_ROOT");
     }
 
     @Test
@@ -153,7 +152,56 @@ class GenealogyHierarchyTest {
         assertEquals(3, response.generationLevel());
         assertEquals("BR_NEW_PARENT", response.parentBranchId());
         assertEquals(4, grandChild.getGenerationLevel());
-        verify(genealogyValidator).kiemTraChuTrinh("BR_CHILD_1", "BR_NEW_PARENT");
+        verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
+    }
+
+    @Test
+    @DisplayName("Update branch preserves existing representative when request representativeId is null")
+    void testUpdateBranch_NullRepresentativeId_KeepsCurrentRepresentative() {
+        Member existingRep = Member.builder()
+                .memberId("MEM_001")
+                .fullName("Existing Rep")
+                .branch(childBranch)
+                .build();
+        childBranch.setRepresentative(existingRep);
+
+        UpdateBranchRequest request = UpdateBranchRequest.builder()
+                .branchName("New Branch Name")
+                .representativeId(null)
+                .build();
+
+        when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
+        when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
+
+        assertNotNull(response);
+        assertEquals("New Branch Name", response.branchName());
+        assertEquals(existingRep, childBranch.getRepresentative());
+    }
+
+    @Test
+    @DisplayName("Update branch unassigns representative when request representativeId is blank")
+    void testUpdateBranch_BlankRepresentativeId_UnassignsRepresentative() {
+        Member existingRep = Member.builder()
+                .memberId("MEM_001")
+                .fullName("Existing Rep")
+                .branch(childBranch)
+                .build();
+        childBranch.setRepresentative(existingRep);
+
+        UpdateBranchRequest request = UpdateBranchRequest.builder()
+                .branchName("New Branch Name")
+                .representativeId("   ")
+                .build();
+
+        when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
+        when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
+
+        assertNotNull(response);
+        assertNull(childBranch.getRepresentative());
     }
 
     @Test
@@ -213,7 +261,7 @@ class GenealogyHierarchyTest {
                 .generation(3)
                 .build();
 
-        when(memberRepository.findById("MEM_005")).thenReturn(Optional.of(member));
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_005")).thenReturn(Optional.of(member));
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
 
         assertDoesNotThrow(() -> genealogyService.assignMemberToBranch("MEM_005", "BR_CHILD_1"));
@@ -230,11 +278,22 @@ class GenealogyHierarchyTest {
                 .generation(1)
                 .build();
 
-        when(memberRepository.findById("MEM_ANCESTOR")).thenReturn(Optional.of(member));
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_ANCESTOR")).thenReturn(Optional.of(member));
         when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
 
         assertThrows(InvalidGenerationException.class, () ->
                 genealogyService.assignMemberToBranch("MEM_ANCESTOR", "BR_CHILD_1")
+        );
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Assign member fails when member belongs to another clan -> Throws ResourceNotFoundException")
+    void testAssignMemberToBranch_MemberAnotherClan_ThrowsResourceNotFoundException() {
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_ANOTHER_CLAN")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                genealogyService.assignMemberToBranch("MEM_ANOTHER_CLAN", "BR_CHILD_1")
         );
         verify(memberRepository, never()).save(any());
     }

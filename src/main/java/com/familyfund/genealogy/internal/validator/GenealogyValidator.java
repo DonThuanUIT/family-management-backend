@@ -21,15 +21,21 @@ public class GenealogyValidator {
     }
 
     /**
-     * Thuật toán duyệt ngược từ nhánh cha được đề xuất lên nhánh gốc để ngăn chặn vòng lặp cha - con khép kín.
+     * Thuật toán duyệt ngược từ nhánh cha được đề xuất lên nhánh gốc để ngăn chặn vòng lặp cha - con khép kín,
+     * đồng thời cô lập dữ liệu theo ClanId (Multi-tenancy).
      *
+     * @param clanId                 Mã dòng họ hiện tại (bắt buộc)
      * @param currentBranchId        ID nhánh hiện tại (null nếu là nhánh mới chưa tạo)
      * @param proposedParentBranchId ID nhánh cha được đề xuất làm cấp trên
      * @throws BranchCycleException khi phát hiện chu trình phả hệ
      */
-    public void kiemTraChuTrinh(String currentBranchId, String proposedParentBranchId) {
+    public void kiemTraChuTrinh(String clanId, String currentBranchId, String proposedParentBranchId) {
         if (proposedParentBranchId == null) {
             return;
+        }
+
+        if (clanId == null || clanId.isBlank()) {
+            throw new IllegalArgumentException("Clan ID must not be null or blank for genealogy cycle validation");
         }
 
         if (currentBranchId != null && currentBranchId.equals(proposedParentBranchId)) {
@@ -52,8 +58,8 @@ public class GenealogyValidator {
             }
 
             final String targetId = checkId;
-            FamilyBranch parent = branchRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Parent branch not found with ID: " + targetId));
+            FamilyBranch parent = branchRepository.findByClanIdAndBranchId(clanId, targetId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent branch not found with ID: " + targetId + " in clan: " + clanId));
 
             checkId = parent.getParentBranch() != null ? parent.getParentBranch().getBranchId() : null;
         }

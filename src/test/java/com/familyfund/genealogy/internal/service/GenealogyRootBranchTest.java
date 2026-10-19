@@ -166,7 +166,7 @@ class GenealogyRootBranchTest {
 
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
-        when(memberRepository.findById("MEM_001")).thenReturn(Optional.of(mockRep));
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_001")).thenReturn(Optional.of(mockRep));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
@@ -174,7 +174,7 @@ class GenealogyRootBranchTest {
         assertNotNull(response);
         assertEquals("MEM_001", response.representativeId());
         assertEquals("Grand Ancestor Nguyen Quy Cong", response.representativeName());
-        verify(memberRepository, times(1)).findById("MEM_001");
+        verify(memberRepository, times(1)).findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_001");
     }
 
     @Test
@@ -188,7 +188,7 @@ class GenealogyRootBranchTest {
 
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
         when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
-        when(memberRepository.findById("MEM_NON_EXIST")).thenReturn(Optional.empty());
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_NON_EXIST")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.updateRootBranch(request));
         verify(branchRepository, never()).save(any());
