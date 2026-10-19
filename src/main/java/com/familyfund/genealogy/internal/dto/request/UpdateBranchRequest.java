@@ -1,10 +1,12 @@
 package com.familyfund.genealogy.internal.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
 @Builder
 public record UpdateBranchRequest(
+        @NotBlank(message = "Branch name must not be blank")
         @Size(max = 100, message = "Branch name must not exceed 100 characters")
         String branchName,
 

@@ -178,7 +178,8 @@ public class GenealogyServiceImpl implements GenealogyService {
             branch.setBranchName(request.branchName().trim());
         }
         if (request.description() != null) {
-            branch.setDescription(request.description());
+            String cleanDesc = request.description().trim();
+            branch.setDescription(cleanDesc.isEmpty() ? null : cleanDesc);
         }
 
         // Representative handling:

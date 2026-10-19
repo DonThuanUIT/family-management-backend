@@ -205,8 +205,8 @@ class GenealogyHierarchyTest {
     }
 
     @Test
-    @DisplayName("Partial update: update only representative without providing branchName succeeds")
-    void testUpdateBranch_PartialUpdate_OnlyRepresentative_Success() {
+    @DisplayName("Update branch: change representative with full form data succeeds")
+    void testUpdateBranch_ChangeRepresentative_Success() {
         Member newRep = Member.builder()
                 .memberId("MEM_002")
                 .fullName("New Representative")
@@ -214,6 +214,7 @@ class GenealogyHierarchyTest {
                 .build();
 
         UpdateBranchRequest request = UpdateBranchRequest.builder()
+                .branchName("Giap Branch")
                 .representativeId("MEM_002")
                 .build();
 
@@ -224,7 +225,7 @@ class GenealogyHierarchyTest {
         BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
 
         assertNotNull(response);
-        assertEquals("Giap Branch", response.branchName()); // Name unchanged
+        assertEquals("Giap Branch", response.branchName());
         assertEquals("MEM_002", response.representativeId());
         assertEquals(newRep, childBranch.getRepresentative());
     }
