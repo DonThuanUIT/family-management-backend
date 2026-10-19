@@ -167,8 +167,11 @@ public class GenealogyServiceImpl implements GenealogyService {
             }
         }
 
-        if (request.branchName() != null && !request.branchName().trim().isEmpty()) {
-            branch.setBranchName(request.branchName());
+        if (request.branchName() != null) {
+            if (request.branchName().trim().isEmpty()) {
+                throw new BusinessRuleException("Branch name cannot be blank");
+            }
+            branch.setBranchName(request.branchName().trim());
         }
         if (request.description() != null) {
             branch.setDescription(request.description());

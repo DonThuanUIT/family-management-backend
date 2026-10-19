@@ -205,6 +205,43 @@ class GenealogyHierarchyTest {
     }
 
     @Test
+    @DisplayName("Partial update: update only representative without providing branchName succeeds")
+    void testUpdateBranch_PartialUpdate_OnlyRepresentative_Success() {
+        Member newRep = Member.builder()
+                .memberId("MEM_002")
+                .fullName("New Representative")
+                .branch(childBranch)
+                .build();
+
+        UpdateBranchRequest request = UpdateBranchRequest.builder()
+                .representativeId("MEM_002")
+                .build();
+
+        when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
+        when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_002")).thenReturn(Optional.of(newRep));
+        when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BranchDetailResponse response = genealogyService.updateBranch("BR_CHILD_1", request);
+
+        assertNotNull(response);
+        assertEquals("Giap Branch", response.branchName()); // Name unchanged
+        assertEquals("MEM_002", response.representativeId());
+        assertEquals(newRep, childBranch.getRepresentative());
+    }
+
+    @Test
+    @DisplayName("Update branch fails when branchName is explicitly blank string")
+    void testUpdateBranch_BlankBranchName_ThrowsBusinessRuleException() {
+        UpdateBranchRequest request = UpdateBranchRequest.builder()
+                .branchName("   ")
+                .build();
+
+        when(branchRepository.findByClanIdAndBranchId("CLAN_DEFAULT", "BR_CHILD_1")).thenReturn(Optional.of(childBranch));
+
+        assertThrows(BusinessRuleException.class, () -> genealogyService.updateBranch("BR_CHILD_1", request));
+    }
+
+    @Test
     @DisplayName("Reject assigning parent to Root Branch -> Throws BusinessRuleException")
     void testUpdateBranch_RootCannotHaveParent_ThrowsBusinessRuleException() {
         UpdateBranchRequest request = UpdateBranchRequest.builder()
