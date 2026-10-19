@@ -33,10 +33,12 @@ build/
 ### VS Code ###
 .vscode/
 
-### AI md local
+### AI md local & Antigravity
 .agent/
 agent/
 .rules/
+.antigravityrules
+.antigravity*
 
 ### Environment & Local Build ###
 .env
