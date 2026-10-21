@@ -1,6 +1,6 @@
 # Các Luồng Nghiệp Vụ Cốt Lõi (Core Business Flows)
 
-Tài liệu này mô tả chi tiết các luồng dữ liệu và quy trình nghiệp vụ xuyên suốt 4 phân hệ của hệ thống **Family Management Backend**.
+Tài liệu này mô tả chi tiết các luồng dữ liệu và quy trình nghiệp vụ xuyên suốt các phân hệ của hệ thống **Family Management Backend**.
 
 ---
 
@@ -28,7 +28,7 @@ sequenceDiagram
 ### Các bước thực thi:
 1. **Tiếp nhận yêu cầu**: Người dùng tải ứng dụng, tìm kiếm dòng họ qua tên hoặc mã mời (`invite_code`), gửi yêu cầu gia nhập kèm số điện thoại liên lạc.
 2. **Xác minh & Phê chuẩn**: Trưởng họ hoặc Trưởng chi đối chiếu phả hệ thực tế và chấp thuận đơn.
-3. **Liên kết hồ sơ (Claim Profile)**: Hệ thống sinh hồ sơ thành viên [`members`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql#L37-L52) với mã `claim_code`. Người dùng hoàn tất đăng ký tài khoản [`user_accounts`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql#L53-L64) gắn liền với hồ sơ phả hệ của mình.
+3. **Liên kết hồ sơ (Claim Profile)**: Hệ thống sinh hồ sơ thành viên `members` với mã `claim_code`. Người dùng hoàn tất đăng ký tài khoản `user_accounts` gắn liền với hồ sơ phả hệ của mình.
 
 ---
 
@@ -56,7 +56,7 @@ stateDiagram-v2
     end note
 ```
 
-- **Chỉ định nhân sự**: Bảng [`event_personnel`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql#L131-L140) lưu các vai trò `HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer` cho từng sự kiện.
+- **Chỉ định nhân sự**: Bảng `event_personnel` lưu các vai trò `HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer` cho từng sự kiện.
 - **Tự động thu hồi quyền**: Khi sự kiện chuyển trạng thái sang `Closed`, hệ thống chặn toàn bộ thao tác thêm/sửa/xóa phiếu chi, phiếu thu, phiếu tạm ứng của sự kiện đó, bảo toàn tính toàn vẹn số liệu.
 
 ---
@@ -117,14 +117,14 @@ graph TD
 ```
 
 ### Thuật toán Tính Tổng Đóng Góp Theo Nhánh Phả Hệ (`TinhTongDongGop`):
-- Khi một hộ gia đình cúng tiến (ví dụ 10 triệu đồng), người đại diện có thể đăng ký chia đều hoặc ghi nhận cho từng cá nhân trong gia đình qua bảng [`contribution_member_details`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql#L234-L243).
-- Khi tính tổng công đức của một Chi nhánh (ví dụ Chi 1), hệ thống dùng truy vấn đệ quy CTE (Common Table Expression) duyệt toàn bộ nhánh con cháu và cộng dồn `recorded_amount` của tất cả thành viên thuộc nhánh đó.
+- Khi một hộ gia đình cúng tiến, người đại diện có thể đăng ký chia đều hoặc ghi nhận cho từng cá nhân trong gia đình qua bảng `contribution_member_details`.
+- Khi tính tổng công đức của một Chi nhánh, hệ thống dùng truy vấn đệ quy CTE (Common Table Expression) duyệt toàn bộ nhánh con cháu và cộng dồn `recorded_amount` của tất cả thành viên thuộc nhánh đó.
 
 ---
 
 ## 5. Luồng 5: Sổ Cái Bất Biến (Audit Trail) & Giao Dịch Bù Trừ
 
-Nhằm đáp ứng yêu cầu kiểm toán tối cao NFR-01, bảng [`immutable_ledgers`](file:///d:/WorkSpace/Family-Management/family-management-backend/docker/postgres/init.sql#L203-L216) vận hành theo mô hình chuỗi ghi bất biến:
+Nhằm đáp ứng yêu cầu kiểm toán tối cao NFR-01, bảng `immutable_ledgers` vận hành theo mô hình chuỗi ghi bất biến:
 
 ```mermaid
 graph LR
@@ -159,16 +159,70 @@ sequenceDiagram
     Svc->>Svc: Sinh mã 8 ký tự Base32 + URL chia sẻ đầy đủ
     Svc->>DB: Lưu bản ghi invitation_codes (invite_type='GeneralClanInvite')
     DB-->>API: Trả về InviteCodeResponse
-    API-->>ClanHead: Mã mời & shareable_url (VD: https://familyfund.vn/join?code=8K9P2X7N)
+    API-->>ClanHead: Mã mời & shareable_url (VD: http://localhost:3000/join?code=8K9P2X7N)
     
     Note over ClanHead,Guest: Trưởng tộc gửi mã/link vào nhóm Zalo/Facebook dòng họ
     
-    Guest->>API: GET /api/v1/invitations/{code}/verify (Công khai, không cần đăng nhập)
-    API->>Svc: getInvitationByCode(code)
+    Guest->>API: GET /api/v1/invitations/{code} (Công khai, không cần đăng nhập)
+    API->>Svc: getInviteByCode(code)
     Svc->>DB: Truy vấn mã mời & kiểm tra hiệu lực
     DB-->>API: Trả về trạng thái hợp lệ, số lượt dùng còn lại
     API-->>Guest: Thông tin xem trước (Tên dòng họ, Chi nhánh) để chuẩn bị nộp đơn (US-17)
 ```
 
-Chi tiết kiến trúc, giải thuật sinh mã an toàn mật mã, và quy trình kiểm thử E2E: xem tại **[04-us16-general-clan-invite.md](./04-us16-general-clan-invite.md)**.
+Chi tiết kiến trúc, giải thuật sinh mã an toàn mật mã, và quy trình kiểm thử E2E: xem tại **[`docs/user-stories/US-16-general-clan-invite.md`](../user-stories/US-16-general-clan-invite.md)**.
 
+---
+
+## 7. Luồng 7: Quản Lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả (US-04)
+
+Phân hệ quản lý cây gia phả vận hành theo mô hình phân cấp đệ quy Adjacency List với ranh giới multi-tenancy nghiêm ngặt được tiêm tự động bởi `TenantFilter`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Head as Trưởng tộc / Trưởng chi
+    participant Filter as TenantFilter (OncePerRequestFilter)
+    participant API as GenealogyController (/api/v1/branches)
+    participant Svc as GenealogyService / Impl
+    participant Val as GenealogyValidator
+    participant DB as PostgreSQL (family_branches, members)
+
+    Head->>Filter: Request + Header 'X-Clan-Id' (hoặc clanId query param)
+    Filter->>Filter: TenantContext.setCurrentClanId(clanId)
+    Filter->>API: Chuyển tiếp request đã được gán ngữ cảnh dòng họ
+    
+    alt Khởi tạo / Cập nhật Chi gốc
+        API->>Svc: updateRootBranch(UpdateRootBranchRequest)
+        Svc->>DB: Lưu/Cập nhật Root Branch (generationLevel = 1, parent = null)
+        DB-->>API: Trả về BranchDetailResponse
+    else Tạo nhánh con mới
+        API->>Svc: createChildBranch(CreateChildBranchRequest)
+        Svc->>DB: Tìm nhánh cha theo parentBranchId & clanId
+        Svc->>Svc: Tự động gán child.generationLevel = parent.generationLevel + 1
+        Svc->>DB: Lưu nhánh con
+        DB-->>API: Trả về BranchDetailResponse (HTTP 201 Created)
+    else Điều chỉnh nhánh cha (Reparenting)
+        API->>Svc: updateBranch(branchId, UpdateBranchRequest)
+        Svc->>Val: kiemTraChuTrinh(branchId, newParentId)
+        Note over Val: Duyệt ngược chuỗi cha để chặn vòng lặp
+        Svc->>Svc: Cascade cập nhật generationLevel cho toàn bộ cây con & members
+        Svc->>DB: Lưu các thay đổi
+        DB-->>API: Trả về BranchDetailResponse
+    else Truy vấn cây phả hệ tối ưu In-Memory
+        API->>Svc: getBranchTree()
+        Svc->>DB: Query 1: Lấy toàn bộ branches theo clanId
+        Svc->>DB: Query 2: GROUP BY branch_id đếm số members
+        Svc->>Svc: Dựng cây đệ quy in-memory (Triệt tiêu N+1 queries)
+        Svc-->>API: Trả về BranchTreeNodeResponse
+    end
+    API-->>Head: Envelope ApiResponse<T>
+```
+
+### Các nguyên tắc toàn vẹn nghiệp vụ (Business Invariants):
+1. **Duy nhất Chi gốc**: Mỗi dòng họ có duy nhất một chi gốc với `generation_level = 1` và `parent_branch_id = NULL`.
+2. **Chống chu trình**: Thuật toán `kiemTraChuTrinh` ngăn chặn tuyệt đối tình huống nhánh cha trở thành nhánh con của chính nó.
+3. **Xóa an toàn**: Chặn xóa Chi gốc, chặn xóa nhánh đang có nhánh con hoặc đang có thành viên liên kết.
+4. **Không N+1 Queries**: Lấy trọn vẹn cây gia phả chỉ trong đúng 2 truy vấn SQL và dựng cây trên RAM.
+
+Chi tiết kiến trúc, thuật toán dựng cây và kịch bản kiểm thử: xem tại **[`docs/user-stories/US-04-child-branches-and-hierarchy.md`](../user-stories/US-04-child-branches-and-hierarchy.md)**.

@@ -1,6 +1,6 @@
 # Family Management Backend (`familyfund-api`)
 
-Dự án backend quản lý quỹ gia đình và tài chính xây dựng trên nền tảng **Spring Boot**, tích hợp **Spring AI** cùng cơ sở dữ liệu **PostgreSQL (PGVector)**. Hệ thống quản lý build đã được chuyển đổi toàn diện sang **Gradle Wrapper (Kotlin DSL)** với cơ chế **Java Toolchain** khóa cứng Java 21 LTS.
+Dự án backend quản lý quỹ gia đình và tài chính xây dựng trên nền tảng **Spring Boot 4.1.1**, tích hợp **Spring AI 2.0.1** cùng cơ sở dữ liệu **Neon Serverless PostgreSQL (pgvector)**. Hệ thống quản lý build đã được chuyển đổi toàn diện sang **Gradle Wrapper (Kotlin DSL)** với cơ chế **Java Toolchain** khóa cứng Java 21 LTS và kiểm soát ranh giới module bằng **Spring Modulith 2.1.1**.
 
 ---
 
@@ -9,8 +9,10 @@ Dự án backend quản lý quỹ gia đình và tài chính xây dựng trên n
 - **Java Runtime**: Java 21 (LTS)
 - **Framework**: Spring Boot 4.1.1
 - **Architecture**: Modular Monolith with Spring Modulith 2.1.1
+- **Multi-Tenancy**: `TenantFilter` + `TenantContext` (scoping theo `clanId`)
+- **Mapping**: MapStruct 1.6.3 (Lombok binding, Java record DTOs)
 - **AI Integration**: Spring AI 2.0.1 (Vector Store PGVector)
-- **Database**: PostgreSQL with pgvector extension (Flyway Migrations)
+- **Database**: Neon Serverless PostgreSQL 16 with pgvector extension (Flyway Migrations V1 $\rightarrow$ V4)
 - **Build Tool**: Gradle Wrapper 9.x+ (Kotlin DSL: `build.gradle.kts`, `settings.gradle.kts`)
 
 > **Lưu ý về Java Toolchain**: Dự án đã cấu hình `java.toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }`. Ngay cả khi máy tính của bạn cài đặt song song nhiều phiên bản JDK (ví dụ: Java 17, 21, 25), Gradle sẽ luôn tự động nhận diện và ép buộc sử dụng đúng **JDK 21** khi biên dịch và chạy kiểm thử mà không phụ thuộc vào biến môi trường `JAVA_HOME`.
@@ -55,14 +57,20 @@ Biên dịch cả mã nguồn kiểm thử trong `src/test`:
 ---
 
 ### 3. Chạy Kiểm Thử (Test)
-Chạy bộ kiểm thử JUnit Platform và tạo báo cáo kết quả:
+Chạy bộ kiểm thử tự động toàn diện (**70/70 tests**):
 
 ```bash
 # Chạy toàn bộ test
 .\gradlew.bat test
 
-# Chạy một test class cụ thể
-.\gradlew.bat test --tests "com.familyfund.FamilyfundApiApplicationTests"
+# Chạy kiểm thử kiến trúc Spring Modulith
+.\gradlew.bat test --tests "com.familyfund.ArchitectureTest"
+
+# Chạy kiểm thử riêng cho module Identity (22 tests)
+.\gradlew.bat test --tests "com.familyfund.identity.*"
+
+# Chạy kiểm thử riêng cho module Genealogy (39 tests)
+.\gradlew.bat test --tests "com.familyfund.genealogy.*"
 ```
 
 > Báo cáo kết quả kiểm thử dạng HTML sẽ được tự động tạo tại:  
@@ -89,14 +97,11 @@ Chạy bộ kiểm thử JUnit Platform và tạo báo cáo kết quả:
 ---
 
 ### 5. Khởi Chạy Ứng Dụng (Run Application)
-Chạy trực tiếp ứng dụng Spring Boot trong môi trường phát triển:
+Chạy trực tiếp ứng dụng Spring Boot trong môi trường phát triển (tự động nạp cấu hình từ `.env`):
 
 ```bash
-# Chạy với profile mặc định
+# Chạy ứng dụng
 .\gradlew.bat bootRun
-
-# Chạy với profile chỉ định (ví dụ: dev)
-.\gradlew.bat bootRun --args='--spring.profiles.active=dev'
 ```
 
 Hoặc chạy từ file JAR đã build:
@@ -115,18 +120,21 @@ Xem toàn bộ cây thư viện phụ thuộc và kiểm tra phiên bản:
 .\gradlew.bat dependencies --configuration runtimeClasspath
 
 # Tìm kiếm thư viện cụ thể trong cây dependencies
-.\gradlew.bat dependencyInsight --dependency spring-ai-bom --configuration runtimeClasspath
+.\gradlew.bat dependencyInsight --dependency spring-modulith-starter-core --configuration runtimeClasspath
 ```
 
+---
+
+## 🗂 Cấu Trúc Dự Án (Project Structure)
 
 ```text
 family-management-backend/
-├── .env                       # Biến môi trường cho Docker Compose
+├── .env                       # Biến môi trường kết nối Neon Cloud & Docker
 ├── .env.example               # Mẫu cấu hình biến môi trường
-├── docker-compose.yml         # Khởi tạo Postgres, Adminer, Swagger UI
+├── docker-compose.yml         # Khởi tạo Swagger UI (:8082) & Adminer (:8088)
 ├── docker/
 │   ├── postgres/
-│   │   └── init.sql           # Kịch bản DDL khởi tạo 21 bảng cốt lõi & dữ liệu mẫu
+│   │   └── init.sql           # Kịch bản DDL tham khảo & dữ liệu mẫu
 │   └── swagger/
 │       └── openapi.yaml       # Tài liệu API OpenAPI 3.0 cho Swagger UI
 ├── docs/                      # Tài liệu kỹ thuật chi tiết của dự án
@@ -139,7 +147,8 @@ family-management-backend/
 │   ├── user-stories/          # Đặc tả kỹ thuật & Hướng dẫn kiểm thử từng User Story
 │   │   ├── README.md          # Danh mục User Stories & hướng dẫn bổ sung
 │   │   ├── TEMPLATE-US.md     # Mẫu chuẩn (Barem) cho US mới
-│   │   └── US-16-general-clan-invite.md
+│   │   ├── US-04-child-branches-and-hierarchy.md # Đặc tả US-04 Quản lý chi phái phả hệ
+│   │   └── US-16-general-clan-invite.md          # Đặc tả US-16 Mã mời chung dòng họ
 │   └── guidelines/            # Quy chuẩn phát triển & coding conventions
 │       ├── development-guide.md
 │       └── modulith-rules.md
@@ -155,7 +164,7 @@ family-management-backend/
     ├── main/
     │   ├── java/com/familyfund/
     │   │   ├── FamilyfundApiApplication.java
-    │   │   ├── core/          # Shared Kernel (Security, Global Exceptions, ApiResponse)
+    │   │   ├── core/          # Shared Kernel (Security, TenantFilter, Exceptions, ApiResponse)
     │   │   ├── identity/      # Module Định danh, Tài khoản & Lời mời (api & internal)
     │   │   ├── genealogy/     # Module Dòng họ, Chi phái & Thành viên (api & internal)
     │   │   ├── event/         # Module Quản lý Sự kiện & Contextual RBAC
@@ -164,34 +173,29 @@ family-management-backend/
     │   │   └── ai/            # Module Trợ lý AI & Vector Store
     │   └── resources/
     │       ├── application.yaml
-    │       └── db/migration/  # Flyway database migrations
+    │       └── db/migration/  # Flyway database migrations (V1 -> V4)
     └── test/
         └── java/com/familyfund/
             ├── ArchitectureTest.java # Spring Modulith Architecture Verification
             ├── DatabaseMigrationTest.java
             ├── FamilyfundApiApplicationTests.java
-            └── identity/      # Unit & Controller Tests cho Identity & Invitation
+            ├── core/          # Unit tests cho Shared Kernel (TenantFilterTest)
+            ├── identity/      # Unit & Controller Tests cho Identity & Invitation (22 tests)
+            └── genealogy/     # Unit & Mapper Tests cho Chi phái & Phả hệ (39 tests)
 ```
 
 > 📖 **Xem chi tiết tài liệu hệ thống tại thư mục [docs/](file:///d:/WorkSpace/Family-Management/family-management-backend/docs/README.md)**.
 
-
 ---
 
-## 🐳 Môi Trường Docker (PostgreSQL, Adminer, Swagger)
+## 🐳 Môi Trường Docker (Adminer & Swagger UI)
 
-Dự án cung cấp bộ kịch bản `docker-compose.yml` tích hợp sẵn 3 dịch vụ phụ trợ quan trọng:
+Dự án cung cấp bộ kịch bản `docker-compose.yml` tích hợp sẵn 2 dịch vụ công cụ phụ trợ:
 
-1. **PostgreSQL 16 + PGVector (`familyfund-postgres`)**:
-   - Port: `5432`
-   - Database: `familyfund_db`
-   - User: `familyfund_user`
-   - Password: `familyfund_secret`
-   - Tự động chạy kịch bản `docker/postgres/init.sql` khởi tạo toàn bộ 21 bảng thuộc 4 phân hệ và seed data cơ sở.
-2. **Adminer Database Manager (`familyfund-adminer`)**:
+1. **Adminer Database Manager (`familyfund-adminer`)**:
    - Port: `8088` (truy cập tại: `http://localhost:8088`)
-   - Tự động kết nối tới container `postgres`.
-3. **Swagger UI (`familyfund-swagger`)**:
+   - Hỗ trợ kết nối trực quan tới Neon Cloud Database qua giao diện web.
+2. **Swagger UI (`familyfund-swagger`)**:
    - Port: `8082` (truy cập tại: `http://localhost:8082`)
    - Tải trực tiếp tài liệu OpenAPI từ `docker/swagger/openapi.yaml`.
 
@@ -199,14 +203,11 @@ Dự án cung cấp bộ kịch bản `docker-compose.yml` tích hợp sẵn 3 d
 
 ```bash
 # 1. Khởi động Docker Desktop trên máy
-# 2. Khởi chạy 3 container ở chế độ nền:
+# 2. Khởi chạy 2 container ở chế độ nền:
 docker compose up -d
 
 # Kiểm tra trạng thái các container:
 docker compose ps
-
-# Xem log khởi tạo database:
-docker compose logs postgres
 
 # Dừng các container:
 docker compose down

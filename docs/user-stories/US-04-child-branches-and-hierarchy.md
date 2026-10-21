@@ -65,38 +65,38 @@ Tính năng thuộc Bounded Context: `com.familyfund.genealogy`
 │ 3. PERSISTENCE & DATA LAYER                                            │
 │    • FamilyBranchRepository, MemberRepository, ClanRepository          │
 │    • Entity: FamilyBranch, Member, Clan                                │
-│    • PostgreSQL 16+ Database                                           │
+│    • Neon Serverless PostgreSQL 16+ Database                           │
 │    • Flyway Migrations: V1, V3, V4__drop_clan_name_from_family_branches│
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Danh mục các file mã nguồn cốt lõi:
 * **Controllers:** 
-  - [`GenealogyController.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/controller/GenealogyController.java)
-  - [`MemberController.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/controller/MemberController.java)
+  - [`GenealogyController.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/controller/GenealogyController.java)
+  - [`MemberController.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/controller/MemberController.java)
 * **Service:** 
-  - [`GenealogyService.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/service/GenealogyService.java)
-  - [`GenealogyServiceImpl.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/service/GenealogyServiceImpl.java)
+  - [`GenealogyService.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/service/GenealogyService.java)
+  - [`GenealogyServiceImpl.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/service/GenealogyServiceImpl.java)
 * **Validator:** 
-  - [`GenealogyValidator.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/validator/GenealogyValidator.java)
+  - [`GenealogyValidator.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/validator/GenealogyValidator.java)
 * **Cross-Module API Contract:** 
-  - [`GenealogyQueryService.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/api/GenealogyQueryService.java)
+  - [`GenealogyQueryService.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/api/GenealogyQueryService.java)
 * **Repositories:** 
-  - [`FamilyBranchRepository.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/FamilyBranchRepository.java)
-  - [`MemberRepository.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/MemberRepository.java)
-  - [`ClanRepository.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/ClanRepository.java)
+  - [`FamilyBranchRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/FamilyBranchRepository.java)
+  - [`MemberRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/MemberRepository.java)
+  - [`ClanRepository.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/repository/ClanRepository.java)
 * **Entities:** 
-  - [`FamilyBranch.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/FamilyBranch.java)
-  - [`Member.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/Member.java)
-  - [`Clan.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/Clan.java)
+  - [`FamilyBranch.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/FamilyBranch.java)
+  - [`Member.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/Member.java)
+  - [`Clan.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/entity/Clan.java)
 * **Mapper:** 
-  - [`BranchMapper.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/mapper/BranchMapper.java)
+  - [`BranchMapper.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/mapper/BranchMapper.java)
 * **DTOs:** 
-  - [`CreateChildBranchRequest.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/CreateChildBranchRequest.java)
-  - [`UpdateBranchRequest.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/UpdateBranchRequest.java)
-  - [`UpdateRootBranchRequest.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/UpdateRootBranchRequest.java)
-  - [`BranchDetailResponse.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/response/BranchDetailResponse.java)
-  - [`BranchTreeNodeResponse.java`](file:///d:/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/response/BranchTreeNodeResponse.java)
+  - [`CreateChildBranchRequest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/CreateChildBranchRequest.java)
+  - [`UpdateBranchRequest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/UpdateBranchRequest.java)
+  - [`UpdateRootBranchRequest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/request/UpdateRootBranchRequest.java)
+  - [`BranchDetailResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/response/BranchDetailResponse.java)
+  - [`BranchTreeNodeResponse.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/main/java/com/familyfund/genealogy/internal/dto/response/BranchTreeNodeResponse.java)
 
 ---
 
@@ -189,11 +189,14 @@ Chạy bộ kiểm thử tự động của phân hệ Gia phả bằng Gradle:
 
 | Tên Test Class | Số Test Cases | Mục Tiêu Kiểm Thử |
 | :--- | :---: | :--- |
-| [`GenealogyRootBranchTest`](file:///d:/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyRootBranchTest.java) | 6 | Cập nhật Chi gốc, gán thủy tổ đại diện, kiểm soát lỗi khi Clan không tồn tại |
-| [`GenealogyHierarchyTest`](file:///d:/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyHierarchyTest.java) | 12 | Tạo nhánh con, reparenting cascade đời, gán đại diện, xóa nhánh an toàn, dựng cây in-memory |
-| [`GenealogyMultiTenantSecurityTest`](file:///d:/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyMultiTenantSecurityTest.java) | 5 | Phòng thủ bảo mật chéo tenant giữa các Clan độc lập |
-| [`GenealogyValidatorTest`](file:///d:/family-management-backend/src/test/java/com/familyfund/genealogy/internal/validator/GenealogyValidatorTest.java) | 5 | Kiểm thử thuật toán chống chu trình 1 cấp, 2 cấp và chuỗi nhiều cấp gián tiếp |
-| [`BranchMapperTest`](file:///d:/family-management-backend/src/test/java/com/familyfund/genealogy/internal/mapper/BranchMapperTest.java) | 3 | Chuyển đổi dữ liệu Entity sang DTO phẳng và DTO cây phân cấp lồng nhau |
+| [`GenealogyRootBranchTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyRootBranchTest.java) | 8 | Cập nhật Chi gốc, gán thủy tổ đại diện, kiểm soát lỗi khi Clan không tồn tại |
+| [`GenealogyHierarchyTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyHierarchyTest.java) | 15 | Tạo nhánh con, reparenting cascade đời, gán đại diện, xóa nhánh an toàn, dựng cây in-memory |
+| [`GenealogyMultiTenantSecurityTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyMultiTenantSecurityTest.java) | 5 | Phòng thủ bảo mật chéo tenant giữa các Clan độc lập |
+| [`GenealogyValidatorTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/validator/GenealogyValidatorTest.java) | 5 | Kiểm thử thuật toán chống chu trình 1 cấp, 2 cấp và chuỗi nhiều cấp gián tiếp |
+| [`GenealogyQueryServiceImplTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/service/GenealogyQueryServiceImplTest.java) | 3 | Xác minh dịch vụ công khai liên module `GenealogyQueryService` |
+| [`BranchMapperTest`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/genealogy/internal/mapper/BranchMapperTest.java) | 3 | Chuyển đổi dữ liệu Entity sang DTO phẳng và DTO cây phân cấp lồng nhau |
+
+> **Tổng cộng:** **39 unit tests** trong module `genealogy` đều vượt qua 100%.
 
 ### 5.2. Kịch Bản Kiểm Thử Thực Tế (E2E Manual Testing)
 

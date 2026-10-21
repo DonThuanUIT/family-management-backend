@@ -1,6 +1,6 @@
 # Đặc Tả Cơ Sở Dữ Liệu PostgreSQL & Flyway Migrations (23 Bảng Chuẩn Hóa)
 
-Tài liệu này đặc tả toàn bộ kiến trúc 23 bảng cơ sở dữ liệu, các ràng buộc toàn vẹn, chỉ mục tối ưu, và cơ chế chuyển đổi sang **Flyway Database Migration** phục vụ môi trường phát triển cục bộ (Local Docker + Adminer) cũng như sẵn sàng triển khai đám mây **Neon Serverless PostgreSQL**.
+Tài liệu này đặc tả toàn bộ kiến trúc 23 bảng cơ sở dữ liệu, các ràng buộc toàn vẹn, chỉ mục tối ưu, và cơ chế chuyển đổi sang **Flyway Database Migration** phục vụ môi trường phát triển cục bộ và đám mây **Neon Serverless PostgreSQL** kết hợp công cụ Adminer / Swagger UI qua Docker Compose.
 
 Bản thiết kế chuẩn hóa đáp ứng 100% User Stories (US-00 đến US-20).
 
@@ -96,7 +96,7 @@ erDiagram
 13. **`event_notifications`**: Ghi nhận biến động lịch trình, địa điểm và gửi thông báo tới các thành viên.
 
 ### Phân Hệ 3: Phân Công & Tiến Độ Công Việc (2 Bảng)
-14. **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
+14: **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
 15. **`task_progress_alerts`**: Cảnh báo nhắc việc 24h và tự động leo thang cảnh báo quá hạn 12h tới Trưởng nhánh (US-08).
 
 ### Phân Hệ 4: Đóng Góp & Tài Sản Dòng Họ (5 Bảng)
@@ -114,7 +114,7 @@ erDiagram
 
 ---
 
-## 3. Kiến Trúc Flyway Migrations & Triển Khai
+## 3. Kiến Trúc Flyway Migrations & Cấu Hình Triển Khai
 
 ### Cấu trúc file Migration
 Toàn bộ kịch bản DDL và dữ liệu khởi tạo được quản lý trong thư mục `src/main/resources/db/migration`:
@@ -123,30 +123,28 @@ Toàn bộ kịch bản DDL và dữ liệu khởi tạo được quản lý tro
 - [`V3__create_clans_and_add_multitenancy_support.sql`](../../src/main/resources/db/migration/V3__create_clans_and_add_multitenancy_support.sql): Khởi tạo bảng `clans` và thiết lập quan hệ Multi-tenancy phân tách các dòng họ độc lập.
 - [`V4__drop_clan_name_from_family_branches.sql`](../../src/main/resources/db/migration/V4__drop_clan_name_from_family_branches.sql): Chuẩn hóa dữ liệu 3NF, loại bỏ cột dư thừa `clan_name` khỏi `family_branches`, quy tụ tên dòng họ về `clans` (Single Source of Truth - US-04).
 
-### Khởi chạy môi trường Local
+### Cơ sở dữ liệu Neon Serverless PostgreSQL
+Dự án sử dụng CSDL đám mây **Neon Serverless PostgreSQL** làm môi trường dữ liệu tiêu chuẩn:
+1. Thông tin kết nối được cấu hình trong file [`.env`](file:///d:/WorkSpace/Family-Management/family-management-backend/.env):
+   ```bash
+   SPRING_DATASOURCE_URL="jdbc:postgresql://ep-your-project-id.region.aws.neon.tech/neondb?sslmode=require"
+   DB_USER="neondb_owner"
+   DB_PASSWORD="your_neon_secret_password"
+   ```
+2. Khi khởi chạy ứng dụng Spring Boot (`.\gradlew.bat bootRun`), Flyway sẽ tự động kết nối, chạy migration toàn bộ 23 bảng và lưu vết vào bảng `flyway_schema_history`.
+
+### Khởi chạy công cụ hỗ trợ qua Docker Compose
 ```bash
-# 1. Khởi động PostgreSQL 16 và Adminer
+# 1. Khởi động Swagger UI (:8082) và Adminer (:8088)
 docker compose up -d
 
-# 2. Khởi chạy ứng dụng Spring Boot (Flyway tự động chạy migration vào Postgres container)
+# 2. Khởi chạy ứng dụng Spring Boot Backend
 .\gradlew.bat bootRun
 
 # 3. Mở Adminer tại http://localhost:8088
 # - Hệ quản trị: PostgreSQL
-# - Máy chủ: postgres
-# - Người dùng: familyfund_user
-# - Mật khẩu: familyfund_secret
-# - Cơ sở dữ liệu: familyfund_db
+# - Máy chủ: [Host Neon từ URL JDBC]
+# - Người dùng: neondb_owner
+# - Mật khẩu: [Mật khẩu Neon]
+# - Cơ sở dữ liệu: neondb
 ```
-
-### Triển khai lên Neon Serverless PostgreSQL
-Khi chuyển sang Neon Cloud, không cần thay đổi bất kỳ dòng mã nguồn hay script DDL nào:
-1. Đăng ký database trên [neon.tech](https://neon.tech).
-2. Lấy chuỗi kết nối JDBC (chế độ SSL): `jdbc:postgresql://ep-xxxx.neon.tech/neondb?sslmode=require`.
-3. Cung cấp biến môi trường cho Spring Boot:
-   ```bash
-   SPRING_DATASOURCE_URL="jdbc:postgresql://ep-xxxx.neon.tech/neondb?sslmode=require"
-   DB_USER="neondb_owner"
-   DB_PASSWORD="your_neon_secret_password"
-   ```
-4. Khi ứng dụng khởi chạy trên Cloud, Flyway sẽ tự động kết nối và tạo toàn bộ 23 bảng cùng bảng quản lý `flyway_schema_history` trên Neon.
