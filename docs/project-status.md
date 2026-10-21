@@ -12,6 +12,7 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
 | **US-04** | **Quản Lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả**<br/>- **Task 1:** Entity `FamilyBranch`, quan hệ phân cấp Adjacency List, DTOs (Records), `BranchMapper` (MapStruct)<br/>- **Task 2:** Service layer: Root branch, Child branch, Reparenting cascade thế hệ, Chống chu trình `kiemTraChuTrinh`<br/>- **Task 3:** Dựng cây in-memory tối ưu N+1 (`getBranchTree`), Multi-tenant scoping qua `TenantContext` & `TenantFilter`<br/>- **Task 4:** Chuẩn hóa dữ liệu 3NF (Flyway `V4__drop_clan_name_from_family_branches.sql`), loại bỏ `CascadeType.REMOVE` an toàn dữ liệu | **Đã Hoàn Thành (Implemented & Verified)** | - 100% automated tests passed (**39 unit tests** trong module `genealogy`).<br/>- Triệt tiêu N+1 database queries khi dựng cây phả hệ bằng in-memory assembly.<br/>- Tài liệu đặc tả kỹ thuật: [`docs/user-stories/US-04-child-branches-and-hierarchy.md`](./user-stories/US-04-child-branches-and-hierarchy.md). |
 | **US-16** | **Tạo Mã Mời (Invite Code) Chung Của Gia Phả**<br/>- **Task 1:** Entity `InvitationCode`, Enums, DTOs, Repository, Generator CSPRNG Base32 (`9e7de92`)<br/>- **Task 2:** Service layer, Business Invariants, Collision retry, Unit tests (`8a6705e`)<br/>- **Task 3:** REST Controller (`/api/v1/invitations`), Method Security, Exception handling, MockMvc tests, OpenAPI spec (`8fb026a`) | **Đã Hoàn Thành (Implemented & Verified)** | - 100% automated tests passed (**22 tests** trong module `identity`).<br/>- Đã tái cấu trúc vào bounded context `com.familyfund.identity`.<br/>- Tài liệu đặc tả & hướng dẫn kiểm thử E2E: [`docs/user-stories/US-16-general-clan-invite.md`](file:///d:/WorkSpace/Family-Management/family-management-backend/docs/user-stories/US-16-general-clan-invite.md). |
 | **ARCH-01** | **Tái Cấu Trúc Kiến Trúc Modular Monolith & Spring Modulith**<br/>- Khóa cứng Java toolchain lên Java 21 LTS.<br/>- Tích hợp Spring Modulith 2.1.1 (`spring-modulith-bom:2.1.1`, core, test).<br/>- Quy hoạch lại package theo Domain Bounded Contexts: `identity`, `genealogy`, `event`, `finance`, `contribution`, `ai`, `core`.<br/>- Tách `api` (Public Contract) và `internal` (Private Implementation).<br/>- Sát nhập tính năng lời mời vào bounded context `identity`.<br/>- Triệt tiêu rò rỉ repository giữa các module: Trích xuất `GenealogyQueryService` thay vì gọi trực tiếp `FamilyBranchRepository`.<br/>- Tích hợp `TenantFilter` và `TenantContext` xử lý multi-tenancy tự động qua header `X-Clan-Id` hoặc query param `clanId`.<br/>- Viết kiểm thử kiến trúc tự động bằng Spring Modulith (`ArchitectureTest`). | **Đã Hoàn Thành (Implemented & Verified)** | - `ArchitectureTest.verifyModularity()` vượt qua thành công 100%.<br/>- Toàn bộ **70/70 tests** trong toàn bộ test suite đều pass (100% success rate).<br/>- Tài liệu kiến trúc chuẩn hóa: [`docs/architecture/01-system-architecture.md`](file:///d:/WorkSpace/Family-Management/family-management-backend/docs/architecture/01-system-architecture.md). |
+| **CI-01** | **Thiết Lập GitHub Actions CI Pipeline & Chuẩn Hóa Kiểm Thử Database**<br/>- Khởi tạo pipeline tự động hóa [`.github/workflows/ci.yml`](file:///d:/WorkSpace/Family-Management/family-management-backend/.github/workflows/ci.yml) trên Ubuntu runner.<br/>- Cấu hình service container `pgvector/pgvector:pg16` với health-check cụ thể (`pg_isready -U test_user -d familyfund_test`).<br/>- Cấu hình concurrency tối ưu theo PR & Ref tránh chạy trùng lặp.<br/>- Đóng gói ứng dụng và chạy toàn bộ test suite bằng lệnh chuẩn mực `./gradlew build`.<br/>- Tự động lưu trữ test reports với `if-no-files-found: ignore`.<br/>- Khắc phục quyền execute của `gradlew` trên Git index (`100755`).<br/>- Bổ sung assertion thực tế cho [`DatabaseMigrationTest.java`](file:///d:/WorkSpace/Family-Management/family-management-backend/src/test/java/com/familyfund/DatabaseMigrationTest.java) (xác minh $\ge$ 24 domain tables và 4 seeded system roles). | **Đã Hoàn Thành (Implemented & Verified)** | - Toàn bộ **70/70 tests** vượt qua thành công 100% với assertion kiểm tra CSDL thực tế.<br/>- `./gradlew build` biên dịch, chạy test và tạo JAR thành công trong 1m11s.<br/>- File JAR độc lập: `familyfund-api-0.0.1-SNAPSHOT.jar` (71.2 MB). |
 | **BE-Task 2** | **Xây dựng JPA Entities, Enums & Base Repositories cho các phân hệ còn lại**<br/>- Ánh xạ các bảng còn lại sang JPA Entity (Cây gia phả, Sự kiện, Tài chính, Đóng góp) trong package `internal` của từng module<br/>- Cấu hình quan hệ `@ManyToOne`, `@OneToMany`, `@OneToOne`<br/>- Tạo các `JpaRepository` nội bộ trong từng module | *Kế Hoạch (Planned / Next Task)* | Bounded context `identity` và `genealogy` đã có khung chuẩn mực. |
 | **BE-Task 3** | **Cấu hình Spring Security, JWT Authentication & Global RBAC**<br/>- Cấu hình xác thực người dùng dựa trên `user_accounts` trong `identity`<br/>- Cấp phát và xác thực JWT token<br/>- Phân quyền theo vai trò hệ thống (`ROLE_ADMIN`, `ROLE_CLAN_HEAD`,...) | *Kế Hoạch (Planned)* | Đã tích hợp sẵn `@EnableMethodSecurity` và `SecurityConfig` trong `core`. |
 | **BE-Task 4** | **Triển khai DTOs, Mappers, Services & REST APIs**<br/>- Các API Cây gia phả, Quản lý thành viên (US-17 Tiếp nhận thành viên)<br/>- Các API Sự kiện & Đăng ký hộ gia đình<br/>- Các API Tài chính: Tạm ứng, Quyết toán, Sổ cái bất biến<br/>- Các API Đóng góp & Quản lý tài sản dòng họ | *Kế Hoạch (Planned)* | Phụ thuộc vào BE-Task 3. |
@@ -27,10 +28,10 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
 2. **Gradle Build Toolchain & Test Suite**:
    - Khóa cứng Java 21 LTS qua toolchain (`build.gradle.kts`).
    - Biên dịch hoàn tất (`.\gradlew.bat compileJava`, `.\gradlew.bat compileTestJava`).
-   - Chạy thành công toàn bộ **70/70 kiểm thử tự động** với tỷ lệ pass 100% (`.\gradlew.bat test`):
+   - Chạy thành công toàn bộ **70/70 kiểm thử tự động** với tỷ lệ pass 100% (`.\gradlew.bat test` / `.\gradlew.bat build`):
      - `ArchitectureTest`: 3 tests
      - `TenantFilterTest`: 3 tests
-     - `DatabaseMigrationTest`: 2 tests
+     - `DatabaseMigrationTest`: 2 tests (xác minh thực tế $\ge$ 24 domain tables & 4 system roles)
      - `FamilyfundApiApplicationTests`: 1 test
      - `BranchMapperTest`: 3 tests
      - `GenealogyHierarchyTest`: 15 tests
@@ -42,24 +43,32 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
      - `InvitationControllerTest`: 6 tests
      - `InvitationServiceTest`: 8 tests
      - `InviteCodeGeneratorTest`: 5 tests
-3. **Cơ Chế Đa Dòng Họ Minh Bạch (Transparent Multi-Tenancy)**:
+3. **Quy Trình Continuous Integration (GitHub Actions CI)**:
+   - Pipeline tự động hóa [`.github/workflows/ci.yml`](file:///d:/WorkSpace/Family-Management/family-management-backend/.github/workflows/ci.yml) được cấu hình chuẩn mực:
+     - Health-check chỉ định rõ user và database: `--health-cmd "pg_isready -U test_user -d familyfund_test"`.
+     - Sử dụng service container `pgvector/pgvector:pg16` cô lập hoàn toàn môi trường test khỏi Cloud DB.
+     - Khóa quyền thực thi `100755` cho `gradlew` trực tiếp trên Git index.
+     - Tận dụng cache của Gradle để tăng tốc độ build.
+     - Cơ chế concurrency hủy job cũ an toàn theo PR và Branch ref.
+4. **Cơ Chế Đa Dòng Họ Minh Bạch (Transparent Multi-Tenancy)**:
    - Tích hợp `TenantFilter` (`OncePerRequestFilter`) và `TenantContext` (`ThreadLocal`) trong `com.familyfund.core.tenant`.
    - Tự động phân giải `clanId` từ HTTP header `X-Clan-Id` hoặc query param `clanId`, fallback an toàn về `CLAN_DEFAULT`.
    - Tinh gọn Controller layer, không cần thủ công trích xuất tenant ở từng endpoint.
-4. **Mô hình DDL Cơ sở dữ liệu & Flyway Migrations**:
-   - Chuẩn hóa CSDL qua Flyway Migrations V1 $\rightarrow$ V4 (23 bảng).
+5. **Mô hình DDL Cơ sở dữ liệu & Flyway Migrations**:
+   - Chuẩn hóa CSDL qua Flyway Migrations V1 $\rightarrow$ V5 (24 bảng nghiệp vụ).
    - Xử lý mượt mà 2 trường hợp phụ thuộc vòng (`clans` $\leftrightarrow$ `user_accounts`, `family_branches` $\leftrightarrow$ `members`).
    - Migration V4 hoàn tất chuẩn hóa 3NF: Loại bỏ `clan_name` khỏi `family_branches`, đưa `clans` thành Single Source of Truth.
-5. **Cấu hình Hạ Tầng (Neon Cloud & Docker Compose)**:
+   - Migration V5 hoàn tất việc áp đặt `NOT NULL` và `DEFAULT 'CLAN_DEFAULT'` cho `clan_id` trên mọi bảng đa dòng họ.
+6. **Cấu hình Hạ Tầng (Neon Cloud & Docker Compose)**:
    - Kết nối trực tiếp CSDL đám mây **Neon Serverless PostgreSQL** hỗ trợ SSL và pgvector qua cấu hình biến môi trường [`.env`](file:///d:/WorkSpace/Family-Management/family-management-backend/.env).
    - Docker Compose cung cấp môi trường Swagger UI (cổng `8082`) và Adminer Web DB GUI (cổng `8088`).
-6. **Bảo mật & Biến môi trường**:
+7. **Bảo mật & Biến môi trường**:
    - Đã bổ sung `.env` và thư mục `bin/` vào file [`.gitignore`](file:///d:/WorkSpace/Family-Management/family-management-backend/.gitignore).
-7. **Bảo Toàn Dữ Liệu Phả Hệ & Chống Chu Trình (US-04)**:
+8. **Bảo Toàn Dữ Liệu Phả Hệ & Chống Chu Trình (US-04)**:
    - Loại bỏ `CascadeType.ALL` trên `FamilyBranch` để bảo vệ hồ sơ thành viên không bị xóa nhầm.
    - Thuật toán `kiemTraChuTrinh` ngăn chặn vòng lặp cha-con và bảo toàn tính toàn vẹn của cây phả hệ.
    - Dựng cây đệ quy in-memory loại bỏ hoàn toàn N+1 queries.
-8. **Sinh Mã Mời An Toàn Mật Mã (US-16)**:
+9. **Sinh Mã Mời An Toàn Mật Mã (US-16)**:
    - Sinh mã 8 ký tự Base32 CSPRNG loại trừ ký tự dễ nhầm lẫn.
    - Cơ chế thử lại tự động khi đụng độ khóa (Collision Retry).
 
@@ -67,10 +76,7 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
 
 ## 3. Những Điểm Cần Lưu Ý & Các Bước Tiếp Theo
 
-- **Khởi động Docker & CSDL**:
-  - Đảm bảo file `.env` đã được cấu hình đúng thông tin kết nối CSDL Neon Serverless PostgreSQL (`SPRING_DATASOURCE_URL`, `DB_USER`, `DB_PASSWORD`).
-  - Nếu muốn dùng giao diện Swagger UI (:8082) và Adminer (:8088), hãy bật Docker Desktop và gõ lệnh `docker compose up -d`.
 - **Quy tắc phát triển tính năng mới**:
   - Đặt DTOs và Interfaces giao tiếp liên module trong package `<module>.api` và khai báo `@NamedInterface("api")`.
   - Đặt Entity, Controller, Repository và Service Implementation trong `<module>.internal`.
-  - Luôn chạy `.\gradlew.bat test` để đảm bảo `ArchitectureTest` và toàn bộ 70 tests vượt qua trước khi commit code.
+  - Luôn chạy `.\gradlew.bat test` hoặc `.\gradlew.bat build` để đảm bảo `ArchitectureTest` và toàn bộ test suite vượt qua trước khi push code lên GitHub.
