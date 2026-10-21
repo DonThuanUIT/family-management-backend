@@ -2,6 +2,7 @@ package com.familyfund.identity.internal.service;
 
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
@@ -40,11 +41,13 @@ public class InvitationServiceImpl implements InvitationService {
             throw new BadRequestException("Tài khoản người tạo không hợp lệ");
         }
 
-        // 1. Kiểm tra tồn tại của Target Branch qua Genealogy Public Query Service
+        String clanId = TenantContext.getClanId();
+
+        // 1. Kiểm tra tồn tại của Target Branch qua Genealogy Public Query Service theo đúng clanId
         String targetBranchId = null;
         if (request.getTargetBranchId() != null && !request.getTargetBranchId().isBlank()) {
             String trimmedBranchId = request.getTargetBranchId().trim();
-            if (!genealogyQueryService.existsBranch(trimmedBranchId)) {
+            if (!genealogyQueryService.existsBranch(clanId, trimmedBranchId)) {
                 throw new ResourceNotFoundException("Nhánh gia đình", "branchId", trimmedBranchId);
             }
             targetBranchId = trimmedBranchId;
@@ -64,9 +67,10 @@ public class InvitationServiceImpl implements InvitationService {
         String inviteCode = generateUniqueInviteCode();
         String shareableUrl = inviteCodeGenerator.buildShareableUrl(inviteCode);
 
-        // 4. Khởi tạo Entity với các ràng buộc bất biến cho mã mời chung
+        // 4. Khởi tạo Entity với các ràng buộc bất biến cho mã mời chung gắn liền với clanId
         InvitationCode invitation = InvitationCode.builder()
                 .inviteCode(inviteCode)
+                .clanId(clanId)
                 .inviteType(InviteType.GeneralClanInvite)
                 .shareableUrl(shareableUrl)
                 .targetBranchId(targetBranchId)
@@ -80,8 +84,8 @@ public class InvitationServiceImpl implements InvitationService {
                 .build();
 
         InvitationCode saved = invitationCodeRepository.save(invitation);
-        log.info("Đã tạo mã mời chung dòng họ: code={}, creator={}, targetBranch={}, expiresAt={}",
-                inviteCode, currentAccountId, targetBranchId, expiresAt);
+        log.info("Đã tạo mã mời chung dòng họ: clan={}, code={}, creator={}, targetBranch={}, expiresAt={}",
+                clanId, inviteCode, currentAccountId, targetBranchId, expiresAt);
 
         return InviteCodeResponse.fromEntity(saved);
     }
@@ -93,19 +97,21 @@ public class InvitationServiceImpl implements InvitationService {
             throw new BadRequestException("Mã mời không được để trống");
         }
 
-        InvitationCode invitation = invitationCodeRepository.findById(inviteCode.trim())
+        String clanId = TenantContext.getClanId();
+        InvitationCode invitation = invitationCodeRepository.findByClanIdAndInviteCode(clanId, inviteCode.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", inviteCode));
 
         invitation.setIsActive(false);
         invitationCodeRepository.save(invitation);
 
-        log.info("Đã vô hiệu hóa mã mời: code={}, executedBy={}", inviteCode, currentAccountId);
+        log.info("Đã vô hiệu hóa mã mời: clan={}, code={}, executedBy={}", clanId, inviteCode, currentAccountId);
     }
 
     @Override
     public List<InviteCodeResponse> getActiveGeneralInvites() {
+        String clanId = TenantContext.getClanId();
         return invitationCodeRepository
-                .findAllByInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(InviteType.GeneralClanInvite)
+                .findAllByClanIdAndInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(clanId, InviteType.GeneralClanInvite)
                 .stream()
                 .map(InviteCodeResponse::fromEntity)
                 .toList();
@@ -141,4 +147,3 @@ public class InvitationServiceImpl implements InvitationService {
         return code;
     }
 }
-

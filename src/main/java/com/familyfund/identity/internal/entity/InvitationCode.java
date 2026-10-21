@@ -34,7 +34,7 @@ public class InvitationCode {
     @Column(name = "invite_code", length = 30, nullable = false)
     private String inviteCode;
 
-    @Column(name = "clan_id", length = 20)
+    @Column(name = "clan_id", length = 20, nullable = false)
     private String clanId;
 
     @Enumerated(EnumType.STRING)
@@ -87,4 +87,3 @@ public class InvitationCode {
         }
     }
 }
-

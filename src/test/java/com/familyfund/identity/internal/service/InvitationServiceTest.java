@@ -2,6 +2,7 @@ package com.familyfund.identity.internal.service;
 
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
@@ -9,6 +10,7 @@ import com.familyfund.identity.internal.entity.InvitationCode;
 import com.familyfund.identity.internal.entity.InviteType;
 import com.familyfund.identity.internal.repository.InvitationCodeRepository;
 import com.familyfund.identity.internal.util.InviteCodeGenerator;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class InvitationServiceTest {
 
+    private static final String TEST_CLAN_ID = "CLAN_01";
+    private static final String OTHER_CLAN_ID = "CLAN_02";
+
     @Mock
     private InvitationCodeRepository invitationCodeRepository;
 
@@ -54,10 +59,16 @@ class InvitationServiceTest {
     @BeforeEach
     void setUp() {
         testAccountId = "ACC_ADMIN_01";
+        TenantContext.setClanId(TEST_CLAN_ID);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
-    @DisplayName("Create general invite with valid data and no target branch should succeed")
+    @DisplayName("Create general invite with valid data and no target branch should assign clanId and succeed")
     void createGeneralClanInvite_WithoutBranch_ShouldSucceed() {
         CreateGeneralInviteRequest request = CreateGeneralInviteRequest.builder()
                 .maxUses(50)
@@ -76,6 +87,7 @@ class InvitationServiceTest {
 
         assertNotNull(response);
         assertEquals(generatedCode, response.getInviteCode());
+        assertEquals(TEST_CLAN_ID, response.getClanId());
         assertEquals(InviteType.GeneralClanInvite, response.getInviteType());
         assertEquals(generatedUrl, response.getShareableUrl());
         assertEquals(50, response.getMaxUses());
@@ -89,11 +101,12 @@ class InvitationServiceTest {
         verify(invitationCodeRepository).save(captor.capture());
         InvitationCode savedEntity = captor.getValue();
         assertEquals(generatedCode, savedEntity.getInviteCode());
+        assertEquals(TEST_CLAN_ID, savedEntity.getClanId());
         assertEquals(InviteType.GeneralClanInvite, savedEntity.getInviteType());
     }
 
     @Test
-    @DisplayName("Create general invite with valid target branch should verify branch existence via GenealogyQueryService and succeed")
+    @DisplayName("Create general invite with valid target branch should verify branch within current clanId and succeed")
     void createGeneralClanInvite_WithValidBranch_ShouldSucceed() {
         String branchId = "BRANCH_ROOT";
         CreateGeneralInviteRequest request = CreateGeneralInviteRequest.builder()
@@ -101,7 +114,7 @@ class InvitationServiceTest {
                 .maxUses(100)
                 .build();
 
-        when(genealogyQueryService.existsBranch(branchId)).thenReturn(true);
+        when(genealogyQueryService.existsBranch(TEST_CLAN_ID, branchId)).thenReturn(true);
         when(inviteCodeGenerator.generateCode()).thenReturn("GEN_CODE_1");
         when(invitationCodeRepository.existsByInviteCode("GEN_CODE_1")).thenReturn(false);
         when(inviteCodeGenerator.buildShareableUrl("GEN_CODE_1")).thenReturn("http://localhost:3000/join?code=GEN_CODE_1");
@@ -110,23 +123,25 @@ class InvitationServiceTest {
         InviteCodeResponse response = invitationService.createGeneralClanInvite(request, testAccountId);
 
         assertNotNull(response);
+        assertEquals(TEST_CLAN_ID, response.getClanId());
         assertEquals(branchId, response.getTargetBranchId());
-        verify(genealogyQueryService).existsBranch(branchId);
+        verify(genealogyQueryService).existsBranch(TEST_CLAN_ID, branchId);
     }
 
     @Test
-    @DisplayName("Create general invite with non-existent target branch should throw ResourceNotFoundException")
-    void createGeneralClanInvite_NonExistentBranch_ShouldThrowException() {
-        String invalidBranchId = "INVALID_BRANCH";
+    @DisplayName("Create general invite with branch belonging to another clan should fail tenant verification")
+    void createGeneralClanInvite_BranchFromAnotherClan_ShouldThrowException() {
+        String otherClanBranchId = "BRANCH_OTHER_CLAN";
         CreateGeneralInviteRequest request = CreateGeneralInviteRequest.builder()
-                .targetBranchId(invalidBranchId)
+                .targetBranchId(otherClanBranchId)
                 .build();
 
-        when(genealogyQueryService.existsBranch(invalidBranchId)).thenReturn(false);
+        when(genealogyQueryService.existsBranch(TEST_CLAN_ID, otherClanBranchId)).thenReturn(false);
 
         assertThrows(ResourceNotFoundException.class,
                 () -> invitationService.createGeneralClanInvite(request, testAccountId));
 
+        verify(genealogyQueryService).existsBranch(TEST_CLAN_ID, otherClanBranchId);
         verify(invitationCodeRepository, never()).save(any());
     }
 
@@ -143,15 +158,16 @@ class InvitationServiceTest {
     }
 
     @Test
-    @DisplayName("Deactivate invite code should set isActive to false and save")
-    void deactivateInviteCode_ExistingCode_ShouldSetIsActiveFalse() {
+    @DisplayName("Deactivate invite code scoped to current clan should succeed")
+    void deactivateInviteCode_ExistingCodeInCurrentClan_ShouldSetIsActiveFalse() {
         String code = "INVITE_123";
         InvitationCode existingInvitation = InvitationCode.builder()
                 .inviteCode(code)
+                .clanId(TEST_CLAN_ID)
                 .isActive(true)
                 .build();
 
-        when(invitationCodeRepository.findById(code)).thenReturn(Optional.of(existingInvitation));
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.of(existingInvitation));
         when(invitationCodeRepository.save(any(InvitationCode.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         invitationService.deactivateInviteCode(code, testAccountId);
@@ -161,37 +177,52 @@ class InvitationServiceTest {
     }
 
     @Test
-    @DisplayName("Deactivate non-existent invite code should throw ResourceNotFoundException")
-    void deactivateInviteCode_NonExistentCode_ShouldThrowNotFound() {
-        String code = "NON_EXISTENT";
-        when(invitationCodeRepository.findById(code)).thenReturn(Optional.empty());
+    @DisplayName("Deactivate invite code belonging to another clan should throw ResourceNotFoundException (prevent IDOR)")
+    void deactivateInviteCode_CodeFromAnotherClan_ShouldThrowNotFound() {
+        String code = "INVITE_OTHER_CLAN";
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> invitationService.deactivateInviteCode(code, testAccountId));
+
+        verify(invitationCodeRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Get active general invites should query repository with GeneralClanInvite and active=true")
-    void getActiveGeneralInvites_ShouldReturnList() {
-        InvitationCode code1 = InvitationCode.builder().inviteCode("C1").inviteType(InviteType.GeneralClanInvite).isActive(true).build();
-        InvitationCode code2 = InvitationCode.builder().inviteCode("C2").inviteType(InviteType.GeneralClanInvite).isActive(true).build();
+    @DisplayName("Get active general invites should query repository strictly for current clan")
+    void getActiveGeneralInvites_ShouldReturnListScopedToClan() {
+        InvitationCode code1 = InvitationCode.builder()
+                .inviteCode("C1")
+                .clanId(TEST_CLAN_ID)
+                .inviteType(InviteType.GeneralClanInvite)
+                .isActive(true)
+                .build();
+        InvitationCode code2 = InvitationCode.builder()
+                .inviteCode("C2")
+                .clanId(TEST_CLAN_ID)
+                .inviteType(InviteType.GeneralClanInvite)
+                .isActive(true)
+                .build();
 
-        when(invitationCodeRepository.findAllByInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(InviteType.GeneralClanInvite))
+        when(invitationCodeRepository.findAllByClanIdAndInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(TEST_CLAN_ID, InviteType.GeneralClanInvite))
                 .thenReturn(List.of(code1, code2));
 
         List<InviteCodeResponse> results = invitationService.getActiveGeneralInvites();
 
         assertEquals(2, results.size());
         assertEquals("C1", results.get(0).getInviteCode());
+        assertEquals(TEST_CLAN_ID, results.get(0).getClanId());
         assertEquals("C2", results.get(1).getInviteCode());
+        assertEquals(TEST_CLAN_ID, results.get(1).getClanId());
     }
 
     @Test
-    @DisplayName("Get invite by code should return details if valid, throw BadRequest if expired")
+    @DisplayName("Get invite by code should return details with clanId if valid, throw BadRequest if expired")
     void getInviteByCode_Validation() {
         String activeCode = "ACTIVE_CODE";
         InvitationCode activeEntity = InvitationCode.builder()
                 .inviteCode(activeCode)
+                .clanId(TEST_CLAN_ID)
                 .isActive(true)
                 .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
                 .build();
@@ -200,11 +231,13 @@ class InvitationServiceTest {
         InviteCodeResponse response = invitationService.getInviteByCode(activeCode);
         assertNotNull(response);
         assertEquals(activeCode, response.getInviteCode());
+        assertEquals(TEST_CLAN_ID, response.getClanId());
 
         // Test expired code
         String expiredCode = "EXPIRED_CODE";
         InvitationCode expiredEntity = InvitationCode.builder()
                 .inviteCode(expiredCode)
+                .clanId(TEST_CLAN_ID)
                 .isActive(true)
                 .expiresAt(Instant.now().minus(1, ChronoUnit.DAYS))
                 .build();
@@ -213,4 +246,3 @@ class InvitationServiceTest {
         assertThrows(BadRequestException.class, () -> invitationService.getInviteByCode(expiredCode));
     }
 }
-

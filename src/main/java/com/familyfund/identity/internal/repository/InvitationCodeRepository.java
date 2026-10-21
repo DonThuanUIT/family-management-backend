@@ -12,23 +12,27 @@ import java.util.Optional;
 public interface InvitationCodeRepository extends JpaRepository<InvitationCode, String> {
 
     /**
-     * Checks if a given invite code already exists.
+     * Checks if a given invite code already exists globally (for unique code generation).
      */
     boolean existsByInviteCode(String inviteCode);
 
     /**
-     * Finds an active invitation by its code.
+     * Finds an active invitation by its code (public lookup for onboarding).
      */
     Optional<InvitationCode> findByInviteCodeAndIsActiveTrue(String inviteCode);
 
     /**
-     * Lists all active invitations matching a specific type, ordered by most recent.
+     * Finds an invitation by clan and invite code (multi-tenant scoped lookup).
      */
-    List<InvitationCode> findAllByInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(InviteType inviteType);
+    Optional<InvitationCode> findByClanIdAndInviteCode(String clanId, String inviteCode);
 
     /**
-     * Lists all invitations created by a specific user account.
+     * Lists all active invitations matching a specific type for a clan, ordered by most recent.
      */
-    List<InvitationCode> findAllByCreatedByAccountIdOrderByCreatedAtDesc(String createdByAccountId);
-}
+    List<InvitationCode> findAllByClanIdAndInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(String clanId, InviteType inviteType);
 
+    /**
+     * Lists all invitations created by a specific user account within a clan.
+     */
+    List<InvitationCode> findAllByClanIdAndCreatedByAccountIdOrderByCreatedAtDesc(String clanId, String createdByAccountId);
+}

@@ -26,7 +26,7 @@ public class FamilyBranch {
     @Column(name = "branch_id", length = 20, nullable = false)
     private String branchId;
 
-    @Column(name = "clan_id", length = 20)
+    @Column(name = "clan_id", length = 20, nullable = false)
     private String clanId;
 
     @Column(name = "branch_name", length = 100, nullable = false)
