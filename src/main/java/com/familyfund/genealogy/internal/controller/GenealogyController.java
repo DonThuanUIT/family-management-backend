@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,12 +22,14 @@ public class GenealogyController {
     private final GenealogyService genealogyService;
 
     @GetMapping("/root")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> getRootBranch() {
         BranchDetailResponse response = genealogyService.getRootBranch();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PutMapping("/root")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> updateRootBranch(
             @Valid @RequestBody UpdateRootBranchRequest request) {
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
@@ -34,6 +37,7 @@ public class GenealogyController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> createChildBranch(
             @Valid @RequestBody CreateChildBranchRequest request) {
         BranchDetailResponse response = genealogyService.createChildBranch(request);
@@ -42,6 +46,7 @@ public class GenealogyController {
     }
 
     @PutMapping("/{branchId}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> updateBranch(
             @PathVariable String branchId,
             @Valid @RequestBody UpdateBranchRequest request) {
@@ -50,12 +55,14 @@ public class GenealogyController {
     }
 
     @GetMapping("/tree")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BranchTreeNodeResponse>> getBranchTree() {
         BranchTreeNodeResponse tree = genealogyService.getBranchTree();
         return ResponseEntity.ok(ApiResponse.success(tree));
     }
 
     @DeleteMapping("/{branchId}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable String branchId) {
         genealogyService.deleteBranch(branchId);
         return ResponseEntity.ok(ApiResponse.success(null, "Branch deleted successfully"));
