@@ -10,7 +10,9 @@ public interface GenealogyQueryService {
      *
      * @param branchId ID of the branch to check
      * @return true if the branch exists in the current tenant clan, false otherwise
+     * @deprecated Prefer {@link #existsBranch(String, String)} to enforce explicit multi-tenant isolation.
      */
+    @Deprecated
     boolean existsBranch(String branchId);
 
     /**
@@ -22,4 +24,3 @@ public interface GenealogyQueryService {
      */
     boolean existsBranch(String clanId, String branchId);
 }
-
