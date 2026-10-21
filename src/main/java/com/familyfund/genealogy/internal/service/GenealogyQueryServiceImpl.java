@@ -13,11 +13,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -83,7 +86,6 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
         }
 
         // 2. Locate root for this onboarding view:
-        // If targetBranchId is specified, start tree at target branch; otherwise start at root branch (parentBranch == null)
         FamilyBranch rootBranch;
         if (targetBranchId != null && !targetBranchId.isBlank()) {
             rootBranch = allBranches.stream()
@@ -120,6 +122,47 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
 
         // 5. Build sanitized onboarding tree recursively in-memory
         return buildOnboardingNodeInMemory(rootBranch, childrenByParentId, memberCountMap, clan.getClanName());
+    }
+
+    @Override
+    public List<String> getBranchIdsManagedByMember(String clanId, String memberId) {
+        if (clanId == null || clanId.isBlank() || memberId == null || memberId.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        List<FamilyBranch> directlyManaged = familyBranchRepository
+                .findByClanIdAndRepresentative_MemberId(clanId.trim(), memberId.trim());
+
+        if (directlyManaged.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<FamilyBranch> allBranches = familyBranchRepository.findAllByClanIdWithRepresentative(clanId.trim());
+        Map<String, List<FamilyBranch>> childrenByParentId = allBranches.stream()
+                .filter(b -> b.getParentBranch() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getParentBranch().getBranchId(),
+                        Collectors.toList()
+                ));
+
+        Set<String> managedIds = new HashSet<>();
+        for (FamilyBranch branch : directlyManaged) {
+            collectBranchAndDescendants(branch.getBranchId(), childrenByParentId, managedIds);
+        }
+
+        return new ArrayList<>(managedIds);
+    }
+
+    private void collectBranchAndDescendants(
+            String currentBranchId,
+            Map<String, List<FamilyBranch>> childrenByParentId,
+            Set<String> result
+    ) {
+        result.add(currentBranchId);
+        List<FamilyBranch> children = childrenByParentId.getOrDefault(currentBranchId, Collections.emptyList());
+        for (FamilyBranch child : children) {
+            collectBranchAndDescendants(child.getBranchId(), childrenByParentId, result);
+        }
     }
 
     private OnboardingBranchTreeNode buildOnboardingNodeInMemory(

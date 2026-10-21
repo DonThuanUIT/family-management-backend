@@ -54,3 +54,4 @@ public record SubmitJoinRequest(
         @Size(max = 255, message = "Ghi chú mối quan hệ không được vượt quá 255 ký tự")
         String relationshipNote
 ) {}
+

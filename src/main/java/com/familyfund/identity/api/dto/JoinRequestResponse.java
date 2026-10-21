@@ -65,3 +65,4 @@ public record JoinRequestResponse(
                 .build();
     }
 }
+

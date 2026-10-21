@@ -1,5 +1,6 @@
 package com.familyfund.genealogy.api;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -51,4 +52,13 @@ public interface GenealogyQueryService {
      * @return lightweight tree node rooted at clan root or target branch
      */
     OnboardingBranchTreeNode getOnboardingBranchTree(String clanId, String targetBranchId);
+
+    /**
+     * Retrieves all branch IDs managed by a specific member as representative (including child branches).
+     *
+     * @param clanId   ID of the clan
+     * @param memberId ID of the representative member
+     * @return list of managed branch IDs
+     */
+    List<String> getBranchIdsManagedByMember(String clanId, String memberId);
 }

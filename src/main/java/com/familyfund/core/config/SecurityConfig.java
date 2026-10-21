@@ -33,6 +33,8 @@ public class SecurityConfig {
                         // Public: Previewing invitation, viewing onboarding tree, and submitting join request (US-17)
                         .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}", "/api/v1/invitations/{inviteCode}/tree").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/invitations/{inviteCode}/join").permitAll()
+                        // Join requests management (US-17 Tasks 3 & 5)
+                        .requestMatchers("/api/v1/join-requests/**").authenticated()
                         // Swagger & Documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Any other request authenticated by default (method security checks fine-grained roles)
