@@ -3,10 +3,15 @@ package com.familyfund.identity.internal.controller;
 import com.familyfund.core.exception.GlobalExceptionHandler;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
+import com.familyfund.identity.api.BranchJoinRequestService;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.JoinRequestResponse;
+import com.familyfund.identity.api.dto.SubmitJoinRequest;
 import com.familyfund.identity.internal.entity.InviteType;
+import com.familyfund.identity.internal.entity.JoinRequestApprovalStatus;
+import com.familyfund.identity.internal.entity.ProposalType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +48,9 @@ class InvitationControllerTest {
 
     @Mock
     private InvitationService invitationService;
+
+    @Mock
+    private BranchJoinRequestService branchJoinRequestService;
 
     @InjectMocks
     private InvitationController invitationController;
@@ -184,6 +192,72 @@ class InvitationControllerTest {
                 .andExpect(jsonPath("$.data.branchName").value("Chi Gốc"))
                 .andExpect(jsonPath("$.data.representativeName").value("Cụ Tổ"))
                 .andExpect(jsonPath("$.data.memberCount").value(15));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/invitations/{inviteCode}/join should submit join request and return 201 Created")
+    void submitJoinRequest_Valid_ShouldReturn201() throws Exception {
+        String code = "8K9P2X7N";
+        String payload = """
+                {
+                    "phoneNumber": "0912345678",
+                    "password": "Password123@",
+                    "email": "test@familyfund.vn",
+                    "fullName": "Nguyễn Văn An",
+                    "dateOfBirth": "1995-05-20",
+                    "gender": "Male",
+                    "proposalType": "ExistingBranchLeaf",
+                    "targetBranchId": "BR_ROOT",
+                    "proposedGeneration": 4,
+                    "relationshipNote": "Cháu nội cụ Nguyễn Văn B"
+                }
+                """;
+
+        JoinRequestResponse response = JoinRequestResponse.builder()
+                .requestId("REQ_12345678")
+                .accountId("ACC_12345678")
+                .clanId("CLAN_01")
+                .inviteCode(code)
+                .fullName("Nguyễn Văn An")
+                .phoneNumber("0912345678")
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        when(branchJoinRequestService.submitJoinRequest(eq(code), any(SubmitJoinRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/invitations/" + code + "/join")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", containsString("/api/v1/join-requests/REQ_12345678")))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.requestId").value("REQ_12345678"))
+                .andExpect(jsonPath("$.data.approvalStatus").value("Pending"))
+                .andExpect(jsonPath("$.data.fullName").value("Nguyễn Văn An"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/invitations/{inviteCode}/join with invalid phone should return 400 Bad Request")
+    void submitJoinRequest_InvalidPhone_ShouldReturn400() throws Exception {
+        String code = "8K9P2X7N";
+        String invalidPayload = """
+                {
+                    "phoneNumber": "12345",
+                    "password": "Password123@",
+                    "fullName": "Nguyễn Văn An",
+                    "gender": "Male",
+                    "proposalType": "ExistingBranchLeaf",
+                    "targetBranchId": "BR_ROOT",
+                    "proposedGeneration": 4
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/invitations/" + code + "/join")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidPayload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errors.phoneNumber").exists());
     }
 
     @Test
