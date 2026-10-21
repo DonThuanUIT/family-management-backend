@@ -17,3 +17,4 @@ public interface AccountRoleRepository extends JpaRepository<AccountRole, Accoun
 
     boolean existsByIdAccountIdAndIdRoleId(String accountId, String roleId);
 }
+

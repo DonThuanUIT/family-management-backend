@@ -25,3 +25,4 @@ ALTER TABLE branch_join_requests
 
 -- 5. Create index for efficient tenant and approval status lookup
 CREATE INDEX IF NOT EXISTS idx_join_request_clan_status ON branch_join_requests(clan_id, approval_status);
+

@@ -20,9 +20,11 @@ public class InviteCodeResponse {
 
     private String inviteCode;
     private String clanId;
+    private String clanName;
     private InviteType inviteType;
     private String shareableUrl;
     private String targetBranchId;
+    private String targetBranchName;
     private String targetMemberId;
     private Integer maxUses;
     private Integer usedCount;
@@ -51,4 +53,3 @@ public class InviteCodeResponse {
                 .build();
     }
 }
-

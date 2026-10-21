@@ -20,3 +20,4 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
 
     Optional<UserAccount> findByMemberId(String memberId);
 }
+

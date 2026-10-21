@@ -1,12 +1,13 @@
 package com.familyfund.identity.api;
 
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
 
 import java.util.List;
 
 /**
- * Public service contract handling clan invitation operations (US-16, US-18).
+ * Public service contract handling clan invitation operations (US-16, US-17, US-18).
  */
 public interface InvitationService {
 
@@ -35,11 +36,18 @@ public interface InvitationService {
     List<InviteCodeResponse> getActiveGeneralInvites();
 
     /**
-     * Retrieves details of a specific invitation code if valid and active.
+     * Retrieves details of a specific invitation code if valid and active (US-16, US-17).
      *
      * @param inviteCode the invitation code to lookup
      * @return the invitation code details
      */
     InviteCodeResponse getInviteByCode(String inviteCode);
-}
 
+    /**
+     * Retrieves the sanitized onboarding branch tree for a specific invitation code (US-17).
+     *
+     * @param inviteCode the invitation code to lookup
+     * @return the onboarding branch tree rooted at clan root or target branch
+     */
+    OnboardingBranchTreeNode getOnboardingBranchTree(String inviteCode);
+}

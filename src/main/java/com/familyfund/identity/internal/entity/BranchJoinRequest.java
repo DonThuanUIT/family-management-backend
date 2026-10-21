@@ -104,3 +104,4 @@ public class BranchJoinRequest {
         return userAccount != null ? userAccount.getAccountId() : null;
     }
 }
+

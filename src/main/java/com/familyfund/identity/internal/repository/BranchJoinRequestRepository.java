@@ -43,3 +43,4 @@ public interface BranchJoinRequestRepository extends JpaRepository<BranchJoinReq
 
     boolean existsByUserAccountAccountIdAndApprovalStatus(String accountId, JoinRequestApprovalStatus status);
 }
+

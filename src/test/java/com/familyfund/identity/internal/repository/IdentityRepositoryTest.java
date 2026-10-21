@@ -183,3 +183,4 @@ class IdentityRepositoryTest {
         assertFalse(branchJoinRequestRepository.existsByUserAccountAccountIdAndApprovalStatus("ACC_APPLICANT", JoinRequestApprovalStatus.Approved));
     }
 }
+

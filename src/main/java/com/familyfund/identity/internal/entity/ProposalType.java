@@ -7,3 +7,4 @@ public enum ProposalType {
     ExistingBranchLeaf,
     NewChildBranch
 }
+

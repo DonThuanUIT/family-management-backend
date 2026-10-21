@@ -2,6 +2,7 @@ package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.exception.GlobalExceptionHandler;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
@@ -130,6 +131,8 @@ class InvitationControllerTest {
         String code = "8K9P2X7N";
         InviteCodeResponse response = InviteCodeResponse.builder()
                 .inviteCode(code)
+                .clanId("CLAN_01")
+                .clanName("Dòng họ Nguyễn")
                 .inviteType(InviteType.GeneralClanInvite)
                 .shareableUrl("http://localhost:3000/join?code=" + code)
                 .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
@@ -141,7 +144,8 @@ class InvitationControllerTest {
         mockMvc.perform(get("/api/v1/invitations/" + code))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.inviteCode").value(code));
+                .andExpect(jsonPath("$.data.inviteCode").value(code))
+                .andExpect(jsonPath("$.data.clanName").value("Dòng họ Nguyễn"));
     }
 
     @Test
@@ -157,6 +161,32 @@ class InvitationControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/v1/invitations/{inviteCode}/tree should return 200 OK with sanitized onboarding branch tree")
+    void getOnboardingBranchTree_ShouldReturn200() throws Exception {
+        String code = "8K9P2X7N";
+        OnboardingBranchTreeNode treeNode = OnboardingBranchTreeNode.builder()
+                .branchId("BR_ROOT")
+                .clanId("CLAN_01")
+                .clanName("Dòng họ Nguyễn")
+                .branchName("Chi Gốc")
+                .generationLevel(1)
+                .representativeName("Cụ Tổ")
+                .memberCount(15)
+                .build();
+
+        when(invitationService.getOnboardingBranchTree(code)).thenReturn(treeNode);
+
+        mockMvc.perform(get("/api/v1/invitations/" + code + "/tree"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.branchId").value("BR_ROOT"))
+                .andExpect(jsonPath("$.data.clanName").value("Dòng họ Nguyễn"))
+                .andExpect(jsonPath("$.data.branchName").value("Chi Gốc"))
+                .andExpect(jsonPath("$.data.representativeName").value("Cụ Tổ"))
+                .andExpect(jsonPath("$.data.memberCount").value(15));
+    }
+
+    @Test
     @DisplayName("PATCH /api/v1/invitations/{inviteCode}/deactivate should return 200 OK")
     void deactivateInvite_ShouldReturn200() throws Exception {
         String code = "8K9P2X7N";
@@ -169,4 +199,3 @@ class InvitationControllerTest {
         verify(invitationService).deactivateInviteCode(eq(code), anyString());
     }
 }
-

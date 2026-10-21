@@ -30,8 +30,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public: Previewing invitation by code (US-17 landing page)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}").permitAll()
+                        // Public: Previewing invitation and viewing onboarding tree by code (US-17 landing page)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}", "/api/v1/invitations/{inviteCode}/tree").permitAll()
                         // Swagger & Documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Any other request authenticated by default (method security checks fine-grained roles)

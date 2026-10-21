@@ -1,6 +1,7 @@
 package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.dto.ApiResponse;
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
@@ -21,7 +22,7 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * REST Controller for Managing Clan Invitations (US-16).
+ * REST Controller for Managing Clan Invitations (US-16, US-17).
  */
 @RestController
 @RequestMapping("/api/v1/invitations")
@@ -69,6 +70,16 @@ public class InvitationController {
     }
 
     /**
+     * Retrieves the sanitized onboarding branch tree for prospective members (US-17).
+     * Public access without authentication.
+     */
+    @GetMapping("/{inviteCode}/tree")
+    public ResponseEntity<ApiResponse<OnboardingBranchTreeNode>> getOnboardingBranchTree(@PathVariable String inviteCode) {
+        OnboardingBranchTreeNode tree = invitationService.getOnboardingBranchTree(inviteCode);
+        return ResponseEntity.ok(ApiResponse.success(tree, "Lấy cây phả hệ gia nhập thành công"));
+    }
+
+    /**
      * Deactivates an invitation code early.
      * Restricted to Clan Head (ROLE_CLAN_HEAD) or Admin (ROLE_ADMIN).
      */
@@ -90,4 +101,3 @@ public class InvitationController {
         return "ACC_ANONYMOUS";
     }
 }
-

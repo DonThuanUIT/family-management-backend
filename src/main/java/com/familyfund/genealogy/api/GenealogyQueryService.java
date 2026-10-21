@@ -1,5 +1,7 @@
 package com.familyfund.genealogy.api;
 
+import java.util.Optional;
+
 /**
  * Public query contract provided by the Genealogy module for other bounded contexts.
  */
@@ -23,4 +25,30 @@ public interface GenealogyQueryService {
      * @return true if the branch exists in the specified clan, false otherwise
      */
     boolean existsBranch(String clanId, String branchId);
+
+    /**
+     * Retrieves the display name of a clan.
+     *
+     * @param clanId ID of the clan
+     * @return optional containing clan name if found
+     */
+    Optional<String> getClanName(String clanId);
+
+    /**
+     * Retrieves the display name of a family branch.
+     *
+     * @param clanId   ID of the clan
+     * @param branchId ID of the branch
+     * @return optional containing branch name if found
+     */
+    Optional<String> getBranchName(String clanId, String branchId);
+
+    /**
+     * Retrieves the sanitized onboarding branch tree for a clan or branch (US-17).
+     *
+     * @param clanId         ID of the clan
+     * @param targetBranchId optional specific target branch to root the tree at, or null for root branch
+     * @return lightweight tree node rooted at clan root or target branch
+     */
+    OnboardingBranchTreeNode getOnboardingBranchTree(String clanId, String targetBranchId);
 }

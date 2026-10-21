@@ -23,3 +23,4 @@ public class AccountRoleId implements Serializable {
     @Column(name = "role_id", length = 20, nullable = false)
     private String roleId;
 }
+
