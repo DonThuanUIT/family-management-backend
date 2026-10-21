@@ -67,8 +67,16 @@ class DatabaseMigrationTest {
                     "members",
                     "invitation_codes",
                     "system_roles",
-                    "user_accounts"
+                    "user_accounts",
+                    "branch_join_requests"
             )), "Core domain tables must be present after migrations");
+
+            // Verify clan_id column exists on branch_join_requests (Migration V6)
+            var colRs = stmt.executeQuery(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema = 'public' AND table_name = 'branch_join_requests' AND column_name = 'clan_id'"
+            );
+            assertTrue(colRs.next(), "branch_join_requests must have clan_id column from V6 migration");
 
             System.out.println("\n=== VERIFYING SEEDED ROLES IN system_roles ===");
             var rolesRs = stmt.executeQuery("SELECT role_id, role_name, description FROM system_roles ORDER BY role_id");

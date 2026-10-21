@@ -418,3 +418,4 @@ curl -X GET http://localhost:8080/api/v1/branches/tree \
   -H "Authorization: Bearer <CLAN_HEAD_TOKEN>"
 ```
 *Xác nhận trên cây chi nhánh `BR_ROOT_001` đã ghi nhận sự xuất hiện của thành viên mới `Nguyễn Văn An` ở thế hệ 5.*
+
