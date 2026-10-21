@@ -10,7 +10,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | :---: | :--- | :--- | :---: | :--- |
 | **US-04** | **Quản Lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành** | [`US-04-child-branches-and-hierarchy.md`](./US-04-child-branches-and-hierarchy.md) |
 | **US-16** | **Tạo Mã Mời (Invite Code) Chung Của Gia Phả** | `com.familyfund.identity` | ✅ **Đã hoàn thành** | [`US-16-general-clan-invite.md`](./US-16-general-clan-invite.md) |
-| **US-17** | **Đăng Ký Gia Nhập Dòng Họ Qua Mã Mời** | `com.familyfund.identity` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-17** | **Đăng Ký Gia Nhập Dòng Họ Qua Mã Mời (Onboarding)** | `com.familyfund.identity` | 🟡 **Đang triển khai** | [`US-17-branch-join-request.md`](./US-17-branch-join-request.md) |
 | **US-18** | **Đăng Ký Vị Trí & Liên Kết Thành Viên Gia Phả** | `com.familyfund.genealogy` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-25** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
