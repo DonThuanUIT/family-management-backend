@@ -16,3 +16,4 @@ ALTER TABLE events ALTER COLUMN clan_id SET NOT NULL;
 ALTER TABLE immutable_ledgers ALTER COLUMN clan_id SET NOT NULL;
 ALTER TABLE invitation_codes ALTER COLUMN clan_id SET NOT NULL;
 ALTER TABLE clan_assets ALTER COLUMN clan_id SET NOT NULL;
+
