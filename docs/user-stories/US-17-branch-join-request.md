@@ -358,10 +358,11 @@ Chạy bộ kiểm thử tự động của tính năng bằng Gradle:
 
 | Tên Test Class | Số Test Cases | Mục Tiêu Kiểm Thử |
 | :--- | :---: | :--- |
-| `BranchJoinRequestValidationTest` | 4 | - Kiểm tra định dạng số điện thoại, ngày sinh, tên không được rỗng.<br/>- Bắt buộc điền `proposedNewBranchName` khi chọn `NewChildBranch`. |
-| `BranchJoinRequestServiceTest` | 8 | - Nộp đơn thành công tạo `UserAccount` trạng thái `PendingApproval`.<br/>- Báo lỗi khi số điện thoại trùng lặp.<br/>- Báo lỗi khi mã mời hết lượt hoặc hết hạn.<br/>- Phê duyệt đơn kích hoạt tài khoản `Active` và gọi `GenealogyMemberCommandService`.<br/>- Từ chối đơn cập nhật lý do và khóa tài khoản `Deactivated`. |
-| `BranchJoinRequestControllerTest` | 6 | - MockMvc kiểm tra quyền truy cập công khai cho `GET /tree` và `POST /join`.<br/>- Kiểm tra `@PreAuthorize` của API `approve`, `reject` và danh sách đơn. |
-| `BranchJoinRequestE2EIntegrationTest` | 3 | - **Integration Test toàn diện**: Trưởng tộc tạo mã $\rightarrow$ Khách xem cây thu gọn $\rightarrow$ Khách nộp đơn $\rightarrow$ Trưởng tộc duyệt $\rightarrow$ Thành viên mới lập tức xuất hiện trên cây gia phả chính thức. |
+| `IdentityRepositoryTest` | 4 | - Kiểm tra lưu trữ, giải mã và truy vấn `UserAccount`, `AccountRole`, `BranchJoinRequest`<br/>- Kiểm tra `JOIN FETCH` ngăn ngừa N+1 queries. |
+| `GenealogyMemberCommandServiceImplTest` | 5 | - Thêm thành viên vào nhánh có sẵn (`createMemberForExistingBranch`).<br/>- Tạo nhánh con mới kèm thành viên đại diện (`createChildBranchAndMember`) và chống chu trình. |
+| `BranchJoinRequestServiceTest` | 15 | - Nộp đơn thành công tạo `UserAccount(PendingApproval)` và `BranchJoinRequest(Pending)`.<br/>- Báo lỗi khi số điện thoại/email trùng lặp, mã mời hết lượt hoặc hết hạn.<br/>- Danh sách đơn phân quyền theo cấp bậc (Trưởng tộc vs Trưởng chi).<br/>- Phê duyệt đơn kích hoạt tài khoản `Active`, gán `ROLE_MEMBER` và tạo `Member`.<br/>- Từ chối đơn cập nhật lý do và khóa tài khoản `Deactivated`. |
+| `BranchJoinRequestControllerTest` | 4 | - MockMvc kiểm tra phân trang `GET /api/v1/join-requests`.<br/>- Kiểm tra phê duyệt và từ chối kèm validate lý do `POST /approve`, `POST /reject`. |
+| `BranchJoinRequestE2EIntegrationTest` | 4 | - **E2E Integration Test toàn diện**: Trưởng tộc tạo mã $\rightarrow$ Khách xem mã và cây thu gọn $\rightarrow$ Khách nộp đơn $\rightarrow$ Trưởng tộc duyệt $\rightarrow$ Thành viên mới xuất hiện trên cây gia phả chính thức.<br/>- E2E đề xuất tạo chi nhánh mới và gán đại diện.<br/>- E2E từ chối đơn cập nhật lý do và khóa tài khoản.<br/>- E2E kiểm tra bảo mật từ chối người dùng chưa xác thực (401 Unauthorized). |
 
 ---
 
