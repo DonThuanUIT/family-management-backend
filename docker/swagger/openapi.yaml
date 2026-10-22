@@ -1,4 +1,4 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: Family Management Fund API (familyfund-api)
   version: 1.0.0
@@ -10,6 +10,153 @@ servers:
   - url: http://localhost:8080/api/v1
     description: Local Spring Boot Backend Server
 paths:
+  /auth/register-creator:
+    post:
+      summary: Đăng ký tài khoản người khởi tạo & tạo dòng họ mới (US-01)
+      description: |
+        Khởi tạo tài khoản người dùng, tạo một dòng họ mới (Multi-tenant), dựng nhánh gốc (Root Branch)
+        của cây phả hệ, tạo hồ sơ Thủy tổ (nếu có) và hồ sơ thành viên người khởi tạo với vai trò ROLE_CLAN_HEAD.
+      tags:
+        - Authentication
+        - Clan & Family Tree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - clanName
+                - fullName
+                - phoneNumber
+                - password
+                - gender
+              properties:
+                clanName:
+                  type: string
+                  example: Dòng họ Nguyễn Văn
+                ancestorName:
+                  type: string
+                  example: Cụ Tổ Nguyễn Văn Khởi
+                originLocation:
+                  type: string
+                  example: Hà Nam, Việt Nam
+                establishedYear:
+                  type: integer
+                  example: 1820
+                description:
+                  type: string
+                  example: Chi họ khởi tổ tại Hà Nam
+                fullName:
+                  type: string
+                  example: Nguyễn Văn An
+                phoneNumber:
+                  type: string
+                  example: "0987654321"
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123
+                gender:
+                  type: string
+                  enum: [Male, Female, Other]
+                  example: Male
+                email:
+                  type: string
+                  format: email
+                  example: nguyenvanan@example.com
+                dateOfBirth:
+                  type: string
+                  format: date
+                  example: 1985-05-15
+                generation:
+                  type: integer
+                  example: 6
+      responses:
+        '201':
+          description: Đăng ký và khởi tạo dòng họ thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Đăng ký người khởi tạo và tạo dòng họ mới thành công
+                  data:
+                    type: object
+                    properties:
+                      account:
+                        type: object
+                        properties:
+                          accountId:
+                            type: string
+                            example: ACC_9A8B7C6D
+                          phoneNumber:
+                            type: string
+                            example: "0987654321"
+                          email:
+                            type: string
+                            example: nguyenvanan@example.com
+                          accountStatus:
+                            type: string
+                            example: Active
+                          roles:
+                            type: array
+                            items:
+                              type: string
+                            example: [ROLE_CLAN_HEAD]
+                          createdAt:
+                            type: string
+                            format: date-time
+                      clan:
+                        type: object
+                        properties:
+                          clanId:
+                            type: string
+                            example: CLAN_F1E2D3C4
+                          clanName:
+                            type: string
+                            example: Dòng họ Nguyễn Văn
+                          ancestorName:
+                            type: string
+                            example: Cụ Tổ Nguyễn Văn Khởi
+                          originLocation:
+                            type: string
+                            example: Hà Nam, Việt Nam
+                          establishedYear:
+                            type: integer
+                            example: 1820
+                          description:
+                            type: string
+                            example: Chi họ khởi tổ tại Hà Nam
+                      member:
+                        type: object
+                        properties:
+                          memberId:
+                            type: string
+                            example: MEM_4B3A2C1D
+                          fullName:
+                            type: string
+                            example: Nguyễn Văn An
+                          gender:
+                            type: string
+                            example: Male
+                          generation:
+                            type: integer
+                            example: 6
+                          dateOfBirth:
+                            type: string
+                            format: date
+                            example: 1985-05-15
+                          branchId:
+                            type: string
+                            example: BR_1234ABCD
+        '400':
+          description: Dữ liệu không hợp lệ hoặc số điện thoại / email đã tồn tại
   /auth/login:
     post:
       summary: Đăng nhập hệ thống
