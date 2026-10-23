@@ -1,5 +1,9 @@
 package com.familyfund.genealogy.api;
 
+import com.familyfund.genealogy.api.dto.MemberSummaryDto;
+
+import java.util.Optional;
+
 /**
  * Public query contract provided by the Genealogy module for other bounded contexts.
  */
@@ -23,4 +27,12 @@ public interface GenealogyQueryService {
      * @return true if the branch exists in the specified clan, false otherwise
      */
     boolean existsBranch(String clanId, String branchId);
+
+    /**
+     * Finds summary profile of a member including their name and owning clan tenancy.
+     *
+     * @param memberId ID of the member
+     * @return Optional containing summary details if found
+     */
+    Optional<MemberSummaryDto> findMemberSummary(String memberId);
 }
