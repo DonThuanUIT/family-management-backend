@@ -23,6 +23,9 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
 
     boolean existsByClanIdAndBranchId(String clanId, String branchId);
 
+    // BRANCH_HEAD scope: the caller's member profile is the representative (Trưởng chi) of this branch
+    boolean existsByClanIdAndBranchIdAndRepresentative_MemberId(String clanId, String branchId, String representativeMemberId);
+
     List<FamilyBranch> findByClanIdAndParentBranch_BranchIdOrderByBranchNameAsc(String clanId, String parentBranchId);
 
     @Query("SELECT fb FROM FamilyBranch fb LEFT JOIN FETCH fb.representative WHERE fb.clanId = :clanId ORDER BY fb.generationLevel ASC, fb.branchName ASC")

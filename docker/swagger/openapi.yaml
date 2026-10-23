@@ -88,6 +88,77 @@ paths:
         '200':
           description: Danh sách thành viên
 
+  /branches/{branchId}/members:
+    post:
+      summary: Tạo hồ sơ thành viên mới trong một chi/nhánh (US-03)
+      description: |
+        Tạo hồ sơ thành viên (`members`) gắn với chi/nhánh nêu trong đường dẫn, thuộc dòng họ hiện hành
+        (multi-tenant: header `X-Clan-Id` hoặc query param `clanId`, mặc định `CLAN_DEFAULT`).
+
+        Quy tắc nghiệp vụ:
+        - `branchId` **chỉ** lấy từ đường dẫn, không truyền lại trong body.
+        - `memberId` do server sinh (`MEM` + timestamp Base36 + hậu tố CSPRNG, tối đa 20 ký tự).
+        - `isPlaceholder` luôn được server đặt `true` (hồ sơ chờ tài khoản người dùng nhận liên kết - US-18).
+        - Chống trùng hồ sơ trong cùng dòng họ theo bộ (`fullName` không phân biệt hoa thường, `gender`, `generation`, `dateOfBirth`).
+        - `generation` không được nhỏ hơn `generation_level` của chi/nhánh.
+      tags:
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          description: Mã chi/nhánh thuộc dòng họ hiện hành (`family_branches.branch_id`, VARCHAR(20))
+          schema:
+            type: string
+            maxLength: 20
+            example: BR_CHILD_1
+        - name: X-Clan-Id
+          in: header
+          required: false
+          description: Mã dòng họ hiện hành (multi-tenant). Bỏ trống sẽ dùng `CLAN_DEFAULT`.
+          schema:
+            type: string
+            example: CLAN_DEFAULT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemberRequest'
+      responses:
+        '201':
+          description: Tạo thành viên thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMember'
+        '400':
+          description: Payload sai ràng buộc schema, `branchId` sai định dạng, hoặc thế hệ thấp hơn cấp của chi/nhánh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Không có quyền (chỉ `ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_ADMIN`; Trưởng chi chỉ được thêm vào chi mình quản lý)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Dòng họ hoặc chi/nhánh không tồn tại trong dòng họ hiện hành
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '409':
+          description: Hồ sơ trùng với thành viên đã có trong dòng họ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
   /events:
     get:
       summary: Danh sách sự kiện của dòng họ
@@ -335,5 +406,142 @@ paths:
           description: Vô hiệu hóa thành công
         '403':
           description: Không có quyền thực hiện
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT do `POST /auth/login` cấp (BE-Task 3). Cho tới khi tầng xác thực hoàn thành, các endpoint
+        có `@PreAuthorize` sẽ trả `403` vì chưa có principal mang vai trò từ `account_roles`.
+
+  schemas:
+    CreateMemberRequest:
+      type: object
+      description: |
+        Payload tạo thành viên. `branchId` KHÔNG nằm trong body (lấy từ path variable).
+        `memberId`, `isPlaceholder`, `createdAt` do server sinh và bị bỏ qua nếu client gửi lên.
+      required:
+        - fullName
+        - gender
+        - generation
+      properties:
+        fullName:
+          type: string
+          maxLength: 100
+          description: "`members.full_name` VARCHAR(100) NOT NULL"
+          example: Nguyễn Văn An
+        dateOfBirth:
+          type: string
+          format: date
+          description: "`members.date_of_birth` DATE, không được ở tương lai"
+          example: "1990-05-20"
+        gender:
+          type: string
+          enum: [Male, Female, Other]
+          description: "`members.gender` CHECK (Male|Female|Other)"
+          example: Male
+        generation:
+          type: integer
+          minimum: 1
+          description: "`members.generation` INT NOT NULL CHECK >= 1; không nhỏ hơn `generation_level` của chi/nhánh"
+          example: 3
+        status:
+          type: string
+          enum: [Living, Deceased]
+          default: Living
+          description: "`members.status` VARCHAR(20) NOT NULL DEFAULT 'Living'; bỏ trống thì mặc định Living"
+          example: Living
+        deathDateLunar:
+          type: string
+          maxLength: 50
+          description: "`members.death_date_lunar` VARCHAR(50)"
+          example: "15/08 Âm lịch"
+
+    MemberResponse:
+      type: object
+      description: Read model của bảng `members`; `branchName` và `clanId` phân giải qua `family_branches`.
+      properties:
+        memberId:
+          type: string
+          maxLength: 20
+          example: MEMK4F8ZQ1M7XB3QP
+        fullName:
+          type: string
+          example: Nguyễn Văn An
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+          example: "1990-05-20"
+        gender:
+          type: string
+          enum: [Male, Female, Other]
+          example: Male
+        generation:
+          type: integer
+          example: 3
+        status:
+          type: string
+          enum: [Living, Deceased]
+          example: Living
+        deathDateLunar:
+          type: string
+          nullable: true
+          example: "15/08 Âm lịch"
+        branchId:
+          type: string
+          example: BR_CHILD_1
+        branchName:
+          type: string
+          example: Chi Hai
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        isPlaceholder:
+          type: boolean
+          description: Luôn `true` với hồ sơ do quản lý tạo (chờ nhận liên kết ở US-18).
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-23T15:00:00Z"
+
+    ApiResponseMember:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Member created successfully
+        data:
+          $ref: '#/components/schemas/MemberResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Branch not found with ID: BR_CHILD_1 in clan: CLAN_DEFAULT"
+        errors:
+          type: object
+          description: "Chỉ xuất hiện khi `400` do Bean Validation; map `tên trường -> thông điệp`."
+          additionalProperties:
+            type: string
+          example:
+            fullName: Full name must not be blank
+        timestamp:
+          type: string
+          format: date-time
 
 

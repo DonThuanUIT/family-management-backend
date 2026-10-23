@@ -76,7 +76,7 @@ src/main/java/com/familyfund/
 │   ├── api/                        # Public Contract: GenealogyQueryService
 │   │   └── package-info.java       # @NamedInterface("api")
 │   ├── internal/                   # Private Implementation
-│   │   ├── controller/             # GenealogyController (/api/v1/branches), MemberController (/api/v1/members)
+│   │   ├── controller/             # GenealogyController (/api/v1/branches), MemberController (/api/v1/branches/{branchId}/members, /api/v1/members/{memberId}/assign-branch)
 │   │   ├── dto/                    # Request & Response Records (CreateChildBranchRequest, BranchTreeNodeResponse,...)
 │   │   ├── entity/                 # Clan, FamilyBranch, Member
 │   │   ├── mapper/                 # BranchMapper (MapStruct)
