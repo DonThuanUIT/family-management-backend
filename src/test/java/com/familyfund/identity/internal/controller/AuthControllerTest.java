@@ -2,11 +2,15 @@ package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.GlobalExceptionHandler;
+import com.familyfund.identity.internal.dto.request.LoginRequest;
+import com.familyfund.identity.internal.dto.request.RefreshTokenRequest;
 import com.familyfund.identity.internal.dto.request.RegisterCreatorRequest;
+import com.familyfund.identity.internal.dto.response.AuthTokenResponse;
 import com.familyfund.identity.internal.dto.response.ClanResponse;
 import com.familyfund.identity.internal.dto.response.CreatorRegistrationResponse;
 import com.familyfund.identity.internal.dto.response.MemberResponse;
 import com.familyfund.identity.internal.dto.response.UserAccountResponse;
+import com.familyfund.identity.internal.service.AuthService;
 import com.familyfund.identity.internal.service.CreatorRegistrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +43,9 @@ class AuthControllerTest {
 
     @Mock
     private CreatorRegistrationService creatorRegistrationService;
+
+    @Mock
+    private AuthService authService;
 
     @InjectMocks
     private AuthController authController;
@@ -166,5 +173,99 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value(containsString("đã được đăng ký tài khoản")));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/login should return 200 OK with AuthTokenResponse on valid credentials")
+    void login_Success_Returns200() throws Exception {
+        String payload = """
+                {
+                    "loginIdentifier": "0912345678",
+                    "password": "Password@123"
+                }
+                """;
+
+        AuthTokenResponse mockResponse = new AuthTokenResponse(
+                "access.token",
+                "refresh.token",
+                "Bearer",
+                3600,
+                "ACC_001",
+                "0912345678",
+                "user@example.com",
+                "Nguyễn Văn An",
+                "CLAN_001",
+                "MEM_001",
+                Set.of("ROLE_CLAN_HEAD")
+        );
+
+        when(authService.login(any(LoginRequest.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Đăng nhập thành công"))
+                .andExpect(jsonPath("$.data.accessToken").value("access.token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("refresh.token"))
+                .andExpect(jsonPath("$.data.accountId").value("ACC_001"))
+                .andExpect(jsonPath("$.data.clanId").value("CLAN_001"))
+                .andExpect(jsonPath("$.data.roles[0]").value("ROLE_CLAN_HEAD"));
+
+        verify(authService).login(any(LoginRequest.class));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/login should return 400 when missing credentials")
+    void login_MissingFields_Returns400() throws Exception {
+        String invalidPayload = """
+                {
+                    "loginIdentifier": "",
+                    "password": ""
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidPayload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/refresh-token should return 200 OK on valid refresh token")
+    void refreshToken_Success_Returns200() throws Exception {
+        String payload = """
+                {
+                    "refreshToken": "valid.refresh.token"
+                }
+                """;
+
+        AuthTokenResponse mockResponse = new AuthTokenResponse(
+                "new.access.token",
+                "valid.refresh.token",
+                "Bearer",
+                3600,
+                "ACC_001",
+                "0912345678",
+                "user@example.com",
+                "Nguyễn Văn An",
+                "CLAN_001",
+                "MEM_001",
+                Set.of("ROLE_CLAN_HEAD")
+        );
+
+        when(authService.refreshToken(any(RefreshTokenRequest.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/api/v1/auth/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Làm mới token thành công"))
+                .andExpect(jsonPath("$.data.accessToken").value("new.access.token"));
+
+        verify(authService).refreshToken(any(RefreshTokenRequest.class));
     }
 }
