@@ -45,14 +45,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && jwtTokenProvider.validateToken(jwt)) {
                 String accountId = jwtTokenProvider.getAccountId(jwt);
+                String memberId = jwtTokenProvider.getMemberId(jwt);
                 Set<String> roles = jwtTokenProvider.getRoles(jwt);
 
                 List<SimpleGrantedAuthority> authorities = roles.stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
+                // JwtPrincipal keeps accountId as the authentication name and exposes the linked
+                // members.member_id through MemberLinkedPrincipal for branch-scope authorization.
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(accountId, null, authorities);
+                        new UsernamePasswordAuthenticationToken(
+                                new JwtPrincipal(accountId, memberId), null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);

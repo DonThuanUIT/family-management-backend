@@ -1,6 +1,7 @@
 package com.familyfund.genealogy.internal.controller;
 
 import com.familyfund.core.security.MemberLinkedPrincipal;
+import com.familyfund.core.security.JwtTokenProvider;
 import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.core.tenant.TenantFilter;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,6 +73,8 @@ class MemberControllerIntegrationTest {
     private FamilyBranchRepository branchRepository;
     @Autowired
     private MemberRepository memberRepository;
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
 
     private FamilyBranch headedBranch;
     private FamilyBranch otherBranch;
@@ -175,6 +179,41 @@ class MemberControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.branchId").value(headedBranch.getBranchId()));
     }
 
+    // ------------------------------------------- signed JWT through the real security filter chain
+
+    @Test
+    @DisplayName("201: BRANCH_HEAD authenticated by a signed JWT reaches their own branch scope")
+    void branchHead_SignedJwt_OwnBranch_Returns201() throws Exception {
+        mockMvc.perform(post(PATH, headedBranch.getBranchId())
+                        .header("Authorization", "Bearer " + accessToken(headMemberId, SystemRoles.BRANCH_HEAD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_PAYLOAD))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.branchId").value(headedBranch.getBranchId()))
+                .andExpect(jsonPath("$.data.clanId").value(CLAN));
+    }
+
+    @Test
+    @DisplayName("403: BRANCH_HEAD authenticated by a signed JWT cannot create outside their branch")
+    void branchHead_SignedJwt_ForeignBranch_Returns403() throws Exception {
+        mockMvc.perform(post(PATH, otherBranch.getBranchId())
+                        .header("Authorization", "Bearer " + accessToken(headMemberId, SystemRoles.BRANCH_HEAD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_PAYLOAD))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    /**
+     * Signs a token the way {@code POST /auth/login} does, so the request travels through
+     * {@link com.familyfund.core.security.JwtAuthenticationFilter}: the caller's member profile must come
+     * from the {@code memberId} claim, not from the test-only {@link Principal} used above.
+     */
+    private String accessToken(String memberId, String role) {
+        return jwtTokenProvider.generateAccessToken(
+                "ACC_CTRL_IT", CLAN, memberId, "Truong Chi Mot", Set.of(role));
+    }
+
     // ---------------------------------------------------------------- 403 Forbidden
 
     @Test
@@ -210,13 +249,13 @@ class MemberControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("403: an anonymous caller cannot create a member")
-    void anonymous_Returns403() throws Exception {
+    @DisplayName("401: an anonymous caller cannot create a member")
+    void anonymous_Returns401() throws Exception {
         mockMvc.perform(post(PATH, otherBranch.getBranchId())
                         .header(TenantFilter.HEADER_CLAN_ID, CLAN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_PAYLOAD))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
