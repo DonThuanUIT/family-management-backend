@@ -483,4 +483,12 @@ paths:
         '403':
           description: Không có quyền thực hiện
 
-
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Nhập JWT Access Token nhận được từ API /auth/login.
+        Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
