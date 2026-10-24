@@ -46,7 +46,8 @@ Tính năng thuộc Bounded Context: `com.familyfund.genealogy`
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 1. API BOUNDARY & CONTROLLER LAYER                                     │
 │    • Controller: GenealogyController (Mapping /api/v1/branches/**)     │
-│    • MemberController: (Mapping /api/v1/members/{id}/assign-branch)    │
+│    • MemberController: /api/v1/members/{memberId}/assign-branch        │
+│      + POST /api/v1/branches/{branchId}/members (US-03)                │
 │    • Bean Validation: @Valid (CreateChildBranchRequest, Update...)     │
 │    • Envelope Response: ApiResponse<T>                                 │
 └────────────────────────────────────────────────────────────────────────┘

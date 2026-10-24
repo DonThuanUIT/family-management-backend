@@ -9,8 +9,9 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | Mã US | Tên Tính Năng | Bounded Context | Trạng Thái | File Đặc Tả Kỹ Thuật |
 | :---: | :--- | :--- | :---: | :--- |
 | **US-01** | **Đăng Ký Tài Khoản Người Khởi Tạo & Tạo Cây Gia Phả Mới** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-01-creator-registration-and-clan-creation.md`](./US-01-creator-registration-and-clan-creation.md) |
-| **US-10** | **Cấu Hình JWT Token, Claims & Middleware Gán Quyền ROLE_CLAN_HEAD** | `com.familyfund.core` & `identity` | ✅ **Đã hoàn thành** | [`US-10-jwt-authentication-and-claims.md`](./US-10-jwt-authentication-and-claims.md) |
+| **US-03** | **Tạo Hồ Sơ Thành Viên Gia Phả, Chống Trùng & Phân Quyền Theo Chi/Nhánh** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành** | [`US-03-create-member-profile.md`](./US-03-create-member-profile.md) |
 | **US-04** | **Quản Lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành** | [`US-04-child-branches-and-hierarchy.md`](./US-04-child-branches-and-hierarchy.md) |
+| **US-10** | **Cấu Hình JWT Token, Claims & Middleware Gán Quyền ROLE_CLAN_HEAD** | `com.familyfund.core` & `identity` | ✅ **Đã hoàn thành** | [`US-10-jwt-authentication-and-claims.md`](./US-10-jwt-authentication-and-claims.md) |
 | **US-16** | **Tạo Mã Mời (Invite Code) Chung Của Gia Phả** | `com.familyfund.identity` | ✅ **Đã hoàn thành** | [`US-16-general-clan-invite.md`](./US-16-general-clan-invite.md) |
 | **US-17** | **Đăng Ký Gia Nhập Dòng Họ Qua Mã Mời** | `com.familyfund.identity` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-18** | **Đăng Ký Vị Trí & Liên Kết Thành Viên Gia Phả** | `com.familyfund.genealogy` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
