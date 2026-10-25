@@ -30,6 +30,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -62,8 +63,20 @@ class AuthControllerTest {
                 .build();
     }
 
+    private CreatorRegistrationResponse buildMockResponse(String clanName, String fullName, String phone, String email, String gender, Integer gen) {
+        return new CreatorRegistrationResponse(
+                new UserAccountResponse("ACC_12345678", phone, email, "Active", Set.of("ROLE_CLAN_HEAD"), Instant.now()),
+                new ClanResponse("CLAN_87654321", clanName, null, null, null, null),
+                new MemberResponse("MEM_11223344", fullName, gender, gen != null ? gen : 1, null, "BR_99887766")
+        );
+    }
+
+    // =========================================================================
+    // Normal Test Cases
+    // =========================================================================
+
     @Test
-    @DisplayName("POST /api/v1/auth/register-creator should return 201 Created on valid request")
+    @DisplayName("Normal: POST /api/v1/auth/register-creator should return 201 Created on full valid request")
     void registerCreator_Success_Returns201() throws Exception {
         String payload = """
                 {
@@ -82,37 +95,8 @@ class AuthControllerTest {
                 }
                 """;
 
-        UserAccountResponse accountResponse = new UserAccountResponse(
-                "ACC_12345678",
-                "0912345678",
-                "hoangnam@example.com",
-                "Active",
-                Set.of("ROLE_CLAN_HEAD"),
-                Instant.now()
-        );
-        ClanResponse clanResponse = new ClanResponse(
-                "CLAN_87654321",
-                "Dòng họ Hoàng",
-                "Cụ Hoàng Phúc",
-                "Hà Nội",
-                1890,
-                "Chi họ Hoàng đất kinh kỳ"
-        );
-        MemberResponse memberResponse = new MemberResponse(
-                "MEM_11223344",
-                "Hoàng Văn Nam",
-                "Male",
-                3,
-                LocalDate.of(1992, 6, 20),
-                "BR_99887766"
-        );
-        CreatorRegistrationResponse mockResponse = new CreatorRegistrationResponse(
-                accountResponse,
-                clanResponse,
-                memberResponse
-        );
-
-        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class))).thenReturn(mockResponse);
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Hoàng", "Hoàng Văn Nam", "0912345678", "hoangnam@example.com", "Male", 3));
 
         mockMvc.perform(post("/api/v1/auth/register-creator")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -132,7 +116,387 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/auth/register-creator should return 400 Bad Request when required fields are missing")
+    @DisplayName("Normal: POST /api/v1/auth/register-creator should return 201 Created on minimal payload (mandatory fields only)")
+    void registerCreator_MinimalPayload_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Lê",
+                    "fullName": "Lê Văn Minh",
+                    "phoneNumber": "0987654321",
+                    "password": "Password@123",
+                    "gender": "Female"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Lê", "Lê Văn Minh", "0987654321", null, "Female", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.account.phoneNumber").value("0987654321"))
+                .andExpect(jsonPath("$.data.clan.clanName").value("Dòng họ Lê"))
+                .andExpect(jsonPath("$.data.member.gender").value("Female"));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    // =========================================================================
+    // Boundary Cases
+    // =========================================================================
+
+    @Test
+    @DisplayName("Boundary: Password exactly 6 characters should pass validation and return 201")
+    void registerCreator_PasswordBoundary_6Chars_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Vũ",
+                    "fullName": "Vũ Văn A",
+                    "phoneNumber": "0911223344",
+                    "password": "123456",
+                    "gender": "Male"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Vũ", "Vũ Văn A", "0911223344", null, "Male", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    @Test
+    @DisplayName("Boundary: Phone number exactly 8 characters (min valid length) should pass validation and return 201")
+    void registerCreator_PhoneBoundary_8Digits_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Đinh",
+                    "fullName": "Đinh Bộ Lĩnh",
+                    "phoneNumber": "12345678",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Đinh", "Đinh Bộ Lĩnh", "12345678", null, "Male", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    @Test
+    @DisplayName("Boundary: Phone number exactly 15 characters (max valid length) should pass validation and return 201")
+    void registerCreator_PhoneBoundary_15Digits_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Đinh",
+                    "fullName": "Đinh Bộ Lĩnh",
+                    "phoneNumber": "012345678901234",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Đinh", "Đinh Bộ Lĩnh", "012345678901234", null, "Male", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    @Test
+    @DisplayName("Boundary: Phone number with leading '+' sign (E.164) should pass validation and return 201")
+    void registerCreator_PhoneWithPlusSign_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Lý",
+                    "fullName": "Lý Thường Kiệt",
+                    "phoneNumber": "+84912345678",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Lý", "Lý Thường Kiệt", "+84912345678", null, "Male", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    @Test
+    @DisplayName("Boundary: Generation = 1 (minimum allowed) should pass validation and return 201")
+    void registerCreator_GenerationBoundary_1_Returns201() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Trịnh",
+                    "fullName": "Trịnh Kiểm",
+                    "phoneNumber": "0988776655",
+                    "password": "Password@123",
+                    "gender": "Male",
+                    "generation": 1
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenReturn(buildMockResponse("Dòng họ Trịnh", "Trịnh Kiểm", "0988776655", null, "Male", 1));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(creatorRegistrationService).registerCreator(any(RegisterCreatorRequest.class));
+    }
+
+    // =========================================================================
+    // Abnormal / Edge Cases (Validation Failures)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Abnormal: Password shorter than 6 characters (5 chars) should return 400 Bad Request")
+    void registerCreator_ShortPassword_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0912345678",
+                    "password": "12345",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.password").value("Mật khẩu phải có độ dài tối thiểu 6 ký tự"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Phone number shorter than 8 characters (7 digits) should return 400 Bad Request")
+    void registerCreator_PhoneTooShort_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "1234567",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.phoneNumber").value("Số điện thoại không đúng định dạng (8-15 ký tự số)"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Phone number longer than 15 characters (16 digits) should return 400 Bad Request")
+    void registerCreator_PhoneTooLong_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0123456789012345",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.phoneNumber").value("Số điện thoại không đúng định dạng (8-15 ký tự số)"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Phone number containing invalid characters should return 400 Bad Request")
+    void registerCreator_PhoneWithLetters_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "091234abcd",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.phoneNumber").value("Số điện thoại không đúng định dạng (8-15 ký tự số)"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Generation = 0 or negative should return 400 Bad Request")
+    void registerCreator_InvalidGeneration_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0912345678",
+                    "password": "Password@123",
+                    "gender": "Male",
+                    "generation": 0
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.generation").value("Đời / thế hệ phải từ 1 trở lên"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Malformed email should return 400 Bad Request")
+    void registerCreator_InvalidEmail_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0912345678",
+                    "password": "Password@123",
+                    "gender": "Male",
+                    "email": "not-a-valid-email"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.email").value("Địa chỉ email không đúng định dạng"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Invalid gender value should return 400 Bad Request")
+    void registerCreator_InvalidGender_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0912345678",
+                    "password": "Password@123",
+                    "gender": "UnknownGender"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.gender").value("Giới tính phải là Male, Female hoặc Other"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Blank mandatory clanName should return 400 Bad Request")
+    void registerCreator_BlankClanName_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "   ",
+                    "fullName": "Nguyễn Văn A",
+                    "phoneNumber": "0912345678",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.clanName").value("Tên dòng họ không được để trống"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Blank mandatory fullName should return 400 Bad Request")
+    void registerCreator_BlankFullName_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Nguyễn",
+                    "fullName": "   ",
+                    "phoneNumber": "0912345678",
+                    "password": "Password@123",
+                    "gender": "Male"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.errors.fullName").value("Họ và tên người khởi tạo không được để trống"));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
+    }
+
+    @Test
+    @DisplayName("Abnormal: Missing all required fields should return 400 Bad Request")
     void registerCreator_MissingFields_Returns400() throws Exception {
         String invalidPayload = """
                 {
@@ -149,10 +513,12 @@ class AuthControllerTest {
                         .content(invalidPayload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+
+        verify(creatorRegistrationService, never()).registerCreator(any());
     }
 
     @Test
-    @DisplayName("POST /api/v1/auth/register-creator should return 400 when phone number is duplicated")
+    @DisplayName("Abnormal: POST /api/v1/auth/register-creator should return 400 when phone number is duplicated in service")
     void registerCreator_DuplicatePhone_Returns400() throws Exception {
         String payload = """
                 {
@@ -172,8 +538,37 @@ class AuthControllerTest {
                         .content(payload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(containsString("đã được đăng ký tài khoản")));
+                .andExpect(jsonPath("$.message").value(containsString("Số điện thoại '0987654321' đã được đăng ký tài khoản")));
     }
+
+    @Test
+    @DisplayName("Abnormal: POST /api/v1/auth/register-creator should return 400 when email is duplicated in service")
+    void registerCreator_DuplicateEmail_Returns400() throws Exception {
+        String payload = """
+                {
+                    "clanName": "Dòng họ Đỗ",
+                    "fullName": "Đỗ Nam",
+                    "phoneNumber": "0987654321",
+                    "password": "Password@123",
+                    "gender": "Male",
+                    "email": "dup@example.com"
+                }
+                """;
+
+        when(creatorRegistrationService.registerCreator(any(RegisterCreatorRequest.class)))
+                .thenThrow(new BadRequestException("Địa chỉ email 'dup@example.com' đã được đăng ký tài khoản"));
+
+        mockMvc.perform(post("/api/v1/auth/register-creator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(containsString("Địa chỉ email 'dup@example.com' đã được đăng ký tài khoản")));
+    }
+
+    // =========================================================================
+    // Auth Login & Refresh Token Tests
+    // =========================================================================
 
     @Test
     @DisplayName("POST /api/v1/auth/login should return 200 OK with AuthTokenResponse on valid credentials")
