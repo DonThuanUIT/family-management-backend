@@ -15,7 +15,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-16** | **Tạo Mã Mời (Invite Code) Chung Của Gia Phả** | `com.familyfund.identity` | ✅ **Đã hoàn thành** | [`US-16-general-clan-invite.md`](./US-16-general-clan-invite.md) |
 | **US-17** | **Đăng Ký Gia Nhập Dòng Họ Qua Mã Mời** | `com.familyfund.identity` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-18** | **Đăng Ký Vị Trí & Liên Kết Thành Viên Gia Phả** | `com.familyfund.genealogy` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
-| **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-21-create-event-and-contextual-rbac.md`](./US-21-create-event-and-contextual-rbac.md) |
 | **US-25** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |

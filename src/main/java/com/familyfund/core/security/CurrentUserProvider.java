@@ -31,6 +31,23 @@ public class CurrentUserProvider {
     }
 
     /**
+     * @return the user_accounts.account_id linked to the caller, or empty when unauthenticated.
+     */
+    public Optional<String> currentAccountId() {
+        Authentication authentication = currentAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof MemberLinkedPrincipal principal) {
+            String accountId = principal.getAccountId();
+            if (accountId != null && !accountId.isBlank()) {
+                return Optional.of(accountId.trim());
+            }
+        }
+        if (authentication != null && authentication.getName() != null && !authentication.getName().isBlank()) {
+            return Optional.of(authentication.getName().trim());
+        }
+        return Optional.empty();
+    }
+
+    /**
      * @return the members.member_id linked to the caller, or empty when the principal
      *         does not implement {@link MemberLinkedPrincipal} or is not linked yet.
      */
