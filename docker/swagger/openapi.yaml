@@ -311,17 +311,11 @@ paths:
       summary: Danh sách sự kiện của dòng họ
       tags:
         - Events & Registration
-      parameters:
-        - name: clanId
-          in: query
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           description: Danh sách sự kiện
     post:
-      summary: Khởi tạo kế hoạch sự kiện mới
+      summary: Khởi tạo kế hoạch sự kiện mới (US-21)
       tags:
         - Events & Registration
       requestBody:
@@ -331,14 +325,10 @@ paths:
             schema:
               type: object
               required:
-                - clanId
                 - eventName
                 - eventDatetime
                 - location
               properties:
-                clanId:
-                  type: string
-                  example: CLAN_NGUYENTRONG
                 eventName:
                   type: string
                   example: Giỗ Tổ 2026
@@ -346,15 +336,109 @@ paths:
                   type: string
                   format: date-time
                   example: "2026-04-26T08:00:00Z"
+                eventDateLunar:
+                  type: string
+                  example: "10/03 Bính Ngọ"
                 location:
                   type: string
                   example: Nhà thờ tổ Chi 1
                 estimatedBudget:
                   type: number
                   example: 50000000.00
+                description:
+                  type: string
+                  example: Lễ giỗ tổ truyền thống dòng họ
       responses:
         '201':
           description: Tạo sự kiện thành công
+
+  /events/{eventId}:
+    get:
+      summary: Xem chi tiết sự kiện và ban tổ chức (US-21)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_20260426
+      responses:
+        '200':
+          description: Chi tiết sự kiện
+
+  /events/{eventId}/status:
+    patch:
+      summary: Chuyển đổi trạng thái vòng đời sự kiện (US-21)
+      description: |
+        Quản lý chuyển đổi trạng thái vòng đời: Draft -> RegistrationOpen -> RegistrationClosed -> Ongoing -> Ended -> Closed.
+        Được bảo vệ bởi @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')").
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [Draft, RegistrationOpen, RegistrationClosed, Ongoing, Ended, Closed]
+                  example: RegistrationOpen
+      responses:
+        '200':
+          description: Cập nhật trạng thái sự kiện thành công
+
+  /events/{eventId}/personnel:
+    post:
+      summary: Chỉ định Ban tổ chức và Thủ quỹ sự kiện (US-21)
+      description: |
+        Trưởng tộc chỉ định nhân sự gắn riêng với sự kiện. Ràng buộc: tối đa 1 HeadOfOrganizer, 1 EventTreasurer, không giới hạn OrganizerMember.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - personnel
+              properties:
+                personnel:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - memberId
+                      - role
+                    properties:
+                      memberId:
+                        type: string
+                        example: MEM_001
+                      role:
+                        type: string
+                        enum: [HeadOfOrganizer, EventTreasurer, OrganizerMember]
+                        example: HeadOfOrganizer
+      responses:
+        '200':
+          description: Chỉ định nhân sự thành công
 
   /events/{eventId}/advance-vouchers:
     post:
