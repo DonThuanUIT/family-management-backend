@@ -3,8 +3,10 @@ package com.familyfund.event.internal.controller;
 import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
+import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
+import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
 import com.familyfund.event.internal.service.EventService;
@@ -18,7 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * REST Controller for managing family events, status transitions, and personnel assignments.
+ * REST Controller for managing family events, status transitions, personnel assignments,
+ * and event notifications / schedule updates.
  */
 @RestController
 @RequestMapping("/api/v1/events")
@@ -36,6 +39,18 @@ public class EventController {
         EventResponse response = eventService.createEvent(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Khởi tạo sự kiện thành công"));
+    }
+
+    /**
+     * Cập nhật thông tin sự kiện và phát thông báo nếu có thay đổi thời gian hoặc địa điểm.
+     */
+    @PutMapping("/{eventId}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')")
+    public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
+            @PathVariable String eventId,
+            @Valid @RequestBody UpdateEventRequest request) {
+        EventResponse response = eventService.updateEvent(eventId, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật thông tin sự kiện thành công"));
     }
 
     /**
@@ -80,5 +95,16 @@ public class EventController {
             @Valid @RequestBody AssignPersonnelRequest request) {
         List<EventPersonnelResponse> response = eventService.assignPersonnel(eventId, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Chỉ định ban tổ chức và thủ quỹ thành công"));
+    }
+
+    /**
+     * Xem lịch sử thông báo đã phát đi của sự kiện.
+     */
+    @GetMapping("/{eventId}/notifications")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<EventNotificationResponse>>> getEventNotifications(
+            @PathVariable String eventId) {
+        List<EventNotificationResponse> response = eventService.getEventNotifications(eventId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

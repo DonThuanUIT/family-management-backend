@@ -367,6 +367,51 @@ paths:
       responses:
         '200':
           description: Chi tiết sự kiện
+    put:
+      summary: Cập nhật thông tin và lịch trình sự kiện (US-22)
+      description: |
+        Cập nhật thông tin sự kiện. Tự động so sánh lịch trình cũ và mới (ngày giờ, địa điểm) để phát thông báo biến động tới con cháu.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventName
+                - eventDatetime
+                - location
+              properties:
+                eventName:
+                  type: string
+                  example: Giỗ Tổ 2026 (Điều chỉnh)
+                eventDatetime:
+                  type: string
+                  format: date-time
+                  example: "2026-04-27T08:00:00Z"
+                eventDateLunar:
+                  type: string
+                  example: "11/03 Bính Ngọ"
+                location:
+                  type: string
+                  example: Từ đường Đại Tộc
+                estimatedBudget:
+                  type: number
+                  example: 55000000.00
+                description:
+                  type: string
+                  example: Cập nhật địa điểm sang từ đường lớn
+      responses:
+        '200':
+          description: Cập nhật thông tin sự kiện thành công
 
   /events/{eventId}/status:
     patch:
@@ -439,6 +484,21 @@ paths:
       responses:
         '200':
           description: Chỉ định nhân sự thành công
+
+  /events/{eventId}/notifications:
+    get:
+      summary: Xem lịch sử thông báo đã phát của sự kiện (US-22)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thông báo sự kiện
 
   /events/{eventId}/advance-vouchers:
     post:

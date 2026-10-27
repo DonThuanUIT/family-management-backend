@@ -1,9 +1,11 @@
 package com.familyfund.event.internal.mapper;
 
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
+import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
 import com.familyfund.event.internal.entity.Event;
+import com.familyfund.event.internal.entity.EventNotification;
 import com.familyfund.event.internal.entity.EventPersonnel;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -26,4 +28,8 @@ public interface EventMapper {
 
     @Mapping(target = "personnel", source = "personnelResponses")
     EventDetailResponse toDetailResponse(Event event, List<EventPersonnelResponse> personnelResponses);
+
+    EventNotificationResponse toNotificationResponse(EventNotification notification);
+
+    List<EventNotificationResponse> toNotificationResponseList(List<EventNotification> notifications);
 }
