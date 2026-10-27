@@ -7,15 +7,21 @@ import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
+import com.familyfund.event.api.event.EventOpenedDomainEvent;
+import com.familyfund.event.api.event.EventScheduleChangedDomainEvent;
 import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
+import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
+import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
 import com.familyfund.event.internal.entity.Event;
+import com.familyfund.event.internal.entity.EventNotification;
 import com.familyfund.event.internal.entity.EventPersonnel;
 import com.familyfund.event.internal.mapper.EventMapper;
+import com.familyfund.event.internal.repository.EventNotificationRepository;
 import com.familyfund.event.internal.repository.EventPersonnelRepository;
 import com.familyfund.event.internal.repository.EventRepository;
 import com.familyfund.event.internal.util.EventIdGenerator;
@@ -35,6 +41,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -43,7 +50,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +66,9 @@ class EventServiceImplTest {
     @Mock
     private EventPersonnelRepository eventPersonnelRepository;
 
+    @Mock
+    private EventNotificationRepository eventNotificationRepository;
+
     @Spy
     private EventMapper eventMapper = Mappers.getMapper(EventMapper.class);
 
@@ -71,6 +80,9 @@ class EventServiceImplTest {
 
     @Mock
     private GenealogyQueryService genealogyQueryService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private EventServiceImpl eventService;
@@ -156,23 +168,123 @@ class EventServiceImplTest {
     }
 
     @Nested
+    @DisplayName("Update event details & schedule changes")
+    class UpdateEvent {
+
+        @Test
+        @DisplayName("Successfully updates event and publishes EventScheduleChangedDomainEvent when schedule changes")
+        void updateWithScheduleChanges() {
+            Event event = Event.builder()
+                    .eventId(EVENT_ID)
+                    .clanId(CLAN_ID)
+                    .eventName("Giỗ Tổ 2026")
+                    .eventDatetime(Instant.parse("2026-04-26T08:00:00Z"))
+                    .eventDateLunar("10/03 Bính Ngọ")
+                    .location("Nhà thờ tổ Chi 1")
+                    .estimatedBudget(BigDecimal.valueOf(50_000_000))
+                    .status(EventStatus.Draft)
+                    .build();
+            when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.of(event));
+
+            Instant newTime = Instant.parse("2026-04-27T09:00:00Z");
+            UpdateEventRequest request = new UpdateEventRequest(
+                    "Giỗ Tổ 2026 (Điều chỉnh)",
+                    newTime,
+                    "11/03 Bính Ngọ",
+                    "Từ đường Đại Tộc",
+                    BigDecimal.valueOf(55_000_000),
+                    "Đổi sang từ đường lớn"
+            );
+
+            EventResponse response = eventService.updateEvent(EVENT_ID, request);
+
+            assertNotNull(response);
+            assertEquals("Giỗ Tổ 2026 (Điều chỉnh)", event.getEventName());
+            assertEquals(newTime, event.getEventDatetime());
+            assertEquals("11/03 Bính Ngọ", event.getEventDateLunar());
+            assertEquals("Từ đường Đại Tộc", event.getLocation());
+
+            ArgumentCaptor<EventScheduleChangedDomainEvent> eventCaptor =
+                    ArgumentCaptor.forClass(EventScheduleChangedDomainEvent.class);
+            verify(eventPublisher).publishEvent(eventCaptor.capture());
+            EventScheduleChangedDomainEvent published = eventCaptor.getValue();
+
+            assertEquals(EVENT_ID, published.eventId());
+            assertEquals(CLAN_ID, published.clanId());
+            assertTrue(published.contentChanges().contains("Thời gian dương lịch"));
+            assertTrue(published.contentChanges().contains("Ngày âm lịch"));
+            assertTrue(published.contentChanges().contains("Địa điểm"));
+        }
+
+        @Test
+        @DisplayName("Does not publish schedule change event when only description or name changes")
+        void updateWithoutScheduleChanges() {
+            Instant time = Instant.parse("2026-04-26T08:00:00Z");
+            Event event = Event.builder()
+                    .eventId(EVENT_ID)
+                    .clanId(CLAN_ID)
+                    .eventName("Giỗ Tổ 2026")
+                    .eventDatetime(time)
+                    .eventDateLunar("10/03 Bính Ngọ")
+                    .location("Nhà thờ tổ Chi 1")
+                    .estimatedBudget(BigDecimal.valueOf(50_000_000))
+                    .status(EventStatus.Draft)
+                    .build();
+            when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.of(event));
+
+            UpdateEventRequest request = new UpdateEventRequest(
+                    "Giỗ Tổ 2026",
+                    time,
+                    "10/03 Bính Ngọ",
+                    "Nhà thờ tổ Chi 1",
+                    BigDecimal.valueOf(50_000_000),
+                    "Cập nhật thêm lưu ý trang phục"
+            );
+
+            eventService.updateEvent(EVENT_ID, request);
+
+            verify(eventPublisher, never()).publishEvent(any(EventScheduleChangedDomainEvent.class));
+        }
+
+        @Test
+        @DisplayName("Fails to update when event is Closed")
+        void updateClosedEventFails() {
+            Event event = Event.builder()
+                    .eventId(EVENT_ID)
+                    .clanId(CLAN_ID)
+                    .status(EventStatus.Closed)
+                    .build();
+            when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.of(event));
+
+            UpdateEventRequest request = new UpdateEventRequest(
+                    "Tên mới", Instant.now(), null, "Địa điểm", BigDecimal.ZERO, null
+            );
+
+            assertThrows(BusinessRuleException.class, () -> eventService.updateEvent(EVENT_ID, request));
+        }
+    }
+
+    @Nested
     @DisplayName("Lifecycle status transitions")
     class LifecycleTransitions {
 
         @Test
-        @DisplayName("Valid step-by-step transition from Draft to Closed")
+        @DisplayName("Valid step-by-step transition from Draft to Closed, publishes EventOpenedDomainEvent on RegistrationOpen")
         void validTransitionChain() {
             Event event = Event.builder()
                     .eventId(EVENT_ID)
                     .clanId(CLAN_ID)
                     .eventName("Giỗ Tổ")
+                    .eventDatetime(Instant.parse("2026-04-26T08:00:00Z"))
+                    .location("Từ đường")
                     .status(EventStatus.Draft)
                     .build();
             when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.of(event));
 
-            // Draft -> RegistrationOpen
+            // Draft -> RegistrationOpen (should publish EventOpenedDomainEvent)
             eventService.updateEventStatus(EVENT_ID, new UpdateEventStatusRequest(EventStatus.RegistrationOpen));
             assertEquals(EventStatus.RegistrationOpen, event.getStatus());
+            verify(eventPublisher).publishEvent(any(EventOpenedDomainEvent.class));
 
             // RegistrationOpen -> RegistrationClosed
             eventService.updateEventStatus(EVENT_ID, new UpdateEventStatusRequest(EventStatus.RegistrationClosed));
@@ -336,7 +448,7 @@ class EventServiceImplTest {
     }
 
     @Nested
-    @DisplayName("Query detail and list")
+    @DisplayName("Query detail, list, and notifications")
     class Queries {
 
         @Test
@@ -375,6 +487,36 @@ class EventServiceImplTest {
             List<EventResponse> list = eventService.listEvents();
             assertEquals(1, list.size());
             assertEquals(EVENT_ID, list.get(0).eventId());
+        }
+
+        @Test
+        @DisplayName("Returns event notifications ordered by sentTime")
+        void getEventNotifications() {
+            when(eventRepository.existsByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(true);
+
+            EventNotification notif = EventNotification.builder()
+                    .notificationId("NTF_1")
+                    .eventId(EVENT_ID)
+                    .title("Thông báo mở đăng ký")
+                    .contentChanges("Chi tiết mở đăng ký")
+                    .sentTime(Instant.now())
+                    .triggeredBy(ACCOUNT_ID)
+                    .build();
+            when(eventNotificationRepository.findAllByEventIdOrderBySentTimeDesc(EVENT_ID))
+                    .thenReturn(List.of(notif));
+
+            List<EventNotificationResponse> notifications = eventService.getEventNotifications(EVENT_ID);
+            assertEquals(1, notifications.size());
+            assertEquals("NTF_1", notifications.get(0).notificationId());
+            assertEquals("Thông báo mở đăng ký", notifications.get(0).title());
+        }
+
+        @Test
+        @DisplayName("getEventNotifications throws ResourceNotFoundException for non-existent event")
+        void getEventNotificationsNotFound() {
+            when(eventRepository.existsByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(false);
+
+            assertThrows(ResourceNotFoundException.class, () -> eventService.getEventNotifications(EVENT_ID));
         }
     }
 }

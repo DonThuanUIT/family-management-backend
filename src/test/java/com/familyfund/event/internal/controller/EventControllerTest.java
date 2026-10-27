@@ -7,8 +7,10 @@ import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
+import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
+import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
 import com.familyfund.event.internal.service.EventService;
@@ -105,6 +107,55 @@ class EventControllerTest {
                 """;
 
         mockMvc.perform(post("/api/v1/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/events/{id} - 200 OK on valid update payload")
+    void updateEventSuccess() throws Exception {
+        EventResponse response = new EventResponse(
+                EVENT_ID, "CLAN_1", "Giỗ Tổ 2026 (Mới)", Instant.parse("2026-04-27T08:00:00Z"),
+                "11/03 Bính Ngọ", "Từ đường Đại Tộc", BigDecimal.valueOf(60_000_000),
+                "Cập nhật", EventStatus.Draft, "ACC_1", null);
+
+        when(eventService.updateEvent(eq(EVENT_ID), any(UpdateEventRequest.class))).thenReturn(response);
+
+        String payload = """
+                {
+                    "eventName": "Giỗ Tổ 2026 (Mới)",
+                    "eventDatetime": "2026-04-27T08:00:00Z",
+                    "eventDateLunar": "11/03 Bính Ngọ",
+                    "location": "Từ đường Đại Tộc",
+                    "estimatedBudget": 60000000.00,
+                    "description": "Cập nhật"
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/events/{id}", EVENT_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.eventName").value("Giỗ Tổ 2026 (Mới)"))
+                .andExpect(jsonPath("$.data.location").value("Từ đường Đại Tộc"));
+
+        verify(eventService).updateEvent(eq(EVENT_ID), any(UpdateEventRequest.class));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/events/{id} - 400 Bad Request on invalid update payload")
+    void updateEventInvalidPayload() throws Exception {
+        String payload = """
+                {
+                    "eventName": "",
+                    "location": ""
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/events/{id}", EVENT_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isBadRequest())
@@ -215,5 +266,22 @@ class EventControllerTest {
                         .content("{\"personnel\": []}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/events/{id}/notifications - 200 OK with notifications list")
+    void getEventNotificationsSuccess() throws Exception {
+        EventNotificationResponse notif = new EventNotificationResponse(
+                "NTF_001", EVENT_ID, "Thông báo mở đăng ký", "Nội dung mở đăng ký", Instant.now(), "ACC_1"
+        );
+        when(eventService.getEventNotifications(EVENT_ID)).thenReturn(List.of(notif));
+
+        mockMvc.perform(get("/api/v1/events/{id}/notifications", EVENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].notificationId").value("NTF_001"))
+                .andExpect(jsonPath("$.data[0].title").value("Thông báo mở đăng ký"));
+
+        verify(eventService).getEventNotifications(EVENT_ID);
     }
 }

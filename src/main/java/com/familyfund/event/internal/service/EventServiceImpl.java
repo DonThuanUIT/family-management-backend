@@ -7,15 +7,21 @@ import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
+import com.familyfund.event.api.event.EventOpenedDomainEvent;
+import com.familyfund.event.api.event.EventScheduleChangedDomainEvent;
 import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
+import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
+import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
 import com.familyfund.event.internal.entity.Event;
+import com.familyfund.event.internal.entity.EventNotification;
 import com.familyfund.event.internal.entity.EventPersonnel;
 import com.familyfund.event.internal.mapper.EventMapper;
+import com.familyfund.event.internal.repository.EventNotificationRepository;
 import com.familyfund.event.internal.repository.EventPersonnelRepository;
 import com.familyfund.event.internal.repository.EventRepository;
 import com.familyfund.event.internal.util.EventIdGenerator;
@@ -23,6 +29,7 @@ import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,10 +44,12 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final EventPersonnelRepository eventPersonnelRepository;
+    private final EventNotificationRepository eventNotificationRepository;
     private final EventMapper eventMapper;
     private final EventIdGenerator eventIdGenerator;
     private final CurrentUserProvider currentUserProvider;
     private final GenealogyQueryService genealogyQueryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -76,6 +85,71 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    public EventResponse updateEvent(String eventId, UpdateEventRequest request) {
+        String clanId = TenantContext.getClanId();
+        Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + eventId));
+
+        if (event.getStatus() == EventStatus.Closed) {
+            throw new BusinessRuleException("Sự kiện đã kết thúc và khóa sổ, không thể chỉnh sửa thông tin");
+        }
+
+        BigDecimal estimatedBudget = request.estimatedBudget() != null ? request.estimatedBudget() : BigDecimal.ZERO;
+        if (estimatedBudget.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Dự toán ngân sách phải lớn hơn hoặc bằng 0");
+        }
+
+        // Compare schedule & location changes
+        boolean datetimeChanged = !event.getEventDatetime().equals(request.eventDatetime());
+        String reqLunar = request.eventDateLunar() != null ? request.eventDateLunar().trim() : null;
+        boolean lunarChanged = !Objects.equals(event.getEventDateLunar(), reqLunar);
+        boolean locationChanged = !event.getLocation().equalsIgnoreCase(request.location().trim());
+
+        if (datetimeChanged || lunarChanged || locationChanged) {
+            List<String> changeDescriptions = new ArrayList<>();
+            if (datetimeChanged) {
+                changeDescriptions.add(String.format("Thời gian dương lịch: từ '%s' sang '%s'",
+                        event.getEventDatetime(), request.eventDatetime()));
+            }
+            if (lunarChanged) {
+                changeDescriptions.add(String.format("Ngày âm lịch: từ '%s' sang '%s'",
+                        event.getEventDateLunar() != null ? event.getEventDateLunar() : "chưa có",
+                        reqLunar != null ? reqLunar : "chưa có"));
+            }
+            if (locationChanged) {
+                changeDescriptions.add(String.format("Địa điểm: từ '%s' sang '%s'",
+                        event.getLocation(), request.location().trim()));
+            }
+
+            String contentChanges = String.join("; ", changeDescriptions);
+            String title = "Thông báo thay đổi lịch trình sự kiện: " + request.eventName().trim();
+            String accountId = currentUserProvider.currentAccountId().orElse("SYSTEM");
+
+            eventPublisher.publishEvent(new EventScheduleChangedDomainEvent(
+                    eventId,
+                    clanId,
+                    request.eventName().trim(),
+                    title,
+                    contentChanges,
+                    accountId
+            ));
+            log.info("Published EventScheduleChangedDomainEvent for event {}: {}", eventId, contentChanges);
+        }
+
+        event.setEventName(request.eventName().trim());
+        event.setEventDatetime(request.eventDatetime());
+        event.setEventDateLunar(reqLunar);
+        event.setLocation(request.location().trim());
+        event.setEstimatedBudget(estimatedBudget);
+        event.setDescription(request.description() != null ? request.description().trim() : null);
+
+        Event updated = eventRepository.saveAndFlush(event);
+        log.info("Event {} updated by clan {}", eventId, clanId);
+        return eventMapper.toResponse(updated);
+    }
+
+    @Override
+    @Transactional
     public EventResponse updateEventStatus(String eventId, UpdateEventStatusRequest request) {
         String clanId = TenantContext.getClanId();
         Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
@@ -87,6 +161,20 @@ public class EventServiceImpl implements EventService {
         if (!currentStatus.canTransitionTo(targetStatus)) {
             throw new BusinessRuleException(String.format(
                     "Không thể chuyển đổi trạng thái sự kiện từ '%s' sang '%s'", currentStatus, targetStatus));
+        }
+
+        if (targetStatus == EventStatus.RegistrationOpen && currentStatus != EventStatus.RegistrationOpen) {
+            String accountId = currentUserProvider.currentAccountId().orElse("SYSTEM");
+            eventPublisher.publishEvent(new EventOpenedDomainEvent(
+                    event.getEventId(),
+                    event.getClanId(),
+                    event.getEventName(),
+                    event.getEventDatetime(),
+                    event.getEventDateLunar(),
+                    event.getLocation(),
+                    accountId
+            ));
+            log.info("Published EventOpenedDomainEvent for event {}", eventId);
         }
 
         if (targetStatus == EventStatus.Closed) {
@@ -213,6 +301,18 @@ public class EventServiceImpl implements EventService {
         String clanId = TenantContext.getClanId();
         List<Event> events = eventRepository.findAllByClanIdOrderByEventDatetimeDesc(clanId);
         return eventMapper.toResponseList(events);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventNotificationResponse> getEventNotifications(String eventId) {
+        String clanId = TenantContext.getClanId();
+        if (!eventRepository.existsByEventIdAndClanId(eventId, clanId)) {
+            throw new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + eventId);
+        }
+
+        List<EventNotification> notifications = eventNotificationRepository.findAllByEventIdOrderBySentTimeDesc(eventId);
+        return eventMapper.toNotificationResponseList(notifications);
     }
 
     private String generateUniqueEventId() {
