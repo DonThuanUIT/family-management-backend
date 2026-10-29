@@ -698,6 +698,87 @@ paths:
         '403':
           description: Không có quyền thực hiện
 
+  /contributions/cash:
+    post:
+      summary: Ghi nhận đóng góp bằng tiền mặt hoặc chuyển khoản & cấp phiếu thu điện tử (US-09)
+      description: |
+        Tiếp nhận khoản đóng góp tại sự kiện, tự động sinh mã phiếu thu duy nhất (PT-YYYYMMDD-XXXXX),
+        và phân bổ tỷ lệ công đức vào contribution_member_details phục vụ tính toán đệ quy US-11.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+                - payerMemberId
+                - amount
+                - paymentMethod
+              properties:
+                eventId:
+                  type: string
+                  example: EVT20261029ABC
+                payerMemberId:
+                  type: string
+                  example: MEM01J0001
+                amount:
+                  type: number
+                  format: double
+                  example: 1000000
+                paymentMethod:
+                  type: string
+                  enum: [Cash, BankTransfer]
+                  example: Cash
+                allocations:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - memberId
+                      - amount
+                    properties:
+                      memberId:
+                        type: string
+                        example: MEM01J0002
+                      amount:
+                        type: number
+                        format: double
+                        example: 500000
+      responses:
+        '201':
+          description: Ghi nhận đóng góp và cấp phiếu thu điện tử thành công
+        '400':
+          description: Dữ liệu không hợp lệ hoặc tổng phân bổ không khớp
+        '403':
+          description: Không có quyền thủ quỹ hoặc sự kiện đã đóng
+        '404':
+          description: Sự kiện hoặc thành viên không tồn tại
+
+  /contributions/cash/receipts/{receiptNumber}:
+    get:
+      summary: Tra cứu phiếu thu điện tử theo mã số biên lai (US-09)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: receiptNumber
+          in: path
+          required: true
+          schema:
+            type: string
+            example: PT-20261029-A1B2C3
+      responses:
+        '200':
+          description: Tra cứu phiếu thu điện tử thành công
+        '404':
+          description: Không tìm thấy biên lai
+
 components:
   securitySchemes:
     BearerAuth:
