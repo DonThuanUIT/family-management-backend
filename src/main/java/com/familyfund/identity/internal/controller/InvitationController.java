@@ -1,9 +1,13 @@
 package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.dto.ApiResponse;
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
+import com.familyfund.identity.api.BranchJoinRequestService;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.JoinRequestResponse;
+import com.familyfund.identity.api.dto.SubmitJoinRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +25,7 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * REST Controller for Managing Clan Invitations (US-16).
+ * REST Controller for Managing Clan Invitations & Join Requests (US-16, US-17).
  */
 @RestController
 @RequestMapping("/api/v1/invitations")
@@ -29,6 +33,7 @@ import java.util.List;
 public class InvitationController {
 
     private final InvitationService invitationService;
+    private final BranchJoinRequestService branchJoinRequestService;
 
     /**
      * Creates a general clan invitation code and shareable link (US-16).
@@ -69,6 +74,31 @@ public class InvitationController {
     }
 
     /**
+     * Retrieves the sanitized onboarding branch tree for prospective members (US-17).
+     * Public access without authentication.
+     */
+    @GetMapping("/{inviteCode}/tree")
+    public ResponseEntity<ApiResponse<OnboardingBranchTreeNode>> getOnboardingBranchTree(@PathVariable String inviteCode) {
+        OnboardingBranchTreeNode tree = invitationService.getOnboardingBranchTree(inviteCode);
+        return ResponseEntity.ok(ApiResponse.success(tree, "Lấy cây phả hệ gia nhập thành công"));
+    }
+
+    /**
+     * Submits a self-service join proposal using a general clan invite code (US-17).
+     * Public access for prospective members to submit their onboarding registration.
+     */
+    @PostMapping("/{inviteCode}/join")
+    public ResponseEntity<ApiResponse<JoinRequestResponse>> submitJoinRequest(
+            @PathVariable String inviteCode,
+            @Valid @RequestBody SubmitJoinRequest request
+    ) {
+        JoinRequestResponse response = branchJoinRequestService.submitJoinRequest(inviteCode, request);
+        URI location = URI.create("/api/v1/join-requests/" + response.requestId());
+        return ResponseEntity.created(location)
+                .body(ApiResponse.success(response, "Gửi đơn đề xuất gia nhập dòng họ thành công"));
+    }
+
+    /**
      * Deactivates an invitation code early.
      * Restricted to Clan Head (ROLE_CLAN_HEAD) or Admin (ROLE_ADMIN).
      */
@@ -90,4 +120,3 @@ public class InvitationController {
         return "ACC_ANONYMOUS";
     }
 }
-
