@@ -21,13 +21,13 @@ import java.util.stream.Collectors;
 
 /**
  * Middleware Contextual RBAC for events.
- * Registered as Spring bean "nhanSuSuKien" so it can be evaluated directly in Spring Security
- * expressions, e.g. {@code @PreAuthorize("@nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')")}.
+ * Registered as Spring bean "eventSecurity" so it can be evaluated directly in Spring Security
+ * expressions, e.g. {@code @PreAuthorize("@eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer')")}.
  */
 @Slf4j
-@Component("nhanSuSuKien")
+@Component("eventSecurity")
 @RequiredArgsConstructor
-public class NhanSuSuKienSecurity {
+public class EventSecurity {
 
     private final CurrentUserProvider currentUserProvider;
     private final EventRepository eventRepository;
@@ -40,7 +40,7 @@ public class NhanSuSuKienSecurity {
      * @param roles   the allowed contextual roles for this action (e.g. "HeadOfOrganizer", "EventTreasurer")
      * @return true if the caller is authorized, false otherwise
      */
-    public boolean xacThucQuyenTheoNguCanh(String eventId, String... roles) {
+    public boolean hasContextualRole(String eventId, String... roles) {
         if (eventId == null || eventId.isBlank()) {
             return false;
         }
@@ -102,13 +102,13 @@ public class NhanSuSuKienSecurity {
     /**
      * Overload accepting typed EventRole enum values.
      */
-    public boolean xacThucQuyenTheoNguCanh(String eventId, EventRole... roles) {
+    public boolean hasContextualRole(String eventId, EventRole... roles) {
         if (roles == null || roles.length == 0) {
             return false;
         }
         String[] stringRoles = Arrays.stream(roles)
                 .map(EventRole::name)
                 .toArray(String[]::new);
-        return xacThucQuyenTheoNguCanh(eventId, stringRoles);
+        return hasContextualRole(eventId, stringRoles);
     }
 }

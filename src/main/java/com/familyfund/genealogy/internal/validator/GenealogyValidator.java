@@ -28,7 +28,7 @@ public class GenealogyValidator {
      * @param proposedParentBranchId ID nhánh cha được đề xuất làm cấp trên
      * @throws BranchCycleException khi phát hiện chu trình phả hệ
      */
-    public void kiemTraChuTrinh(String clanId, String currentBranchId, String proposedParentBranchId) {
+    public void validateCycle(String clanId, String currentBranchId, String proposedParentBranchId) {
         if (proposedParentBranchId == null) {
             return;
         }
