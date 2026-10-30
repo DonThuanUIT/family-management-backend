@@ -135,7 +135,7 @@ class GenealogyMemberCommandServiceImplTest {
 
         when(familyBranchRepository.findByClanIdAndBranchId(CLAN_ID, ROOT_BRANCH_ID))
                 .thenReturn(Optional.of(mockRootBranch));
-        doNothing().when(genealogyValidator).kiemTraChuTrinh(CLAN_ID, null, ROOT_BRANCH_ID);
+        doNothing().when(genealogyValidator).validateCycle(CLAN_ID, null, ROOT_BRANCH_ID);
 
         when(familyBranchRepository.save(any(FamilyBranch.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
