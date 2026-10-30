@@ -9,4 +9,3 @@ public enum AccountStatus {
     Suspended,
     Deactivated
 }
-

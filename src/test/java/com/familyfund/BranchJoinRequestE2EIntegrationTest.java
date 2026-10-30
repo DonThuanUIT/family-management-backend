@@ -91,7 +91,7 @@ class BranchJoinRequestE2EIntegrationTest {
         // 2. Seed Clan Head UserAccount
         entityManager.createNativeQuery(
                 "INSERT INTO user_accounts (account_id, phone_number, email, password_hash, account_status) " +
-                "VALUES ('" + CLAN_HEAD_ACCOUNT_ID + "', '0901234567', 'head.e2e@familyfund.vn', '" +
+                "VALUES ('" + CLAN_HEAD_ACCOUNT_ID + "', '0909999001', 'head.e2e@familyfund.vn', '" +
                 passwordEncoder.encode("Secret123@") + "', 'Active') " +
                 "ON CONFLICT (account_id) DO NOTHING"
         ).executeUpdate();

@@ -4,6 +4,7 @@ import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
+import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
@@ -191,5 +192,19 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
                 .memberCount(memberCount)
                 .children(childNodes)
                 .build();
+    }
+
+    @Override
+    public Optional<MemberSummaryDto> findMemberSummary(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return Optional.empty();
+        }
+        return memberRepository.findById(memberId.trim())
+                .map(member -> new MemberSummaryDto(
+                        member.getMemberId(),
+                        member.getFullName(),
+                        member.getBranch() != null ? member.getBranch().getClanId() : null,
+                        member.getBranch() != null ? member.getBranch().getBranchId() : null
+                ));
     }
 }

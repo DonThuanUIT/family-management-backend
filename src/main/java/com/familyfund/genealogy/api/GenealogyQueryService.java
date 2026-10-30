@@ -1,5 +1,7 @@
 package com.familyfund.genealogy.api;
 
+import com.familyfund.genealogy.api.dto.MemberSummaryDto;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -61,4 +63,12 @@ public interface GenealogyQueryService {
      * @return list of managed branch IDs
      */
     List<String> getBranchIdsManagedByMember(String clanId, String memberId);
+
+    /**
+     * Finds summary profile of a member including their name and owning clan tenancy.
+     *
+     * @param memberId ID of the member
+     * @return Optional containing summary details if found
+     */
+    Optional<MemberSummaryDto> findMemberSummary(String memberId);
 }

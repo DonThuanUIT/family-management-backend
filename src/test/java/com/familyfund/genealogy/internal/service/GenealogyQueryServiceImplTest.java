@@ -3,6 +3,7 @@ package com.familyfund.genealogy.internal.service;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
+import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
@@ -22,10 +23,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -200,5 +201,39 @@ class GenealogyQueryServiceImplTest {
 
         assertThrows(ResourceNotFoundException.class, () ->
                 genealogyQueryService.getOnboardingBranchTree("UNKNOWN", null));
+    }
+
+    @Test
+    @DisplayName("findMemberSummary should return member summary with clanId when found")
+    void testFindMemberSummary_Success() {
+        FamilyBranch branch = FamilyBranch.builder()
+                .branchId("BR_001")
+                .clanId(CLAN_A)
+                .build();
+        Member member = Member.builder()
+                .memberId("MEM_001")
+                .fullName("Nguyễn Văn An")
+                .branch(branch)
+                .build();
+
+        when(memberRepository.findById("MEM_001")).thenReturn(Optional.of(member));
+
+        Optional<MemberSummaryDto> result = genealogyQueryService.findMemberSummary("MEM_001");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().memberId()).isEqualTo("MEM_001");
+        assertThat(result.get().fullName()).isEqualTo("Nguyễn Văn An");
+        assertThat(result.get().clanId()).isEqualTo(CLAN_A);
+        assertThat(result.get().branchId()).isEqualTo("BR_001");
+    }
+
+    @Test
+    @DisplayName("findMemberSummary with blank or non-existent memberId should return empty Optional")
+    void testFindMemberSummary_NotFound() {
+        assertThat(genealogyQueryService.findMemberSummary(null)).isEmpty();
+        assertThat(genealogyQueryService.findMemberSummary("   ")).isEmpty();
+
+        when(memberRepository.findById("MEM_999")).thenReturn(Optional.empty());
+        assertThat(genealogyQueryService.findMemberSummary("MEM_999")).isEmpty();
     }
 }

@@ -4,7 +4,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -13,8 +17,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Entity mapping table `user_accounts`.
@@ -51,17 +58,26 @@ public class UserAccount {
     @Builder.Default
     private AccountStatus accountStatus = AccountStatus.Active;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "account_roles",
+            joinColumns = @JoinColumn(name = "account_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    @Builder.Default
+    private Set<SystemRole> roles = new HashSet<>();
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
     @PrePersist
-    public void prePersist() {
-        if (this.createdAt == null) {
-            this.createdAt = Instant.now();
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
         }
-        if (this.accountStatus == null) {
-            this.accountStatus = AccountStatus.Active;
+        if (accountStatus == null) {
+            accountStatus = AccountStatus.Active;
         }
     }
 }
-

@@ -1,4 +1,4 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: Family Management Fund API (familyfund-api)
   version: 1.0.0
@@ -10,6 +10,153 @@ servers:
   - url: http://localhost:8080/api/v1
     description: Local Spring Boot Backend Server
 paths:
+  /auth/register-creator:
+    post:
+      summary: Đăng ký tài khoản người khởi tạo & tạo dòng họ mới (US-01)
+      description: |
+        Khởi tạo tài khoản người dùng, tạo một dòng họ mới (Multi-tenant), dựng nhánh gốc (Root Branch)
+        của cây phả hệ, tạo hồ sơ Thủy tổ (nếu có) và hồ sơ thành viên người khởi tạo với vai trò ROLE_CLAN_HEAD.
+      tags:
+        - Authentication
+        - Clan & Family Tree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - clanName
+                - fullName
+                - phoneNumber
+                - password
+                - gender
+              properties:
+                clanName:
+                  type: string
+                  example: Dòng họ Nguyễn Văn
+                ancestorName:
+                  type: string
+                  example: Cụ Tổ Nguyễn Văn Khởi
+                originLocation:
+                  type: string
+                  example: Hà Nam, Việt Nam
+                establishedYear:
+                  type: integer
+                  example: 1820
+                description:
+                  type: string
+                  example: Chi họ khởi tổ tại Hà Nam
+                fullName:
+                  type: string
+                  example: Nguyễn Văn An
+                phoneNumber:
+                  type: string
+                  example: "0987654321"
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123
+                gender:
+                  type: string
+                  enum: [Male, Female, Other]
+                  example: Male
+                email:
+                  type: string
+                  format: email
+                  example: nguyenvanan@example.com
+                dateOfBirth:
+                  type: string
+                  format: date
+                  example: 1985-05-15
+                generation:
+                  type: integer
+                  example: 6
+      responses:
+        '201':
+          description: Đăng ký và khởi tạo dòng họ thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Đăng ký người khởi tạo và tạo dòng họ mới thành công
+                  data:
+                    type: object
+                    properties:
+                      account:
+                        type: object
+                        properties:
+                          accountId:
+                            type: string
+                            example: ACC_9A8B7C6D
+                          phoneNumber:
+                            type: string
+                            example: "0987654321"
+                          email:
+                            type: string
+                            example: nguyenvanan@example.com
+                          accountStatus:
+                            type: string
+                            example: Active
+                          roles:
+                            type: array
+                            items:
+                              type: string
+                            example: [ROLE_CLAN_HEAD]
+                          createdAt:
+                            type: string
+                            format: date-time
+                      clan:
+                        type: object
+                        properties:
+                          clanId:
+                            type: string
+                            example: CLAN_F1E2D3C4
+                          clanName:
+                            type: string
+                            example: Dòng họ Nguyễn Văn
+                          ancestorName:
+                            type: string
+                            example: Cụ Tổ Nguyễn Văn Khởi
+                          originLocation:
+                            type: string
+                            example: Hà Nam, Việt Nam
+                          establishedYear:
+                            type: integer
+                            example: 1820
+                          description:
+                            type: string
+                            example: Chi họ khởi tổ tại Hà Nam
+                      member:
+                        type: object
+                        properties:
+                          memberId:
+                            type: string
+                            example: MEM_4B3A2C1D
+                          fullName:
+                            type: string
+                            example: Nguyễn Văn An
+                          gender:
+                            type: string
+                            example: Male
+                          generation:
+                            type: integer
+                            example: 6
+                          dateOfBirth:
+                            type: string
+                            format: date
+                            example: 1985-05-15
+                          branchId:
+                            type: string
+                            example: BR_1234ABCD
+        '400':
+          description: Dữ liệu không hợp lệ hoặc số điện thoại / email đã tồn tại
   /auth/login:
     post:
       summary: Đăng nhập hệ thống
@@ -88,22 +235,87 @@ paths:
         '200':
           description: Danh sách thành viên
 
+  /branches/{branchId}/members:
+    post:
+      summary: Tạo hồ sơ thành viên mới trong một chi/nhánh (US-03)
+      description: |
+        Tạo hồ sơ thành viên (`members`) gắn với chi/nhánh nêu trong đường dẫn, thuộc dòng họ hiện hành
+        (multi-tenant: header `X-Clan-Id` hoặc query param `clanId`, mặc định `CLAN_DEFAULT`).
+
+        Quy tắc nghiệp vụ:
+        - `branchId` **chỉ** lấy từ đường dẫn, không truyền lại trong body.
+        - `memberId` do server sinh (`MEM` + timestamp Base36 + hậu tố CSPRNG, tối đa 20 ký tự).
+        - `isPlaceholder` luôn được server đặt `true` (hồ sơ chờ tài khoản người dùng nhận liên kết - US-18).
+        - Chống trùng hồ sơ trong cùng dòng họ theo bộ (`fullName` không phân biệt hoa thường, `gender`, `generation`, `dateOfBirth`).
+        - `generation` không được nhỏ hơn `generation_level` của chi/nhánh.
+      tags:
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          description: Mã chi/nhánh thuộc dòng họ hiện hành (`family_branches.branch_id`, VARCHAR(20))
+          schema:
+            type: string
+            maxLength: 20
+            example: BR_CHILD_1
+        - name: X-Clan-Id
+          in: header
+          required: false
+          description: Mã dòng họ hiện hành (multi-tenant). Bỏ trống sẽ dùng `CLAN_DEFAULT`.
+          schema:
+            type: string
+            example: CLAN_DEFAULT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemberRequest'
+      responses:
+        '201':
+          description: Tạo thành viên thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMember'
+        '400':
+          description: Payload sai ràng buộc schema, `branchId` sai định dạng, hoặc thế hệ thấp hơn cấp của chi/nhánh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Không có quyền (chỉ `ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_ADMIN`; Trưởng chi chỉ được thêm vào chi mình quản lý)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Dòng họ hoặc chi/nhánh không tồn tại trong dòng họ hiện hành
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '409':
+          description: Hồ sơ trùng với thành viên đã có trong dòng họ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
   /events:
     get:
       summary: Danh sách sự kiện của dòng họ
       tags:
         - Events & Registration
-      parameters:
-        - name: clanId
-          in: query
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           description: Danh sách sự kiện
     post:
-      summary: Khởi tạo kế hoạch sự kiện mới
+      summary: Khởi tạo kế hoạch sự kiện mới (US-21)
       tags:
         - Events & Registration
       requestBody:
@@ -113,14 +325,10 @@ paths:
             schema:
               type: object
               required:
-                - clanId
                 - eventName
                 - eventDatetime
                 - location
               properties:
-                clanId:
-                  type: string
-                  example: CLAN_NGUYENTRONG
                 eventName:
                   type: string
                   example: Giỗ Tổ 2026
@@ -128,15 +336,169 @@ paths:
                   type: string
                   format: date-time
                   example: "2026-04-26T08:00:00Z"
+                eventDateLunar:
+                  type: string
+                  example: "10/03 Bính Ngọ"
                 location:
                   type: string
                   example: Nhà thờ tổ Chi 1
                 estimatedBudget:
                   type: number
                   example: 50000000.00
+                description:
+                  type: string
+                  example: Lễ giỗ tổ truyền thống dòng họ
       responses:
         '201':
           description: Tạo sự kiện thành công
+
+  /events/{eventId}:
+    get:
+      summary: Xem chi tiết sự kiện và ban tổ chức (US-21)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_20260426
+      responses:
+        '200':
+          description: Chi tiết sự kiện
+    put:
+      summary: Cập nhật thông tin và lịch trình sự kiện (US-22)
+      description: |
+        Cập nhật thông tin sự kiện. Tự động so sánh lịch trình cũ và mới (ngày giờ, địa điểm) để phát thông báo biến động tới con cháu.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventName
+                - eventDatetime
+                - location
+              properties:
+                eventName:
+                  type: string
+                  example: Giỗ Tổ 2026 (Điều chỉnh)
+                eventDatetime:
+                  type: string
+                  format: date-time
+                  example: "2026-04-27T08:00:00Z"
+                eventDateLunar:
+                  type: string
+                  example: "11/03 Bính Ngọ"
+                location:
+                  type: string
+                  example: Từ đường Đại Tộc
+                estimatedBudget:
+                  type: number
+                  example: 55000000.00
+                description:
+                  type: string
+                  example: Cập nhật địa điểm sang từ đường lớn
+      responses:
+        '200':
+          description: Cập nhật thông tin sự kiện thành công
+
+  /events/{eventId}/status:
+    patch:
+      summary: Chuyển đổi trạng thái vòng đời sự kiện (US-21)
+      description: |
+        Quản lý chuyển đổi trạng thái vòng đời: Draft -> RegistrationOpen -> RegistrationClosed -> Ongoing -> Ended -> Closed.
+        Được bảo vệ bởi @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')").
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [Draft, RegistrationOpen, RegistrationClosed, Ongoing, Ended, Closed]
+                  example: RegistrationOpen
+      responses:
+        '200':
+          description: Cập nhật trạng thái sự kiện thành công
+
+  /events/{eventId}/personnel:
+    post:
+      summary: Chỉ định Ban tổ chức và Thủ quỹ sự kiện (US-21)
+      description: |
+        Trưởng tộc chỉ định nhân sự gắn riêng với sự kiện. Ràng buộc: tối đa 1 HeadOfOrganizer, 1 EventTreasurer, không giới hạn OrganizerMember.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - personnel
+              properties:
+                personnel:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - memberId
+                      - role
+                    properties:
+                      memberId:
+                        type: string
+                        example: MEM_001
+                      role:
+                        type: string
+                        enum: [HeadOfOrganizer, EventTreasurer, OrganizerMember]
+                        example: HeadOfOrganizer
+      responses:
+        '200':
+          description: Chỉ định nhân sự thành công
+
+  /events/{eventId}/notifications:
+    get:
+      summary: Xem lịch sử thông báo đã phát của sự kiện (US-22)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thông báo sự kiện
 
   /events/{eventId}/advance-vouchers:
     post:
@@ -335,5 +697,142 @@ paths:
           description: Vô hiệu hóa thành công
         '403':
           description: Không có quyền thực hiện
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Nhập JWT Access Token nhận được từ API /auth/login.
+        Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
+
+  schemas:
+    CreateMemberRequest:
+      type: object
+      description: |
+        Payload tạo thành viên. `branchId` KHÔNG nằm trong body (lấy từ path variable).
+        `memberId`, `isPlaceholder`, `createdAt` do server sinh và bị bỏ qua nếu client gửi lên.
+      required:
+        - fullName
+        - gender
+        - generation
+      properties:
+        fullName:
+          type: string
+          maxLength: 100
+          description: "`members.full_name` VARCHAR(100) NOT NULL"
+          example: Nguyễn Văn An
+        dateOfBirth:
+          type: string
+          format: date
+          description: "`members.date_of_birth` DATE, không được ở tương lai"
+          example: "1990-05-20"
+        gender:
+          type: string
+          enum: [Male, Female, Other]
+          description: "`members.gender` CHECK (Male|Female|Other)"
+          example: Male
+        generation:
+          type: integer
+          minimum: 1
+          description: "`members.generation` INT NOT NULL CHECK >= 1; không nhỏ hơn `generation_level` của chi/nhánh"
+          example: 3
+        status:
+          type: string
+          enum: [Living, Deceased]
+          default: Living
+          description: "`members.status` VARCHAR(20) NOT NULL DEFAULT 'Living'; bỏ trống thì mặc định Living"
+          example: Living
+        deathDateLunar:
+          type: string
+          maxLength: 50
+          description: "`members.death_date_lunar` VARCHAR(50)"
+          example: "15/08 Âm lịch"
+
+    MemberResponse:
+      type: object
+      description: Read model của bảng `members`; `branchName` và `clanId` phân giải qua `family_branches`.
+      properties:
+        memberId:
+          type: string
+          maxLength: 20
+          example: MEMK4F8ZQ1M7XB3QP
+        fullName:
+          type: string
+          example: Nguyễn Văn An
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+          example: "1990-05-20"
+        gender:
+          type: string
+          enum: [Male, Female, Other]
+          example: Male
+        generation:
+          type: integer
+          example: 3
+        status:
+          type: string
+          enum: [Living, Deceased]
+          example: Living
+        deathDateLunar:
+          type: string
+          nullable: true
+          example: "15/08 Âm lịch"
+        branchId:
+          type: string
+          example: BR_CHILD_1
+        branchName:
+          type: string
+          example: Chi Hai
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        isPlaceholder:
+          type: boolean
+          description: Luôn `true` với hồ sơ do quản lý tạo (chờ nhận liên kết ở US-18).
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-23T15:00:00Z"
+
+    ApiResponseMember:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Member created successfully
+        data:
+          $ref: '#/components/schemas/MemberResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Branch not found with ID: BR_CHILD_1 in clan: CLAN_DEFAULT"
+        errors:
+          type: object
+          description: "Chỉ xuất hiện khi `400` do Bean Validation; map `tên trường -> thông điệp`."
+          additionalProperties:
+            type: string
+          example:
+            fullName: Full name must not be blank
+        timestamp:
+          type: string
+          format: date-time
 
 

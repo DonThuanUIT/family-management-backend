@@ -1,5 +1,5 @@
 -- ==============================================================================
--- V6: Multi-Tenancy Support for Branch Join Requests
+-- V7: Multi-Tenancy Support for Branch Join Requests
 -- Module: Identity & Member Onboarding (US-17)
 -- Engine: PostgreSQL 16+ (Fully Compatible with Neon Serverless Postgres)
 -- ==============================================================================
