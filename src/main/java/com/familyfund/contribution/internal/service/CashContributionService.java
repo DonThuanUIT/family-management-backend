@@ -1,7 +1,7 @@
 package com.familyfund.contribution.internal.service;
 
-import com.familyfund.contribution.internal.dto.ElectronicReceiptResponse;
-import com.familyfund.contribution.internal.dto.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
 
 /**
  * Internal service interface for handling cash contributions and electronic receipts.

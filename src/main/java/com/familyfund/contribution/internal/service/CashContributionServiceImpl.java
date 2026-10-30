@@ -1,10 +1,10 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.dto.ContributionType;
-import com.familyfund.contribution.internal.dto.ElectronicReceiptResponse;
-import com.familyfund.contribution.internal.dto.MemberAllocationRequest;
-import com.familyfund.contribution.internal.dto.MemberAllocationResponse;
-import com.familyfund.contribution.internal.dto.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
+import com.familyfund.contribution.internal.dto.response.MemberAllocationResponse;
 import com.familyfund.contribution.internal.entity.CashContribution;
 import com.familyfund.contribution.internal.entity.Contribution;
 import com.familyfund.contribution.internal.entity.ContributionMemberDetail;
@@ -55,27 +55,27 @@ public class CashContributionServiceImpl implements CashContributionService {
 
         // 1. Verify Event existence, tenancy, and lifecycle status
         EventSummaryDto eventSummary = eventQueryService.findEventSummary(request.eventId())
-                .orElseThrow(() -> new ResourceNotFoundException("Sự kiện không tồn tại với ID: " + request.eventId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + request.eventId()));
 
         if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
-            throw new BusinessRuleException("Sự kiện không thuộc dòng họ hiện tại");
+            throw new BusinessRuleException("Event does not belong to the current clan");
         }
 
         if (eventSummary.status() == EventStatus.Closed) {
-            throw new BusinessRuleException("Không thể tiếp nhận đóng góp cho sự kiện đã khóa sổ");
+            throw new BusinessRuleException("Cannot record contribution for a closed event");
         }
 
         // 2. Verify Payer Member existence and tenancy
         MemberSummaryDto payerMember = genealogyQueryService.findMemberSummary(request.payerMemberId())
-                .orElseThrow(() -> new ResourceNotFoundException("Thành viên nộp tiền không tồn tại với ID: " + request.payerMemberId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Payer member not found with ID: " + request.payerMemberId()));
 
         if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(payerMember.clanId())) {
-            throw new BusinessRuleException("Thành viên nộp tiền không thuộc dòng họ hiện tại");
+            throw new BusinessRuleException("Payer member does not belong to the current clan");
         }
 
-        // 3. Resolve Receiver Account ID (Thủ quỹ / BTC tiếp nhận)
+        // 3. Resolve Receiver Account ID
         String receiverAccountId = currentUserProvider.currentAccountId()
-                .orElseThrow(() -> new BusinessRuleException("Không xác định được tài khoản người tiếp nhận đóng góp"));
+                .orElseThrow(() -> new BusinessRuleException("Receiver account ID could not be identified"));
 
         // 4. Generate unique IDs (#69: sinhPhieuThuDienTu & contributionId)
         String contributionId = generateUniqueContributionId();
@@ -106,17 +106,17 @@ public class CashContributionServiceImpl implements CashContributionService {
 
             for (MemberAllocationRequest alloc : request.allocations()) {
                 if (!seenMembers.add(alloc.memberId())) {
-                    throw new BusinessRuleException("Trùng lặp thành viên trong danh sách phân bổ: " + alloc.memberId());
+                    throw new BusinessRuleException("Duplicate member in allocation list: " + alloc.memberId());
                 }
                 if (alloc.amount() == null || alloc.amount().compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new BusinessRuleException("Số tiền phân bổ cho thành viên " + alloc.memberId() + " phải lớn hơn 0");
+                    throw new BusinessRuleException("Allocated amount for member " + alloc.memberId() + " must be greater than 0");
                 }
                 totalAllocated = totalAllocated.add(alloc.amount());
             }
 
             if (totalAllocated.compareTo(request.amount()) != 0) {
                 throw new BusinessRuleException(String.format(
-                        "Tổng số tiền phân bổ (%s) không khớp với tổng tiền đóng góp (%s)",
+                        "Total allocated amount (%s) does not match total contribution amount (%s)",
                         totalAllocated, request.amount()
                 ));
             }
@@ -124,10 +124,10 @@ public class CashContributionServiceImpl implements CashContributionService {
             // 5.2 Validate genealogy member existence and clan tenancy
             for (MemberAllocationRequest alloc : request.allocations()) {
                 MemberSummaryDto mSummary = genealogyQueryService.findMemberSummary(alloc.memberId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Thành viên phân bổ không tồn tại với ID: " + alloc.memberId()));
+                        .orElseThrow(() -> new ResourceNotFoundException("Allocated member not found with ID: " + alloc.memberId()));
 
                 if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(mSummary.clanId())) {
-                    throw new BusinessRuleException("Thành viên phân bổ " + alloc.memberId() + " không thuộc dòng họ hiện tại");
+                    throw new BusinessRuleException("Allocated member " + alloc.memberId() + " does not belong to the current clan");
                 }
 
                 memberDetails.add(ContributionMemberDetail.builder()
@@ -195,22 +195,22 @@ public class CashContributionServiceImpl implements CashContributionService {
     @Transactional(readOnly = true)
     public ElectronicReceiptResponse getReceiptByReceiptNumber(String receiptNumber) {
         CashContribution cashContribution = cashContributionRepository.findByReceiptNumber(receiptNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biên lai với số: " + receiptNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with number: " + receiptNumber));
 
         Contribution contribution = contributionRepository.findById(cashContribution.getContributionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin đóng góp cho biên lai: " + receiptNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Contribution information not found for receipt: " + receiptNumber));
 
         EventSummaryDto eventSummary = eventQueryService.findEventSummary(contribution.getEventId())
-                .orElse(new EventSummaryDto(contribution.getEventId(), null, "Sự kiện", null, null));
+                .orElse(new EventSummaryDto(contribution.getEventId(), null, "Event", null, null));
 
         MemberSummaryDto payerMember = genealogyQueryService.findMemberSummary(contribution.getPayerMemberId())
-                .orElse(new MemberSummaryDto(contribution.getPayerMemberId(), "Thành viên", null, null));
+                .orElse(new MemberSummaryDto(contribution.getPayerMemberId(), "Member", null, null));
 
         List<ContributionMemberDetail> details = contributionMemberDetailRepository.findAllByContributionId(contribution.getContributionId());
         List<MemberAllocationResponse> allocations = details.stream().map(d -> {
             String name = genealogyQueryService.findMemberSummary(d.getMemberId())
                     .map(MemberSummaryDto::fullName)
-                    .orElse("Thành viên");
+                    .orElse("Member");
             return new MemberAllocationResponse(d.getMemberId(), name, d.getRecordedAmount());
         }).toList();
 
@@ -237,7 +237,7 @@ public class CashContributionServiceImpl implements CashContributionService {
                 return candidate;
             }
         }
-        throw new IllegalStateException("Không thể tạo mã đóng góp duy nhất sau 5 lần thử");
+        throw new IllegalStateException("Failed to generate unique contribution ID after 5 attempts");
     }
 
     private String generateUniqueReceiptNumber() {
@@ -247,6 +247,6 @@ public class CashContributionServiceImpl implements CashContributionService {
                 return candidate;
             }
         }
-        throw new IllegalStateException("Không thể tạo số biên lai phiếu thu duy nhất sau 5 lần thử");
+        throw new IllegalStateException("Failed to generate unique receipt number after 5 attempts");
     }
 }

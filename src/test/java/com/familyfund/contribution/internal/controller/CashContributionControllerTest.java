@@ -1,9 +1,10 @@
 package com.familyfund.contribution.internal.controller;
 
 import com.familyfund.contribution.api.dto.PaymentMethod;
-import com.familyfund.contribution.internal.dto.ElectronicReceiptResponse;
-import com.familyfund.contribution.internal.dto.MemberAllocationResponse;
-import com.familyfund.contribution.internal.dto.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
+import com.familyfund.contribution.internal.dto.response.MemberAllocationResponse;
 import com.familyfund.contribution.internal.service.CashContributionService;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.GlobalExceptionHandler;
@@ -89,6 +90,7 @@ class CashContributionControllerTest {
                         .content(json))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Cash contribution recorded and electronic receipt issued successfully"))
                 .andExpect(jsonPath("$.data.receiptNumber").value("PT-20261029-A1B2C3"))
                 .andExpect(jsonPath("$.data.amount").value(1000000))
                 .andExpect(jsonPath("$.data.amountInWords").value("Một triệu đồng chẵn"))
@@ -168,7 +170,7 @@ class CashContributionControllerTest {
     @DisplayName("POST /api/v1/contributions/cash - 400 Bad Request on BusinessRuleException (event closed)")
     void recordCashContribution_businessRuleViolation() throws Exception {
         when(cashContributionService.recordCashContribution(any(RecordCashContributionRequest.class)))
-                .thenThrow(new BusinessRuleException("Không thể tiếp nhận đóng góp cho sự kiện đã khóa sổ"));
+                .thenThrow(new BusinessRuleException("Cannot record contribution for a closed event"));
 
         String json = """
                 {
@@ -184,14 +186,14 @@ class CashContributionControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Không thể tiếp nhận đóng góp cho sự kiện đã khóa sổ"));
+                .andExpect(jsonPath("$.message").value("Cannot record contribution for a closed event"));
     }
 
     @Test
     @DisplayName("POST /api/v1/contributions/cash - 404 Not Found on ResourceNotFoundException")
     void recordCashContribution_resourceNotFound() throws Exception {
         when(cashContributionService.recordCashContribution(any(RecordCashContributionRequest.class)))
-                .thenThrow(new ResourceNotFoundException("Sự kiện không tồn tại với ID: EVT_999"));
+                .thenThrow(new ResourceNotFoundException("Event not found with ID: EVT_999"));
 
         String json = """
                 {
@@ -207,7 +209,7 @@ class CashContributionControllerTest {
                         .content(json))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Sự kiện không tồn tại với ID: EVT_999"));
+                .andExpect(jsonPath("$.message").value("Event not found with ID: EVT_999"));
     }
 
     @Test
@@ -234,6 +236,7 @@ class CashContributionControllerTest {
         mockMvc.perform(get("/api/v1/contributions/cash/receipts/PT-20261029-A1B2C3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Electronic receipt retrieved successfully"))
                 .andExpect(jsonPath("$.data.receiptNumber").value("PT-20261029-A1B2C3"))
                 .andExpect(jsonPath("$.data.payerMemberName").value("Nguyễn Văn A"));
     }

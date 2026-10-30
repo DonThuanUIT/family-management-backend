@@ -1,9 +1,9 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.dto.PaymentMethod;
-import com.familyfund.contribution.internal.dto.ElectronicReceiptResponse;
-import com.familyfund.contribution.internal.dto.MemberAllocationRequest;
-import com.familyfund.contribution.internal.dto.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
+import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
 import com.familyfund.contribution.internal.entity.CashContribution;
 import com.familyfund.contribution.internal.entity.Contribution;
 import com.familyfund.contribution.internal.repository.CashContributionRepository;
@@ -175,7 +175,7 @@ class CashContributionServiceImplTest {
 
         assertThatThrownBy(() -> service.recordCashContribution(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("đã khóa sổ");
+                .hasMessageContaining("closed event");
     }
 
     @Test
@@ -200,7 +200,7 @@ class CashContributionServiceImplTest {
 
         assertThatThrownBy(() -> service.recordCashContribution(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("không khớp với tổng tiền đóng góp");
+                .hasMessageContaining("does not match total contribution amount");
     }
 
     @Test
@@ -225,7 +225,7 @@ class CashContributionServiceImplTest {
 
         assertThatThrownBy(() -> service.recordCashContribution(request))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("Trùng lặp thành viên");
+                .hasMessageContaining("Duplicate member");
     }
 
     @Test
@@ -241,6 +241,6 @@ class CashContributionServiceImplTest {
 
         assertThatThrownBy(() -> service.recordCashContribution(request))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Thành viên nộp tiền không tồn tại");
+                .hasMessageContaining("Payer member not found");
     }
 }

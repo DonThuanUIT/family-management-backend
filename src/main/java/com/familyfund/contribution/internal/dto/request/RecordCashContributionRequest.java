@@ -1,4 +1,4 @@
-package com.familyfund.contribution.internal.dto;
+package com.familyfund.contribution.internal.dto.request;
 
 import com.familyfund.contribution.api.dto.PaymentMethod;
 import jakarta.validation.Valid;
@@ -13,17 +13,17 @@ import java.util.List;
  * Request payload to record a cash or bank transfer contribution and issue an electronic receipt.
  */
 public record RecordCashContributionRequest(
-        @NotBlank(message = "Mã sự kiện không được để trống")
+        @NotBlank(message = "Event ID cannot be blank")
         String eventId,
 
-        @NotBlank(message = "Mã thành viên nộp tiền không được để trống")
+        @NotBlank(message = "Payer member ID cannot be blank")
         String payerMemberId,
 
-        @NotNull(message = "Số tiền đóng góp không được để trống")
-        @DecimalMin(value = "0.01", message = "Số tiền đóng góp phải lớn hơn 0")
+        @NotNull(message = "Contribution amount cannot be null")
+        @DecimalMin(value = "0.01", message = "Contribution amount must be greater than 0")
         BigDecimal amount,
 
-        @NotNull(message = "Hình thức thanh toán không được để trống (Cash hoặc BankTransfer)")
+        @NotNull(message = "Payment method cannot be null (Cash or BankTransfer)")
         PaymentMethod paymentMethod,
 
         @Valid

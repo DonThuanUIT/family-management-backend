@@ -1,4 +1,4 @@
-package com.familyfund.contribution.internal.dto;
+package com.familyfund.contribution.internal.dto.response;
 
 import com.familyfund.contribution.api.dto.PaymentMethod;
 
