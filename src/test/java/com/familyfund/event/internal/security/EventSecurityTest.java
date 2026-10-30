@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class NhanSuSuKienSecurityTest {
+class EventSecurityTest {
 
     private static final String CLAN_ID = "CLAN_TEST";
     private static final String EVENT_ID = "EVT_001";
@@ -43,7 +43,7 @@ class NhanSuSuKienSecurityTest {
     private EventPersonnelRepository eventPersonnelRepository;
 
     @InjectMocks
-    private NhanSuSuKienSecurity security;
+    private EventSecurity security;
 
     @BeforeEach
     void setUp() {
@@ -63,7 +63,7 @@ class NhanSuSuKienSecurityTest {
         @DisplayName("Admin always has access")
         void adminAllowed() {
             when(currentUserProvider.hasAuthority(SystemRoles.ADMIN)).thenReturn(true);
-            assertTrue(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
+            assertTrue(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
         }
 
         @Test
@@ -73,7 +73,7 @@ class NhanSuSuKienSecurityTest {
             when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
             when(eventRepository.existsByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(true);
 
-            assertTrue(security.xacThucQuyenTheoNguCanh(EVENT_ID, "EventTreasurer"));
+            assertTrue(security.hasContextualRole(EVENT_ID, "EventTreasurer"));
         }
 
         @Test
@@ -83,7 +83,7 @@ class NhanSuSuKienSecurityTest {
             when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
             when(eventRepository.existsByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(false);
 
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "EventTreasurer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, "EventTreasurer"));
         }
     }
 
@@ -102,14 +102,14 @@ class NhanSuSuKienSecurityTest {
         @DisplayName("Member without linked profile is denied")
         void noMemberIdDenied() {
             when(currentUserProvider.currentMemberId()).thenReturn(Optional.empty());
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
         }
 
         @Test
         @DisplayName("Event not found in clan is denied")
         void eventNotFoundDenied() {
             when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.empty());
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
         }
 
         @Test
@@ -122,7 +122,7 @@ class NhanSuSuKienSecurityTest {
                     .build();
             when(eventRepository.findByEventIdAndClanId(EVENT_ID, CLAN_ID)).thenReturn(Optional.of(closedEvent));
 
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
         }
 
         @Test
@@ -144,8 +144,8 @@ class NhanSuSuKienSecurityTest {
             when(eventPersonnelRepository.findAllByEventIdAndMemberId(EVENT_ID, MEMBER_ID))
                     .thenReturn(List.of(personnel));
 
-            assertTrue(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
-            assertTrue(security.xacThucQuyenTheoNguCanh(EVENT_ID, EventRole.HeadOfOrganizer));
+            assertTrue(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
+            assertTrue(security.hasContextualRole(EVENT_ID, EventRole.HeadOfOrganizer));
         }
 
         @Test
@@ -167,8 +167,8 @@ class NhanSuSuKienSecurityTest {
             when(eventPersonnelRepository.findAllByEventIdAndMemberId(EVENT_ID, MEMBER_ID))
                     .thenReturn(List.of(personnel));
 
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "EventTreasurer"));
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, EventRole.EventTreasurer));
+            assertFalse(security.hasContextualRole(EVENT_ID, "EventTreasurer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, EventRole.EventTreasurer));
         }
 
         @Test
@@ -190,15 +190,15 @@ class NhanSuSuKienSecurityTest {
             when(eventPersonnelRepository.findAllByEventIdAndMemberId(EVENT_ID, MEMBER_ID))
                     .thenReturn(List.of(personnel));
 
-            assertFalse(security.xacThucQuyenTheoNguCanh(EVENT_ID, "HeadOfOrganizer"));
+            assertFalse(security.hasContextualRole(EVENT_ID, "HeadOfOrganizer"));
         }
     }
 
     @Test
     @DisplayName("Invalid eventId returns false")
     void invalidEventId() {
-        assertFalse(security.xacThucQuyenTheoNguCanh(null, "HeadOfOrganizer"));
-        assertFalse(security.xacThucQuyenTheoNguCanh("", "HeadOfOrganizer"));
-        assertFalse(security.xacThucQuyenTheoNguCanh("   ", "HeadOfOrganizer"));
+        assertFalse(security.hasContextualRole(null, "HeadOfOrganizer"));
+        assertFalse(security.hasContextualRole("", "HeadOfOrganizer"));
+        assertFalse(security.hasContextualRole("   ", "HeadOfOrganizer"));
     }
 }

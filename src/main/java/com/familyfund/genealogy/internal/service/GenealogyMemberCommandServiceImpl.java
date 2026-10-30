@@ -68,7 +68,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
                 .orElseThrow(() -> new ResourceNotFoundException("Nhánh cha", "parentBranchId", command.parentBranchId()));
 
         // Validate cycle prevention
-        genealogyValidator.kiemTraChuTrinh(command.clanId(), null, command.parentBranchId());
+        genealogyValidator.validateCycle(command.clanId(), null, command.parentBranchId());
 
         String branchId = "BR_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
         int childGenerationLevel = parentBranch.getGenerationLevel() + 1;
