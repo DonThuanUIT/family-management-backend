@@ -6,6 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * Spring Data JPA Repository for `UserAccount`.
+ */
 @Repository
 public interface UserAccountRepository extends JpaRepository<UserAccount, String> {
 

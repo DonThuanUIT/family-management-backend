@@ -28,6 +28,8 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
 
     List<FamilyBranch> findByClanIdAndParentBranch_BranchIdOrderByBranchNameAsc(String clanId, String parentBranchId);
 
+    List<FamilyBranch> findByClanIdAndRepresentative_MemberId(String clanId, String representativeId);
+
     @Query("SELECT fb FROM FamilyBranch fb LEFT JOIN FETCH fb.representative WHERE fb.clanId = :clanId ORDER BY fb.generationLevel ASC, fb.branchName ASC")
     List<FamilyBranch> findAllByClanIdWithRepresentative(@Param("clanId") String clanId);
 }

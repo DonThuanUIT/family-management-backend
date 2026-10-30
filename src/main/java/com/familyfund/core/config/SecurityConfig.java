@@ -43,8 +43,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register-creator").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll()
-                        // Public: Previewing invitation by code (US-17 landing page)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}").permitAll()
+                        // Public: Previewing invitation, viewing onboarding tree, and submitting join request (US-17)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}", "/api/v1/invitations/{inviteCode}/tree").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invitations/{inviteCode}/join").permitAll()
+                        // Join requests management (US-17 Tasks 3 & 5)
+                        .requestMatchers("/api/v1/join-requests/**").authenticated()
                         // Swagger & Documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Any other request must be authenticated

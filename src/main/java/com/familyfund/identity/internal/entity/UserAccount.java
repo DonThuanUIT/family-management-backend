@@ -16,12 +16,17 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Entity mapping table `user_accounts`.
+ * Represents user credentials and system account status.
+ */
 @Entity
 @Table(name = "user_accounts")
 @Getter
@@ -29,6 +34,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = "passwordHash")
 public class UserAccount {
 
     @Id

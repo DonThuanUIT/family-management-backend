@@ -4,6 +4,7 @@ import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
 import com.familyfund.identity.internal.entity.InvitationCode;
@@ -197,6 +198,7 @@ class InvitationServiceTest {
                 .inviteType(InviteType.GeneralClanInvite)
                 .isActive(true)
                 .build();
+
         InvitationCode code2 = InvitationCode.builder()
                 .inviteCode("C2")
                 .clanId(TEST_CLAN_ID)
@@ -244,5 +246,77 @@ class InvitationServiceTest {
 
         when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(expiredCode)).thenReturn(Optional.of(expiredEntity));
         assertThrows(BadRequestException.class, () -> invitationService.getInviteByCode(expiredCode));
+    }
+
+    @Test
+    @DisplayName("Get invite by code when max uses exceeded should throw BadRequestException")
+    void getInviteByCode_MaxUsesExceeded_ThrowsBadRequestException() {
+        String code = "EXCEEDED_CODE";
+        InvitationCode entity = InvitationCode.builder()
+                .inviteCode(code)
+                .clanId(TEST_CLAN_ID)
+                .isActive(true)
+                .maxUses(5)
+                .usedCount(5)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
+
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.of(entity));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> invitationService.getInviteByCode(code));
+        assertTrue(ex.getMessage().contains("hết lượt sử dụng"));
+    }
+
+    @Test
+    @DisplayName("Get invite by code should enrich clanName and targetBranchName from GenealogyQueryService")
+    void getInviteByCode_EnrichWithClanAndBranchName() {
+        String code = "ENRICHED_CODE";
+        InvitationCode entity = InvitationCode.builder()
+                .inviteCode(code)
+                .clanId(TEST_CLAN_ID)
+                .targetBranchId("BR_01")
+                .isActive(true)
+                .maxUses(10)
+                .usedCount(2)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
+
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.of(entity));
+        when(genealogyQueryService.getClanName(TEST_CLAN_ID)).thenReturn(Optional.of("Dòng họ Nguyễn"));
+        when(genealogyQueryService.getBranchName(TEST_CLAN_ID, "BR_01")).thenReturn(Optional.of("Chi Trưởng"));
+
+        InviteCodeResponse response = invitationService.getInviteByCode(code);
+        assertNotNull(response);
+        assertEquals("Dòng họ Nguyễn", response.getClanName());
+        assertEquals("Chi Trưởng", response.getTargetBranchName());
+    }
+
+    @Test
+    @DisplayName("Get onboarding branch tree should validate invite and delegate to GenealogyQueryService")
+    void getOnboardingBranchTree_Success() {
+        String code = "TREE_CODE";
+        InvitationCode entity = InvitationCode.builder()
+                .inviteCode(code)
+                .clanId(TEST_CLAN_ID)
+                .targetBranchId("BR_01")
+                .isActive(true)
+                .maxUses(10)
+                .usedCount(1)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .build();
+
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.of(entity));
+
+        OnboardingBranchTreeNode mockTree = OnboardingBranchTreeNode.builder()
+                .branchId("BR_01")
+                .clanId(TEST_CLAN_ID)
+                .branchName("Chi Trưởng")
+                .build();
+        when(genealogyQueryService.getOnboardingBranchTree(TEST_CLAN_ID, "BR_01")).thenReturn(mockTree);
+
+        OnboardingBranchTreeNode result = invitationService.getOnboardingBranchTree(code);
+        assertNotNull(result);
+        assertEquals("BR_01", result.branchId());
+        assertEquals("Chi Trưởng", result.branchName());
     }
 }
