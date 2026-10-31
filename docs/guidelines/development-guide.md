@@ -8,7 +8,7 @@ Tài liệu này cung cấp hướng dẫn từng bước để thiết lập m�
 
 | Công cụ / Nền tảng | Phiên bản yêu cầu | Ghi chú quan trọng |
 | :--- | :--- | :--- |
-| **Java Development Kit (JDK)** | **Java 21 (LTS)** | Dự án đã khóa cứng toolchain tại JDK 21. Không cần cài JDK 25. |
+| **Java Development Kit (JDK)** | **Java 25** | Dự án đã cấu hình toolchain tại JDK 25 (`build.gradle.kts`). Gradle Toolchain tự động quản lý JDK tương thích. |
 | **Docker & Docker Compose** | Docker Desktop bản mới nhất | Dùng để chạy Swagger UI và Adminer cục bộ. |
 | **Git** | 2.x+ | Quản lý mã nguồn. |
 | **Build Tool** | Gradle Wrapper đi kèm (`gradlew`) | Không cần cài đặt Gradle toàn cục trên máy tính. |
@@ -45,7 +45,7 @@ Các cổng dịch vụ đã được cấu hình:
 * **Adminer Web GUI:** `http://localhost:8088` (Giao diện web quản trị CSDL)
 
 ### Bước 3: Kiểm tra Java Toolchain & Biên dịch
-Xác nhận Gradle Wrapper nhận diện đúng JDK 21 trên máy:
+Xác nhận Gradle Wrapper nhận diện đúng JDK 25 trên máy:
 
 ```powershell
 # Kiểm tra toolchain
@@ -59,22 +59,28 @@ Xác nhận Gradle Wrapper nhận diện đúng JDK 21 trên máy:
 
 ## 3. Chạy Kiểm Thử (Testing)
 
-Dự án có bộ kiểm thử tự động toàn diện với **70 tests** bảo đảm chất lượng (Kiểm thử kiến trúc Spring Modulith, Unit tests, MockMvc controller tests, Flyway migrations):
+Dự án có bộ kiểm thử tự động toàn diện với **275 tests** bảo đảm chất lượng (Kiểm thử kiến trúc Spring Modulith, Unit tests, MockMvc controller tests, E2E Integration tests, Flyway migrations):
 
 ```powershell
-# Chạy toàn bộ test suite (70 tests)
+# Chạy toàn bộ test suite (275 tests)
 .\gradlew.bat test
 
 # Chạy kiểm thử kiến trúc module (Spring Modulith verify)
 .\gradlew.bat test --tests "com.familyfund.ArchitectureTest"
 
-# Chạy kiểm thử riêng cho module Identity (22 tests)
+# Chạy kiểm thử E2E quy trình nộp đơn & gia nhập dòng họ (US-17)
+.\gradlew.bat test --tests "com.familyfund.BranchJoinRequestE2EIntegrationTest"
+
+# Chạy kiểm thử riêng cho module Identity (Auth, Invitations, Join Requests)
 .\gradlew.bat test --tests "com.familyfund.identity.*"
 
-# Chạy kiểm thử riêng cho module Genealogy (39 tests)
+# Chạy kiểm thử riêng cho module Genealogy (Branches, Members, Hierarchy, Tree)
 .\gradlew.bat test --tests "com.familyfund.genealogy.*"
 
-# Chạy kiểm thử bộ lọc đa người dùng Core (TenantFilterTest)
+# Chạy kiểm thử riêng cho module Event (Lifecycle, Contextual RBAC, Notifications)
+.\gradlew.bat test --tests "com.familyfund.event.*"
+
+# Chạy kiểm thử bộ lọc đa người dùng Core (TenantFilterTest, JwtAuthenticationFilterTest)
 .\gradlew.bat test --tests "com.familyfund.core.*"
 ```
 
