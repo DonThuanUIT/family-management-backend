@@ -4,18 +4,12 @@ import com.familyfund.contribution.api.dto.ContributionType;
 import com.familyfund.contribution.api.dto.ConversionMethod;
 import com.familyfund.contribution.api.dto.InKindProcessingStatus;
 import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.ProcessInKindLifecycleRequest;
 import com.familyfund.contribution.internal.dto.request.RecordInKindContributionRequest;
-import com.familyfund.contribution.internal.dto.response.InKindContributionDetailResponse;
-import com.familyfund.contribution.internal.dto.response.InKindElectronicReceiptResponse;
-import com.familyfund.contribution.internal.dto.response.MemberAllocationResponse;
-import com.familyfund.contribution.internal.entity.Contribution;
-import com.familyfund.contribution.internal.entity.ContributionMemberDetail;
-import com.familyfund.contribution.internal.entity.EventItemBenchmark;
-import com.familyfund.contribution.internal.entity.InKindContribution;
-import com.familyfund.contribution.internal.repository.ContributionMemberDetailRepository;
-import com.familyfund.contribution.internal.repository.ContributionRepository;
-import com.familyfund.contribution.internal.repository.EventItemBenchmarkRepository;
-import com.familyfund.contribution.internal.repository.InKindContributionRepository;
+import com.familyfund.contribution.internal.dto.response.*;
+import com.familyfund.contribution.internal.entity.*;
+import com.familyfund.contribution.internal.repository.*;
+import com.familyfund.contribution.internal.util.AssetIdGenerator;
 import com.familyfund.contribution.internal.util.ContributionIdGenerator;
 import com.familyfund.contribution.internal.util.MoneyToWordsConverter;
 import com.familyfund.contribution.internal.util.ReceiptNumberGenerator;
@@ -46,8 +40,10 @@ public class InKindContributionServiceImpl implements InKindContributionService 
     private final InKindContributionRepository inKindContributionRepository;
     private final ContributionMemberDetailRepository contributionMemberDetailRepository;
     private final EventItemBenchmarkRepository benchmarkRepository;
+    private final ClanAssetRepository clanAssetRepository;
     private final ContributionIdGenerator contributionIdGenerator;
     private final ReceiptNumberGenerator receiptNumberGenerator;
+    private final AssetIdGenerator assetIdGenerator;
     private final GenealogyQueryService genealogyQueryService;
     private final EventQueryService eventQueryService;
     private final CurrentUserProvider currentUserProvider;
@@ -326,6 +322,163 @@ public class InKindContributionServiceImpl implements InKindContributionService 
                 contribution.getContributionDate(),
                 allocations
         );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ProcessInKindLifecycleResponse processLifecycle(String contributionId, ProcessInKindLifecycleRequest request) {
+        InKindContribution inKind = inKindContributionRepository.findById(contributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("In-kind contribution not found with ID: " + contributionId));
+
+        Contribution contribution = contributionRepository.findById(contributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Contribution not found with ID: " + contributionId));
+
+        EventSummaryDto eventSummary = eventQueryService.findEventSummary(contribution.getEventId())
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + contribution.getEventId()));
+
+        String currentClanId = TenantContext.getClanId();
+        if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
+            throw new BusinessRuleException("Contribution does not belong to the current clan");
+        }
+
+        if (eventSummary.status() == EventStatus.Closed) {
+            throw new BusinessRuleException("Cannot modify lifecycle of contribution for a closed event");
+        }
+
+        if (request.targetStatus() == InKindProcessingStatus.Pending) {
+            throw new BusinessRuleException("Cannot transition contribution status back to Pending");
+        }
+
+        ClanAssetResponse assetResponse = null;
+
+        if (request.targetStatus() == InKindProcessingStatus.AddedToCommonAssets) {
+            List<ClanAsset> existingAssets = clanAssetRepository.findByOriginContributionId(contributionId);
+            ClanAsset asset;
+            if (!existingAssets.isEmpty()) {
+                asset = existingAssets.get(0);
+            } else {
+                String assetId = generateUniqueAssetId();
+                String resolvedName = (request.assetName() != null && !request.assetName().isBlank())
+                        ? request.assetName().trim()
+                        : inKind.getItemName();
+                Integer resolvedQuantity = request.quantity() != null
+                        ? request.quantity()
+                        : Math.max(1, inKind.getQuantity().intValue());
+                String resolvedUnit = (request.unit() != null && !request.unit().isBlank())
+                        ? request.unit().trim()
+                        : inKind.getUnit();
+                BigDecimal resolvedValue = request.assessedValue() != null
+                        ? request.assessedValue()
+                        : inKind.getConvertedMonetaryValue();
+                String resolvedLocation = (request.storageLocation() != null && !request.storageLocation().isBlank())
+                        ? request.storageLocation().trim()
+                        : "Từ đường dòng họ";
+
+                String clanIdToUse = (currentClanId != null && !currentClanId.isBlank()) ? currentClanId : eventSummary.clanId();
+
+                asset = ClanAsset.builder()
+                        .assetId(assetId)
+                        .assetName(resolvedName)
+                        .quantity(resolvedQuantity)
+                        .unit(resolvedUnit)
+                        .assessedValue(resolvedValue)
+                        .storageLocation(resolvedLocation)
+                        .originContributionId(contributionId)
+                        .clanId(clanIdToUse)
+                        .createdAt(Instant.now())
+                        .build();
+
+                asset = clanAssetRepository.save(asset);
+                log.info("Transitioned in-kind contribution {} to common clan asset {}", contributionId, assetId);
+            }
+
+            assetResponse = new ClanAssetResponse(
+                    asset.getAssetId(),
+                    asset.getAssetName(),
+                    asset.getQuantity(),
+                    asset.getUnit(),
+                    asset.getAssessedValue(),
+                    asset.getStorageLocation(),
+                    asset.getOriginContributionId(),
+                    asset.getClanId(),
+                    asset.getCreatedAt()
+            );
+        }
+
+        inKind.setProcessingStatus(request.targetStatus());
+        inKindContributionRepository.save(inKind);
+
+        return new ProcessInKindLifecycleResponse(
+                contributionId,
+                inKind.getReceiptNumber(),
+                inKind.getItemName(),
+                inKind.getProcessingStatus(),
+                request.note(),
+                assetResponse
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InKindContributionDetailResponse> getInKindContributionsByEvent(String eventId, InKindProcessingStatus status) {
+        EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + eventId));
+
+        String currentClanId = TenantContext.getClanId();
+        if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
+            throw new BusinessRuleException("Event does not belong to the current clan");
+        }
+
+        List<InKindContribution> inKindList = inKindContributionRepository.findByEventIdAndStatus(eventId, status);
+
+        return inKindList.stream().map(ikc -> {
+            Contribution c = contributionRepository.findById(ikc.getContributionId()).orElse(null);
+            String payerMemberId = c != null ? c.getPayerMemberId() : null;
+            String payerName = payerMemberId != null
+                    ? genealogyQueryService.findMemberSummary(payerMemberId).map(MemberSummaryDto::fullName).orElse("Unknown")
+                    : "Unknown";
+            String receiverAccountId = c != null ? c.getReceiverAccountId() : null;
+            Instant contributionDate = c != null ? c.getContributionDate() : null;
+            String amountInWords = MoneyToWordsConverter.toVietnameseWords(ikc.getConvertedMonetaryValue());
+
+            List<ContributionMemberDetail> details = contributionMemberDetailRepository.findAllByContributionId(ikc.getContributionId());
+            List<MemberAllocationResponse> allocations = details.stream().map(d -> {
+                String mName = genealogyQueryService.findMemberSummary(d.getMemberId())
+                        .map(MemberSummaryDto::fullName)
+                        .orElse("Unknown");
+                return new MemberAllocationResponse(d.getMemberId(), mName, d.getRecordedAmount());
+            }).toList();
+
+            return new InKindContributionDetailResponse(
+                    ikc.getContributionId(),
+                    ikc.getReceiptNumber(),
+                    eventId,
+                    eventSummary.eventName(),
+                    payerMemberId,
+                    payerName,
+                    receiverAccountId,
+                    ikc.getItemName(),
+                    ikc.getQuantity(),
+                    ikc.getUnit(),
+                    ikc.getEstimatedValue(),
+                    ikc.getConversionMethod(),
+                    ikc.getConvertedMonetaryValue(),
+                    amountInWords,
+                    ikc.getProcessingStatus(),
+                    contributionDate,
+                    allocations
+            );
+        }).toList();
+    }
+
+    private String generateUniqueAssetId() {
+        for (int i = 0; i < 5; i++) {
+            String candidate = assetIdGenerator.generate();
+            if (!clanAssetRepository.existsById(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Failed to generate a unique asset ID after multiple attempts");
     }
 
     private String generateUniqueContributionId() {

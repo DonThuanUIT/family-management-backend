@@ -25,9 +25,11 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -180,5 +182,71 @@ class InKindContributionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.contributionId").value("CTB_001"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/contributions/in-kind/{contributionId}/lifecycle - 200 OK")
+    void processLifecycle_success() throws Exception {
+        com.familyfund.contribution.internal.dto.response.ProcessInKindLifecycleResponse response =
+                new com.familyfund.contribution.internal.dto.response.ProcessInKindLifecycleResponse(
+                        "CTB_001",
+                        "PT-001",
+                        "Lư đồng",
+                        InKindProcessingStatus.AddedToCommonAssets,
+                        "Nhập kho",
+                        new com.familyfund.contribution.internal.dto.response.ClanAssetResponse(
+                                "AST_001", "Lư đồng", 1, "cái", new BigDecimal("10000000"),
+                                "Gian chính điện", "CTB_001", "CLAN_01", Instant.now()
+                        )
+                );
+
+        when(inKindContributionService.processLifecycle(eq("CTB_001"), any())).thenReturn(response);
+
+        String jsonPayload = """
+                {
+                    "targetStatus": "AddedToCommonAssets",
+                    "note": "Nhập kho",
+                    "storageLocation": "Gian chính điện"
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/contributions/in-kind/CTB_001/lifecycle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.processingStatus").value("AddedToCommonAssets"))
+                .andExpect(jsonPath("$.data.asset.assetId").value("AST_001"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/contributions/in-kind/events/{eventId} - 200 OK")
+    void getInKindContributionsByEvent_success() throws Exception {
+        InKindContributionDetailResponse response = new InKindContributionDetailResponse(
+                "CTB_001",
+                "PT-20261031-123456",
+                "EVT_001",
+                "Giỗ Tổ 2026",
+                "MEM_001",
+                "Nguyễn Văn A",
+                "ACC_001",
+                "Đỉnh đồng",
+                BigDecimal.ONE,
+                "cái",
+                new BigDecimal("10000000"),
+                ConversionMethod.Agreement,
+                new BigDecimal("10000000"),
+                "Mười triệu đồng",
+                InKindProcessingStatus.Pending,
+                Instant.now(),
+                List.of(new MemberAllocationResponse("MEM_001", "Nguyễn Văn A", new BigDecimal("10000000")))
+        );
+
+        when(inKindContributionService.getInKindContributionsByEvent("EVT_001", null)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/contributions/in-kind/events/EVT_001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].itemName").value("Đỉnh đồng"));
     }
 }

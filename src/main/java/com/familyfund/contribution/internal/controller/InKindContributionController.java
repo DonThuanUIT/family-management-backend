@@ -1,8 +1,11 @@
 package com.familyfund.contribution.internal.controller;
 
+import com.familyfund.contribution.api.dto.InKindProcessingStatus;
+import com.familyfund.contribution.internal.dto.request.ProcessInKindLifecycleRequest;
 import com.familyfund.contribution.internal.dto.request.RecordInKindContributionRequest;
 import com.familyfund.contribution.internal.dto.response.InKindContributionDetailResponse;
 import com.familyfund.contribution.internal.dto.response.InKindElectronicReceiptResponse;
+import com.familyfund.contribution.internal.dto.response.ProcessInKindLifecycleResponse;
 import com.familyfund.contribution.internal.service.InKindContributionService;
 import com.familyfund.core.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -11,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * REST Controller for in-kind contributions and electronic receipts (US-10, Task #72, #74).
@@ -54,5 +59,30 @@ public class InKindContributionController {
             @PathVariable String contributionId) {
         InKindContributionDetailResponse response = inKindContributionService.getInKindContributionById(contributionId);
         return ResponseEntity.ok(ApiResponse.success(response, "In-kind contribution retrieved successfully"));
+    }
+
+    /**
+     * Process lifecycle for an in-kind contribution (Task #73).
+     * Transitions status to Consumed, Returned, or AddedToCommonAssets (registering CLAN_ASSET).
+     */
+    @PutMapping("/{contributionId}/lifecycle")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER')")
+    public ResponseEntity<ApiResponse<ProcessInKindLifecycleResponse>> processLifecycle(
+            @PathVariable String contributionId,
+            @Valid @RequestBody ProcessInKindLifecycleRequest request) {
+        ProcessInKindLifecycleResponse response = inKindContributionService.processLifecycle(contributionId, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "In-kind contribution lifecycle processed successfully"));
+    }
+
+    /**
+     * Retrieve in-kind contributions for an event, optionally filtered by processing status.
+     */
+    @GetMapping("/events/{eventId}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer', 'EventTreasurer', 'OrganizerMember')")
+    public ResponseEntity<ApiResponse<List<InKindContributionDetailResponse>>> getInKindContributionsByEvent(
+            @PathVariable String eventId,
+            @RequestParam(required = false) InKindProcessingStatus status) {
+        List<InKindContributionDetailResponse> response = inKindContributionService.getInKindContributionsByEvent(eventId, status);
+        return ResponseEntity.ok(ApiResponse.success(response, "In-kind contributions retrieved successfully"));
     }
 }

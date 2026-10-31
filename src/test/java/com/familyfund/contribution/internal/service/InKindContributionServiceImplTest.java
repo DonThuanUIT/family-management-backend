@@ -4,17 +4,14 @@ import com.familyfund.contribution.api.dto.ContributionType;
 import com.familyfund.contribution.api.dto.ConversionMethod;
 import com.familyfund.contribution.api.dto.InKindProcessingStatus;
 import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.ProcessInKindLifecycleRequest;
 import com.familyfund.contribution.internal.dto.request.RecordInKindContributionRequest;
 import com.familyfund.contribution.internal.dto.response.InKindContributionDetailResponse;
 import com.familyfund.contribution.internal.dto.response.InKindElectronicReceiptResponse;
-import com.familyfund.contribution.internal.entity.Contribution;
-import com.familyfund.contribution.internal.entity.ContributionMemberDetail;
-import com.familyfund.contribution.internal.entity.EventItemBenchmark;
-import com.familyfund.contribution.internal.entity.InKindContribution;
-import com.familyfund.contribution.internal.repository.ContributionMemberDetailRepository;
-import com.familyfund.contribution.internal.repository.ContributionRepository;
-import com.familyfund.contribution.internal.repository.EventItemBenchmarkRepository;
-import com.familyfund.contribution.internal.repository.InKindContributionRepository;
+import com.familyfund.contribution.internal.dto.response.ProcessInKindLifecycleResponse;
+import com.familyfund.contribution.internal.entity.*;
+import com.familyfund.contribution.internal.repository.*;
+import com.familyfund.contribution.internal.util.AssetIdGenerator;
 import com.familyfund.contribution.internal.util.ContributionIdGenerator;
 import com.familyfund.contribution.internal.util.ReceiptNumberGenerator;
 import com.familyfund.core.exception.BusinessRuleException;
@@ -62,10 +59,16 @@ class InKindContributionServiceImplTest {
     private EventItemBenchmarkRepository benchmarkRepository;
 
     @Mock
+    private ClanAssetRepository clanAssetRepository;
+
+    @Mock
     private ContributionIdGenerator contributionIdGenerator;
 
     @Mock
     private ReceiptNumberGenerator receiptNumberGenerator;
+
+    @Mock
+    private AssetIdGenerator assetIdGenerator;
 
     @Mock
     private GenealogyQueryService genealogyQueryService;
@@ -358,5 +361,194 @@ class InKindContributionServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.receiptNumber()).isEqualTo(receiptNumber);
         assertThat(response.itemName()).isEqualTo("Đỉnh đồng");
+    }
+
+    @Test
+    @DisplayName("Should successfully process lifecycle to Consumed (TieuHao)")
+    void processLifecycle_consumed_success() {
+        String contributionId = "CTB_001";
+        InKindContribution inKind = InKindContribution.builder()
+                .contributionId(contributionId)
+                .itemName("Heo quay")
+                .quantity(BigDecimal.ONE)
+                .unit("con")
+                .conversionMethod(ConversionMethod.BtcBenchmark)
+                .convertedMonetaryValue(new BigDecimal("3500000"))
+                .processingStatus(InKindProcessingStatus.Pending)
+                .receiptNumber("PT-001")
+                .build();
+
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(EVENT_ID)
+                .payerMemberId(PAYER_ID)
+                .receiverAccountId(RECEIVER_ACC_ID)
+                .build();
+
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ongoing, Instant.now());
+
+        when(inKindContributionRepository.findById(contributionId)).thenReturn(Optional.of(inKind));
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+
+        ProcessInKindLifecycleRequest request = new ProcessInKindLifecycleRequest(
+                InKindProcessingStatus.Consumed,
+                "Hạ cỗ thụ lộc liên hoan",
+                null, null, null, null, null
+        );
+
+        ProcessInKindLifecycleResponse response = inKindContributionService.processLifecycle(contributionId, request);
+
+        assertThat(response.processingStatus()).isEqualTo(InKindProcessingStatus.Consumed);
+        assertThat(response.asset()).isNull();
+        verify(inKindContributionRepository).save(inKind);
+    }
+
+    @Test
+    @DisplayName("Should successfully process lifecycle to AddedToCommonAssets and create ClanAsset")
+    void processLifecycle_addedToCommonAssets_createsClanAsset_success() {
+        String contributionId = "CTB_001";
+        InKindContribution inKind = InKindContribution.builder()
+                .contributionId(contributionId)
+                .itemName("Bộ đỉnh đồng tam sự")
+                .quantity(BigDecimal.ONE)
+                .unit("bộ")
+                .conversionMethod(ConversionMethod.Agreement)
+                .convertedMonetaryValue(new BigDecimal("15000000"))
+                .processingStatus(InKindProcessingStatus.Pending)
+                .receiptNumber("PT-001")
+                .build();
+
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(EVENT_ID)
+                .payerMemberId(PAYER_ID)
+                .receiverAccountId(RECEIVER_ACC_ID)
+                .build();
+
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ended, Instant.now());
+
+        when(inKindContributionRepository.findById(contributionId)).thenReturn(Optional.of(inKind));
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+        when(clanAssetRepository.findByOriginContributionId(contributionId)).thenReturn(List.of());
+        when(assetIdGenerator.generate()).thenReturn("AST12345678");
+        when(clanAssetRepository.existsById("AST12345678")).thenReturn(false);
+        when(clanAssetRepository.save(any(ClanAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcessInKindLifecycleRequest request = new ProcessInKindLifecycleRequest(
+                InKindProcessingStatus.AddedToCommonAssets,
+                "Lưu trữ tại gian chính điện",
+                "Bộ đỉnh đồng tam sự",
+                1,
+                "bộ",
+                new BigDecimal("15000000"),
+                "Gian chính điện Từ đường dòng họ"
+        );
+
+        ProcessInKindLifecycleResponse response = inKindContributionService.processLifecycle(contributionId, request);
+
+        assertThat(response.processingStatus()).isEqualTo(InKindProcessingStatus.AddedToCommonAssets);
+        assertThat(response.asset()).isNotNull();
+        assertThat(response.asset().assetId()).isEqualTo("AST12345678");
+        assertThat(response.asset().storageLocation()).isEqualTo("Gian chính điện Từ đường dòng họ");
+        assertThat(response.asset().assessedValue()).isEqualByComparingTo(new BigDecimal("15000000"));
+
+        verify(clanAssetRepository).save(any(ClanAsset.class));
+        verify(inKindContributionRepository).save(inKind);
+    }
+
+    @Test
+    @DisplayName("Should throw BusinessRuleException when transitioning lifecycle on closed event")
+    void processLifecycle_closedEvent_throwsBusinessRuleException() {
+        String contributionId = "CTB_001";
+        InKindContribution inKind = InKindContribution.builder()
+                .contributionId(contributionId)
+                .processingStatus(InKindProcessingStatus.Pending)
+                .build();
+
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(EVENT_ID)
+                .build();
+
+        EventSummaryDto closedEvent = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Closed, Instant.now());
+
+        when(inKindContributionRepository.findById(contributionId)).thenReturn(Optional.of(inKind));
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(closedEvent));
+
+        ProcessInKindLifecycleRequest request = new ProcessInKindLifecycleRequest(
+                InKindProcessingStatus.Consumed, null, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> inKindContributionService.processLifecycle(contributionId, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Cannot modify lifecycle of contribution for a closed event");
+    }
+
+    @Test
+    @DisplayName("Should throw BusinessRuleException when transitioning lifecycle to Pending")
+    void processLifecycle_pendingTargetStatus_throwsBusinessRuleException() {
+        String contributionId = "CTB_001";
+        InKindContribution inKind = InKindContribution.builder()
+                .contributionId(contributionId)
+                .processingStatus(InKindProcessingStatus.Pending)
+                .build();
+
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(EVENT_ID)
+                .build();
+
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ongoing, Instant.now());
+
+        when(inKindContributionRepository.findById(contributionId)).thenReturn(Optional.of(inKind));
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+
+        ProcessInKindLifecycleRequest request = new ProcessInKindLifecycleRequest(
+                InKindProcessingStatus.Pending, null, null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> inKindContributionService.processLifecycle(contributionId, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Cannot transition contribution status back to Pending");
+    }
+
+    @Test
+    @DisplayName("Should retrieve in-kind contributions for an event")
+    void getInKindContributionsByEvent_success() {
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ongoing, Instant.now());
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+
+        InKindContribution ikc = InKindContribution.builder()
+                .contributionId("CTB_001")
+                .itemName("Heo quay")
+                .quantity(BigDecimal.ONE)
+                .unit("con")
+                .conversionMethod(ConversionMethod.BtcBenchmark)
+                .convertedMonetaryValue(new BigDecimal("3500000"))
+                .processingStatus(InKindProcessingStatus.Pending)
+                .receiptNumber("PT-001")
+                .build();
+
+        Contribution c = Contribution.builder()
+                .contributionId("CTB_001")
+                .eventId(EVENT_ID)
+                .payerMemberId(PAYER_ID)
+                .receiverAccountId(RECEIVER_ACC_ID)
+                .contributionDate(Instant.now())
+                .build();
+
+        when(inKindContributionRepository.findByEventIdAndStatus(EVENT_ID, null)).thenReturn(List.of(ikc));
+        when(contributionRepository.findById("CTB_001")).thenReturn(Optional.of(c));
+        when(genealogyQueryService.findMemberSummary(PAYER_ID)).thenReturn(Optional.of(new MemberSummaryDto(PAYER_ID, "Nguyễn Văn A", CLAN_ID, "Chi 1")));
+        when(contributionMemberDetailRepository.findAllByContributionId("CTB_001")).thenReturn(List.of());
+
+        List<InKindContributionDetailResponse> list = inKindContributionService.getInKindContributionsByEvent(EVENT_ID, null);
+
+        assertThat(list).hasSize(1);
+        assertThat(list.get(0).itemName()).isEqualTo("Heo quay");
     }
 }
