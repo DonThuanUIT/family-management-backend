@@ -30,6 +30,7 @@ class DatabaseMigrationTest {
                 .baselineVersion("0")
                 .load();
 
+        flyway.repair();
         MigrateResult result = flyway.migrate();
         System.out.println("==================================================");
         System.out.println("FLYWAY MIGRATION SUCCESSFUL!");

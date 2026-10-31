@@ -1,4 +1,4 @@
-﻿openapi: 3.0.3
+openapi: 3.0.3
 info:
   title: Family Management Fund API (familyfund-api)
   version: 1.0.0
@@ -779,6 +779,314 @@ paths:
         '404':
           description: Không tìm thấy biên lai
 
+  /events/{eventId}/benchmarks:
+    post:
+      summary: Ban hành định mức giá hiện vật cúng tiến của sự kiện (US-10, Task #72)
+      description: |
+        Ban tổ chức (HeadOfOrganizer, EventTreasurer) hoặc Trưởng tộc/Admin thiết lập đơn giá định mức
+        cho các hiện vật cúng tiến phổ biến (heo quay, mâm xôi, gà luộc, v.v.) trong sự kiện.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventItemBenchmarkRequest'
+      responses:
+        '201':
+          description: Tạo định mức giá thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEventItemBenchmark'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc đã tồn tại định mức cho vật phẩm này
+        '403':
+          description: Không có quyền thiết lập định mức
+        '404':
+          description: Sự kiện không tồn tại
+    get:
+      summary: Lấy danh sách định mức giá hiện vật theo sự kiện (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      responses:
+        '200':
+          description: Danh sách định mức giá hiện vật
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Event item benchmarks retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EventItemBenchmarkResponse'
+
+  /events/{eventId}/benchmarks/{benchmarkId}:
+    delete:
+      summary: Xóa định mức giá hiện vật của sự kiện (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+        - name: benchmarkId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: BM20261031A1B2C3D4
+      responses:
+        '200':
+          description: Xóa định mức giá thành công
+        '403':
+          description: Không có quyền xóa định mức
+        '404':
+          description: Sự kiện hoặc định mức không tồn tại
+
+  /contributions/in-kind:
+    post:
+      summary: Tiếp nhận hiện vật cúng tiến & quy đổi giá trị tương đương (US-10, Task #72, #74)
+      description: |
+        Tiếp nhận hiện vật cúng tiến (heo quay, mâm quả, lư hương...), tự động tính giá trị tiền mặt quy đổi tương đương
+        theo phương thức BTC Benchmark, Invoice (đối soát thực tế), hoặc Agreement (thỏa thuận),
+        đồng thời cấp mã phiếu thu điện tử duy nhất (PT-YYYYMMDD-XXXXX) và khởi tạo trạng thái vòng đời là Pending.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordInKindContributionRequest'
+      responses:
+        '201':
+          description: Tiếp nhận hiện vật và cấp biên lai điện tử thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindReceipt'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc thiếu thông tin quy đổi
+        '403':
+          description: Không có quyền tiếp nhận hiện vật
+        '404':
+          description: Sự kiện hoặc thành viên không tồn tại
+
+  /contributions/in-kind/{id}:
+    get:
+      summary: Xem chi tiết đóng góp hiện vật cúng tiến (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CTB20261031ABC12345
+      responses:
+        '200':
+          description: Lấy chi tiết hiện vật cúng tiến thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindContributionDetail'
+        '404':
+          description: Không tìm thấy hiện vật cúng tiến
+
+  /contributions/in-kind/receipts/{receiptNumber}:
+    get:
+      summary: Tra cứu phiếu thu điện tử hiện vật theo mã số biên lai (US-10, Task #74)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: receiptNumber
+          in: path
+          required: true
+          schema:
+            type: string
+            example: PT-20261031-K9L8M7
+      responses:
+        '200':
+          description: Tra cứu phiếu thu điện tử hiện vật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindReceipt'
+        '404':
+          description: Không tìm thấy biên lai
+
+  /contributions/in-kind/{id}/lifecycle:
+    put:
+      summary: Phân loại vòng đời hiện vật cúng tiến sau sự kiện (US-10, Task #73)
+      description: |
+        Phân loại hiện vật sau sự kiện:
+        - Consumed (Tiêu hao tại cỗ/sự kiện)
+        - Returned (Hoàn trả cho người dâng cúng)
+        - AddedToCommonAssets (Tự động kết chuyển vào danh mục tài sản chung dòng họ - clan_assets)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CTB20261031ABC12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessInKindLifecycleRequest'
+      responses:
+        '200':
+          description: Xử lý vòng đời hiện vật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseProcessInKindLifecycle'
+        '400':
+          description: Hiện vật đã được xử lý hoặc dữ liệu vị trí lưu trữ không hợp lệ
+        '403':
+          description: Không có quyền phân loại vòng đời
+        '404':
+          description: Không tìm thấy hiện vật
+
+  /contributions/in-kind/events/{eventId}:
+    get:
+      summary: Danh sách tất cả hiện vật cúng tiến theo sự kiện (US-10, Task #73)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      responses:
+        '200':
+          description: Danh sách hiện vật cúng tiến
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Event in-kind contributions retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InKindContributionDetailResponse'
+
+  /clan-assets:
+    get:
+      summary: Danh sách tài sản tích lũy chung của dòng họ có phân trang & tìm kiếm (US-10, Task #73, #74)
+      description: |
+        Truy xuất danh mục tài sản lâu bền của dòng họ (đồ thờ, bàn ghế, lư đồng, v.v.),
+        hỗ trợ tìm kiếm theo tên tài sản và phân trang.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "Lư đồng"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Danh sách tài sản dòng họ phân trang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClanAssetSummary'
+
+  /clan-assets/{id}:
+    get:
+      summary: Chi tiết tài sản dòng họ (US-10, Task #73)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: AST20261031ABC12345
+      responses:
+        '200':
+          description: Chi tiết tài sản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClanAsset'
+        '404':
+          description: Tài sản không tồn tại
+
 components:
   securitySchemes:
     BearerAuth:
@@ -917,3 +1225,378 @@ components:
           format: date-time
 
 
+
+    CreateEventItemBenchmarkRequest:
+      type: object
+      required:
+        - itemName
+        - unit
+        - unitPrice
+      properties:
+        itemName:
+          type: string
+          maxLength: 100
+          example: Heo quay nguyên con
+        unit:
+          type: string
+          maxLength: 20
+          example: Con
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+          example: 3500000
+        note:
+          type: string
+          maxLength: 255
+          example: Định mức heo sữa quay giòn bì 12-15kg
+
+    EventItemBenchmarkResponse:
+      type: object
+      properties:
+        benchmarkId:
+          type: string
+          example: BM20261031A1B2C3D4
+        eventId:
+          type: string
+          example: EVT20261029ABC
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        itemName:
+          type: string
+          example: Heo quay nguyên con
+        unit:
+          type: string
+          example: Con
+        unitPrice:
+          type: number
+          format: double
+          example: 3500000
+        note:
+          type: string
+          example: Định mức heo sữa quay giòn bì 12-15kg
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-31T08:00:00Z"
+
+    ApiResponseEventItemBenchmark:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Event item benchmark created successfully
+        data:
+          $ref: '#/components/schemas/EventItemBenchmarkResponse'
+
+    RecordInKindContributionRequest:
+      type: object
+      required:
+        - eventId
+        - itemName
+        - quantity
+        - unit
+        - conversionMethod
+      properties:
+        eventId:
+          type: string
+          example: EVT20261029ABC
+        contributorMemberId:
+          type: string
+          example: MEM01J0001
+        externalDonorName:
+          type: string
+          example: Nguyễn Thị Lan
+        externalDonorContact:
+          type: string
+          example: "0912345678"
+        itemName:
+          type: string
+          maxLength: 100
+          example: Đôi đỉnh đồng khảm tam khí
+        quantity:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 1
+        unit:
+          type: string
+          maxLength: 20
+          example: Đôi
+        conversionMethod:
+          type: string
+          enum: [BtcBenchmark, Invoice, Agreement]
+          example: Agreement
+        convertedMonetaryValue:
+          type: number
+          format: double
+          example: 15000000
+        note:
+          type: string
+          example: Cúng tiến đặt tại gian chính Nhà thờ tổ
+
+    InKindElectronicReceiptResponse:
+      type: object
+      properties:
+        receiptNumber:
+          type: string
+          example: PT-20261031-K9L8M7
+        contributionId:
+          type: string
+          example: CTB20261031ABC12345
+        eventId:
+          type: string
+          example: EVT20261029ABC
+        eventName:
+          type: string
+          example: Lễ giỗ Tổ họ Nguyễn 2026
+        donorName:
+          type: string
+          example: Nguyễn Văn An
+        itemName:
+          type: string
+          example: Đôi đỉnh đồng khảm tam khí
+        quantity:
+          type: number
+          format: double
+          example: 1
+        unit:
+          type: string
+          example: Đôi
+        conversionMethod:
+          type: string
+          enum: [BtcBenchmark, Invoice, Agreement]
+          example: Agreement
+        convertedMonetaryValue:
+          type: number
+          format: double
+          example: 15000000
+        receivedAt:
+          type: string
+          format: date-time
+          example: "2026-10-31T08:30:00Z"
+        receivedBy:
+          type: string
+          example: MEM_TREASURER_1
+        processingStatus:
+          type: string
+          enum: [Pending, Consumed, Returned, AddedToCommonAssets]
+          example: Pending
+        note:
+          type: string
+          example: Cúng tiến đặt tại gian chính Nhà thờ tổ
+
+    ApiResponseInKindReceipt:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: In-kind contribution recorded successfully
+        data:
+          $ref: '#/components/schemas/InKindElectronicReceiptResponse'
+
+    InKindContributionDetailResponse:
+      type: object
+      properties:
+        contributionId:
+          type: string
+          example: CTB20261031ABC12345
+        eventId:
+          type: string
+          example: EVT20261029ABC
+        eventName:
+          type: string
+          example: Lễ giỗ Tổ họ Nguyễn 2026
+        contributorMemberId:
+          type: string
+          example: MEM01J0001
+        contributorName:
+          type: string
+          example: Nguyễn Văn An
+        externalDonorName:
+          type: string
+          example: null
+        externalDonorContact:
+          type: string
+          example: null
+        itemName:
+          type: string
+          example: Đôi đỉnh đồng khảm tam khí
+        quantity:
+          type: number
+          format: double
+          example: 1
+        unit:
+          type: string
+          example: Đôi
+        estimatedValue:
+          type: number
+          format: double
+          example: 15000000
+        conversionMethod:
+          type: string
+          enum: [BtcBenchmark, Invoice, Agreement]
+          example: Agreement
+        convertedMonetaryValue:
+          type: number
+          format: double
+          example: 15000000
+        processingStatus:
+          type: string
+          enum: [Pending, Consumed, Returned, AddedToCommonAssets]
+          example: Pending
+        receiptNumber:
+          type: string
+          example: PT-20261031-K9L8M7
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-31T08:30:00Z"
+
+    ApiResponseInKindContributionDetail:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: In-kind contribution retrieved successfully
+        data:
+          $ref: '#/components/schemas/InKindContributionDetailResponse'
+
+    ProcessInKindLifecycleRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [Consumed, Returned, AddedToCommonAssets]
+          example: AddedToCommonAssets
+        storageLocation:
+          type: string
+          maxLength: 255
+          example: Gian Tiền bái - Nhà thờ họ
+        assessedValue:
+          type: number
+          format: double
+          minimum: 0
+          example: 15000000
+        note:
+          type: string
+          maxLength: 255
+          example: Đã bàn giao chìa khóa cho ban khánh tiết
+
+    ProcessInKindLifecycleResponse:
+      type: object
+      properties:
+        contributionId:
+          type: string
+          example: CTB20261031ABC12345
+        processingStatus:
+          type: string
+          enum: [Consumed, Returned, AddedToCommonAssets]
+          example: AddedToCommonAssets
+        clanAssetId:
+          type: string
+          example: AST20261031ABC12345
+        message:
+          type: string
+          example: Lifecycle processed successfully
+
+    ApiResponseProcessInKindLifecycle:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: In-kind contribution lifecycle processed successfully
+        data:
+          $ref: '#/components/schemas/ProcessInKindLifecycleResponse'
+
+    ClanAssetResponse:
+      type: object
+      properties:
+        assetId:
+          type: string
+          example: AST20261031ABC12345
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        assetName:
+          type: string
+          example: Đôi đỉnh đồng khảm tam khí
+        quantity:
+          type: integer
+          example: 1
+        unit:
+          type: string
+          example: Đôi
+        assessedValue:
+          type: number
+          format: double
+          example: 15000000
+        storageLocation:
+          type: string
+          example: Gian Tiền bái - Nhà thờ họ
+        originContributionId:
+          type: string
+          example: CTB20261031ABC12345
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-31T09:00:00Z"
+
+    ApiResponseClanAsset:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Clan asset retrieved successfully
+        data:
+          $ref: '#/components/schemas/ClanAssetResponse'
+
+    ClanAssetSummaryResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClanAssetResponse'
+        pageNumber:
+          type: integer
+          example: 0
+        pageSize:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 1
+        totalPages:
+          type: integer
+          example: 1
+
+    ApiResponseClanAssetSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Clan assets retrieved successfully
+        data:
+          $ref: '#/components/schemas/ClanAssetSummaryResponse'
