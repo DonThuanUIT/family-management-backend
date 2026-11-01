@@ -500,6 +500,232 @@ paths:
         '200':
           description: Danh sách thông báo sự kiện
 
+  /events/{eventId}/registrations:
+    post:
+      summary: Đăng ký tham gia sự kiện (US-06)
+      description: |
+        Thành viên / Người đại diện hộ gia đình đăng ký số lượng người tham dự, khẩu phần ăn (chay/mặn) và phương tiện di chuyển khi sự kiện đang mở tiếp nhận đăng ký (RegistrationOpen).
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_2026_01
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAttendeesRequest'
+      responses:
+        '201':
+          description: Đăng ký tham gia sự kiện thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc sự kiện không mở đăng ký
+        '409':
+          description: Hộ gia đình đã có lượt đăng ký đang hoạt động
+    get:
+      summary: Danh sách hộ gia đình đăng ký tham gia sự kiện (US-06)
+      description: |
+        Ban tổ chức, Trưởng tộc hoặc Admin xem danh sách tất cả các hộ gia đình đã đăng ký (hỗ trợ phân trang).
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: "registrationDate,desc"
+      responses:
+        '200':
+          description: Danh sách lượt đăng ký phân trang
+
+  /events/{eventId}/registrations/summary:
+    get:
+      summary: Tổng hợp số liệu cộng dồn cỗ bàn và người tham dự (US-06)
+      description: |
+        Cung cấp số liệu thống kê tổng hợp cộng dồn thời gian thực cho Ban tổ chức nắm bắt chính xác số lượng cỗ bàn, người tham dự để chuẩn bị khánh tiết chu đáo.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thống kê số lượng đăng ký, người tham dự và cỗ bàn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistrationSummary'
+
+  /events/{eventId}/registrations/me:
+    get:
+      summary: Xem thông tin đăng ký của chính hộ gia đình (US-06)
+      description: |
+        Thành viên tra cứu thông tin đăng ký hiện tại của hộ gia đình mình cho sự kiện.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin đăng ký của hộ gia đình
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+        '404':
+          description: Hộ gia đình chưa đăng ký sự kiện này
+
+  /events/{eventId}/registrations/{registrationId}:
+    get:
+      summary: Xem chi tiết một lượt đăng ký tham gia sự kiện (US-06)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết lượt đăng ký
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/request-modification:
+    post:
+      summary: Gửi yêu cầu thay đổi số lượng người / khẩu phần / phương tiện (US-06)
+      description: |
+        Người đại diện hộ gia đình gửi yêu cầu chỉnh sửa thông tin đăng ký kèm lý do. Lượt đăng ký chuyển sang trạng thái PendingModification chờ Ban tổ chức phê duyệt.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestModifyRegistrationRequest'
+      responses:
+        '200':
+          description: Yêu cầu thay đổi thông tin đã được ghi nhận chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/request-cancellation:
+    post:
+      summary: Gửi yêu cầu hủy đăng ký tham gia sự kiện (US-06)
+      description: |
+        Người đại diện hộ gia đình gửi yêu cầu hủy đăng ký kèm lý do. Lượt đăng ký chuyển sang trạng thái PendingCancellation chờ Ban tổ chức phê duyệt.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestCancelRegistrationRequest'
+      responses:
+        '200':
+          description: Yêu cầu hủy đăng ký đã được ghi nhận chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/review:
+    post:
+      summary: Ban tổ chức xét duyệt yêu cầu sửa đổi hoặc hủy đăng ký (US-06)
+      description: |
+        Trưởng ban tổ chức (HeadOfOrganizer), Trưởng tộc hoặc Admin phê duyệt (chấp thuận hoặc từ chối) yêu cầu thay đổi/hủy của hộ gia đình dựa trên tình hình chuẩn bị cỗ bàn thực tế.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRegistrationRequest'
+      responses:
+        '200':
+          description: Xét duyệt yêu cầu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
   /events/{eventId}/advance-vouchers:
     post:
       summary: Lập phiếu cấp phát kinh phí tạm ứng (Phân hệ 3)
@@ -836,3 +1062,233 @@ components:
           format: date-time
 
 
+
+
+    RegisterAttendeesRequest:
+      type: object
+      required:
+        - totalAttendees
+      properties:
+        representativeMemberId:
+          type: string
+          description: Mã thành viên đại diện (tùy chọn, mặc định lấy thành viên gắn với tài khoản đang đăng nhập; Ban tổ chức có thể chỉ định khi đăng ký hộ).
+          example: MEM_001
+        totalAttendees:
+          type: integer
+          minimum: 1
+          description: Tổng số người tham dự của hộ gia đình
+          example: 4
+        vegetarianMeals:
+          type: integer
+          minimum: 0
+          description: Số suất ăn chay
+          example: 1
+        savoryMeals:
+          type: integer
+          minimum: 0
+          description: Số suất ăn mặn
+          example: 3
+        dietaryRequirements:
+          type: string
+          description: Ghi chú ăn uống đặc biệt (dị ứng, ăn kiêng)
+          example: "1 người ăn chay thanh tịnh, không hành tỏi"
+        transportationNotes:
+          type: string
+          description: Ghi chú phương tiện di chuyển
+          example: "Gia đình tự túc 1 xe ô tô 4 chỗ"
+        attendingMemberIds:
+          type: array
+          items:
+            type: string
+          description: Danh sách mã thành viên trong gia đình đi cùng (nếu có trong gia phả)
+          example: ["MEM_002", "MEM_003"]
+
+    RequestModifyRegistrationRequest:
+      type: object
+      required:
+        - proposedTotalAttendees
+        - modificationReason
+      properties:
+        proposedTotalAttendees:
+          type: integer
+          minimum: 1
+          example: 3
+        proposedVegetarianMeals:
+          type: integer
+          minimum: 0
+          example: 0
+        proposedSavoryMeals:
+          type: integer
+          minimum: 0
+          example: 3
+        proposedDietaryRequirements:
+          type: string
+          example: "Đổi sang toàn bộ cỗ mặn"
+        proposedTransportationNotes:
+          type: string
+          example: "Đi xe máy riêng"
+        modificationReason:
+          type: string
+          example: "Hai cháu bận thi học kỳ đột xuất không tham gia được"
+
+    RequestCancelRegistrationRequest:
+      type: object
+      required:
+        - cancellationReason
+      properties:
+        cancellationReason:
+          type: string
+          example: "Gia đình phải đi công tác xa đột xuất"
+
+    ReviewRegistrationRequest:
+      type: object
+      required:
+        - approved
+      properties:
+        approved:
+          type: boolean
+          description: true nếu chấp thuận thay đổi/hủy; false nếu từ chối
+          example: true
+        rejectionReason:
+          type: string
+          description: Lý do từ chối (bắt buộc khi approved = false)
+          example: "Ban tổ chức đã chốt đặt cọc và mua nguyên liệu cho 5 suất ăn"
+
+    RegistrationMemberDetailResponse:
+      type: object
+      properties:
+        memberId:
+          type: string
+          example: MEM_002
+        fullName:
+          type: string
+          example: Nguyễn Văn Con Cả
+        isCheckedIn:
+          type: boolean
+          example: false
+
+    RegistrationResponse:
+      type: object
+      properties:
+        registrationId:
+          type: string
+          example: REG_20261101_ABC123
+        eventId:
+          type: string
+          example: EVT_2026_01
+        representativeMemberId:
+          type: string
+          example: MEM_001
+        representativeMemberName:
+          type: string
+          example: Nguyễn Văn Đại Diện
+        totalAttendees:
+          type: integer
+          example: 4
+        vegetarianMeals:
+          type: integer
+          example: 1
+        savoryMeals:
+          type: integer
+          example: 3
+        dietaryRequirements:
+          type: string
+          example: "1 người ăn chay"
+        transportationNotes:
+          type: string
+          example: "Đi ô tô riêng"
+        registrationDate:
+          type: string
+          format: date-time
+          example: "2026-11-01T08:00:00Z"
+        status:
+          type: string
+          enum: [Confirmed, PendingModification, PendingCancellation, Cancelled]
+          example: Confirmed
+        proposedTotalAttendees:
+          type: integer
+          nullable: true
+          example: 3
+        proposedVegetarianMeals:
+          type: integer
+          nullable: true
+          example: 0
+        proposedSavoryMeals:
+          type: integer
+          nullable: true
+          example: 3
+        proposedDietaryRequirements:
+          type: string
+          nullable: true
+        proposedTransportationNotes:
+          type: string
+          nullable: true
+        modificationReason:
+          type: string
+          nullable: true
+        reviewedByAccountId:
+          type: string
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        attendingMembers:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistrationMemberDetailResponse'
+
+    RegistrationSummaryResponse:
+      type: object
+      properties:
+        eventId:
+          type: string
+          example: EVT_2026_01
+        totalRegistrations:
+          type: integer
+          example: 15
+        totalAttendees:
+          type: integer
+          example: 52
+        totalVegetarianMeals:
+          type: integer
+          example: 6
+        totalSavoryMeals:
+          type: integer
+          example: 46
+
+    ApiResponseRegistration:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Đăng ký tham gia sự kiện thành công
+        data:
+          $ref: '#/components/schemas/RegistrationResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseRegistrationSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RegistrationSummaryResponse'
+        timestamp:
+          type: string
+          format: date-time

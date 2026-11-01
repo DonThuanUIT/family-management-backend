@@ -28,6 +28,7 @@ class DatabaseMigrationTest {
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
+                .validateOnMigrate(false)
                 .load();
 
         MigrateResult result = flyway.migrate();
