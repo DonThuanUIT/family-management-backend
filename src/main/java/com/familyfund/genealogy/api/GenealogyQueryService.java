@@ -71,4 +71,13 @@ public interface GenealogyQueryService {
      * @return Optional containing summary details if found
      */
     Optional<MemberSummaryDto> findMemberSummary(String memberId);
+
+    /**
+     * Retrieves all living, non-placeholder member IDs belonging to a specific branch within a clan.
+     *
+     * @param clanId   ID of the clan
+     * @param branchId ID of the branch
+     * @return list of active member IDs in the branch
+     */
+    List<String> getMemberIdsByBranch(String clanId, String branchId);
 }

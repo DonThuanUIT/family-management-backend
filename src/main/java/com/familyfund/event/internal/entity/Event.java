@@ -20,7 +20,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = "personnel")
+@ToString(exclude = {"personnel", "tasks"})
 public class Event {
 
     @Id
@@ -63,6 +63,10 @@ public class Event {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<EventPersonnel> personnel = new ArrayList<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<EventTask> tasks = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {

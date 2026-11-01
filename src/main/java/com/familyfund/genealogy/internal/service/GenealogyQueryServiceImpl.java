@@ -7,6 +7,7 @@ import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
+import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
@@ -206,5 +207,18 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
                         member.getBranch() != null ? member.getBranch().getClanId() : null,
                         member.getBranch() != null ? member.getBranch().getBranchId() : null
                 ));
+    }
+
+    @Override
+    public List<String> getMemberIdsByBranch(String clanId, String branchId) {
+        if (clanId == null || clanId.isBlank() || branchId == null || branchId.isBlank()) {
+            return Collections.emptyList();
+        }
+        return memberRepository.findByBranch_ClanIdAndBranch_BranchId(clanId.trim(), branchId.trim())
+                .stream()
+                .filter(m -> !Boolean.TRUE.equals(m.getIsPlaceholder()))
+                .filter(m -> m.getStatus() == null || Member.STATUS_LIVING.equalsIgnoreCase(m.getStatus()))
+                .map(Member::getMemberId)
+                .toList();
     }
 }
