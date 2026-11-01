@@ -82,3 +82,4 @@ class RegistrationEntityMappingTest {
         assertEquals("REG_100", event.getRegistrations().get(0).getRegistrationId());
     }
 }
+

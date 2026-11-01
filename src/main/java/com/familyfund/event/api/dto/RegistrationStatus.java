@@ -32,3 +32,4 @@ public enum RegistrationStatus {
         return this == PendingModification || this == PendingCancellation;
     }
 }
+

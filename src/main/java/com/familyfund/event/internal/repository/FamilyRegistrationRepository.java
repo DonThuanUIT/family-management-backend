@@ -65,3 +65,4 @@ public interface FamilyRegistrationRepository extends JpaRepository<FamilyRegist
             @Param("eventId") String eventId,
             @Param("clanId") String clanId);
 }
+

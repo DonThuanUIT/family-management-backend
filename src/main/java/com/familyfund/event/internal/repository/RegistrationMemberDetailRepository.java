@@ -19,3 +19,4 @@ public interface RegistrationMemberDetailRepository extends JpaRepository<Regist
 
     void deleteAllByRegistrationId(String registrationId);
 }
+

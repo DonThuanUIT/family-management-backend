@@ -37,3 +37,4 @@ class RegistrationStatusTest {
         assertFalse(RegistrationStatus.Cancelled.isPendingReview());
     }
 }
+

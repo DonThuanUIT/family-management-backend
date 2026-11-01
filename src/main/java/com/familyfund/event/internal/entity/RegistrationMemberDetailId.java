@@ -21,3 +21,4 @@ public class RegistrationMemberDetailId implements Serializable {
     private String registrationId;
     private String memberId;
 }
+

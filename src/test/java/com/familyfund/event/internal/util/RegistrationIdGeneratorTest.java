@@ -46,3 +46,4 @@ class RegistrationIdGeneratorTest {
         assertEquals(count, generatedIds.size());
     }
 }
+

@@ -13,3 +13,4 @@ public interface RegistrationAggregateProjection {
 
     long getTotalSavoryMeals();
 }
+

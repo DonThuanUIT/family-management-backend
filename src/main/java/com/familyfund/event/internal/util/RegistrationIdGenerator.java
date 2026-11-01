@@ -49,3 +49,4 @@ public class RegistrationIdGenerator {
         return new String(chars);
     }
 }
+
