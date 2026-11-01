@@ -15,6 +15,7 @@ Hệ thống **Family Management Backend** giải quyết bài toán chuyển đ
 - **Tiếp nhận thành viên tự do (Onboarding - US-17)**: Xem cây thu gọn, nộp đơn đề xuất vị trí (nhánh lá có sẵn hoặc tạo nhánh con mới) và quy trình xét duyệt hai cấp (Trưởng chi / Trưởng tộc).
 - **Quản lý sự kiện & Phân quyền động (US-21)**: Tổ chức giỗ tổ, lễ hội truyền thống theo máy trạng thái vòng đời (FSM) kết hợp phân quyền ngữ cảnh (Contextual RBAC qua `NhanSuSuKien`), tự động chuyển chế độ chỉ đọc khi sự kiện đóng.
 - **Thông báo sự kiện đa kênh (US-22)**: Phát Domain Events khi mở đăng ký hoặc thay đổi ngày giờ/địa điểm (schedule diff), xử lý bất đồng bộ qua `@Async @EventListener`.
+- **Phân hệ công việc & phân công nhiệm vụ (US-07)**: Khởi tạo các hạng mục chuẩn bị sự kiện (hậu cần, mua sắm...), phân công linh hoạt cho cá nhân hoặc chi nhánh gia đình, chuyển trạng thái tự động sang `InProgress` và phát thông báo bất đồng bộ đến toàn thể thành viên liên quan.
 - **Minh bạch hóa tài chính**: Quy trình cấp phát tạm ứng, thanh quyết toán hóa đơn thực tế và chốt sổ quỹ sự kiện.
 - **Sổ cái Quỹ chung bất biến (Immutable Ledger)**: Lưu vết toàn bộ biến động tài chính dòng họ, ngăn chặn sửa/xóa dữ liệu lịch sử và chỉ cho phép giao dịch bù trừ (Audit Trail NFR-01).
 - **Huy động đóng góp đa hình**: Tiếp nhận tiền mặt/chuyển khoản và hiện vật/lễ vật cúng tiến, quy đổi giá trị và chuyển vào danh mục tài sản lâu dài của dòng họ.
@@ -93,17 +94,21 @@ src/main/java/com/familyfund/
 │   │   └── validator/              # GenealogyValidator (kiemTraChuTrinh)
 │   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core"})
 │
-├── event/                          # Bounded Context: Quản lý Sự kiện , Phân quyền động & Thông báo (US-22)
-│   ├── api/                        # Public Contract: Domain Events
-│   │   ├── event/                  # EventOpenedDomainEvent, EventScheduleChangedDomainEvent
+├── event/                          # Bounded Context: Quản lý Sự kiện, Phân quyền động, Thông báo & Công việc (US-07, US-21, US-22)
+│   ├── api/                        # Public Contract: Domain Events & Public DTOs
+│   │   ├── dto/                    # TaskStatus, EventStatus, EventRole, EventSummaryDto
+│   │   ├── event/                  # TaskAssignedDomainEvent, EventOpenedDomainEvent, EventScheduleChangedDomainEvent
 │   │   └── package-info.java       # @NamedInterface("api")
 │   ├── internal/                   # Private Implementation
-│   │   ├── controller/             # EventController (/api/v1/events)
-│   │   ├── dto/                    # CreateEventRequest, UpdateEventRequest, EventDetailResponse, EventNotificationResponse,...
-│   │   ├── entity/                 # Event, EventPersonnel, EventPersonnelId, EventNotification
-│   │   ├── repository/             # EventRepository, EventPersonnelRepository, EventNotificationRepository
-│   │   ├── security/               # NhanSuSuKien (Contextual RBAC @Component)
-│   │   └── service/                # EventServiceImpl, EventNotificationListener, NotificationSender, LoggingNotificationSender
+│   │   ├── controller/             # EventController (/api/v1/events), TaskController (/api/v1/events/{eventId}/tasks)
+│   │   ├── dto/                    # CreateEventRequest, CreateTaskRequest, AssignTaskRequest, TaskResponse,...
+│   │   ├── entity/                 # Event, EventPersonnel, EventPersonnelId, EventNotification, EventTask
+│   │   ├── mapper/                 # EventMapper, TaskMapper (MapStruct)
+│   │   ├── notification/           # TaskNotificationListener, EventNotificationListener, NotificationSender
+│   │   ├── repository/             # EventRepository, EventPersonnelRepository, EventNotificationRepository, EventTaskRepository
+│   │   ├── security/               # EventSecurity / NhanSuSuKien (Contextual RBAC @Component)
+│   │   ├── service/                # EventServiceImpl, TaskServiceImpl, EventQueryServiceImpl
+│   │   └── util/                   # EventIdGenerator, TaskIdGenerator, NotificationIdGenerator
 │   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "identity::api", "genealogy::api"})
 │
 ├── finance/                        # Bounded Context: Tài chính, Tạm ứng, Quyết toán & Sổ cái bất biến
