@@ -111,6 +111,7 @@ class GenealogyHierarchyTest {
         assertEquals(2, response.generationLevel());
         assertEquals("BR_ROOT", response.parentBranchId());
         verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", null, "BR_ROOT");
+
     }
 
     @Test
@@ -163,6 +164,7 @@ class GenealogyHierarchyTest {
         assertEquals(4, grandChild.getGenerationLevel());
         assertEquals("Nguyen Clan", response.clanName());
         verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
+
     }
 
     @Test

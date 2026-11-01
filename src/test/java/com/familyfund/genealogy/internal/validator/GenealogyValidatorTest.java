@@ -33,6 +33,7 @@ class GenealogyValidatorTest {
         );
         assertThrows(IllegalArgumentException.class, () ->
                 validator.validateNoCycles("   ", "BR_A", "BR_B")
+
         );
     }
 
@@ -41,6 +42,7 @@ class GenealogyValidatorTest {
     void testCycle_SelfParent_ThrowsBranchCycleException() {
         assertThrows(BranchCycleException.class, () ->
                 validator.validateNoCycles("CLAN_01", "BR_01", "BR_01")
+
         );
     }
 
@@ -56,6 +58,7 @@ class GenealogyValidatorTest {
         // Attempt to change parent of A to B
         assertThrows(BranchCycleException.class, () ->
                 validator.validateNoCycles("CLAN_01", "BR_A", "BR_B")
+
         );
     }
 
@@ -75,6 +78,7 @@ class GenealogyValidatorTest {
         // Attempt to assign parent of A to D
         assertThrows(BranchCycleException.class, () ->
                 validator.validateNoCycles("CLAN_01", "BR_A", "BR_D")
+
         );
     }
 
@@ -90,6 +94,7 @@ class GenealogyValidatorTest {
         // Create new child branch BR_NEW under BR_A
         assertDoesNotThrow(() ->
                 validator.validateNoCycles("CLAN_01", "BR_NEW", "BR_A")
+
         );
     }
 }

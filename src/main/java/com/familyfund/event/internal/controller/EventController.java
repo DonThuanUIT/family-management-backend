@@ -45,7 +45,7 @@ public class EventController {
      * Cập nhật thông tin sự kiện và phát thông báo nếu có thay đổi thời gian hoặc địa điểm.
      */
     @PutMapping("/{eventId}")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
             @PathVariable String eventId,
             @Valid @RequestBody UpdateEventRequest request) {
@@ -77,7 +77,7 @@ public class EventController {
      * Chuyển đổi trạng thái vòng đời sự kiện (Trưởng tộc, Admin, hoặc Trưởng ban tổ chức sự kiện).
      */
     @PatchMapping("/{eventId}/status")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<EventResponse>> updateEventStatus(
             @PathVariable String eventId,
             @Valid @RequestBody UpdateEventStatusRequest request) {

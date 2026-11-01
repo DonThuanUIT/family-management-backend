@@ -4,6 +4,7 @@ import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
@@ -63,31 +64,34 @@ public class InvitationServiceImpl implements InvitationService {
             expiresAt = Instant.now().plus(DEFAULT_VALIDITY_DAYS, ChronoUnit.DAYS);
         }
 
-        // 3. Sinh mã mời an toàn và kiểm tra chống trùng lặp
+        int maxUses = (request.getMaxUses() != null && request.getMaxUses() > 0)
+                ? request.getMaxUses()
+                : DEFAULT_MAX_USES;
+
+        // 3. Sinh mã độc nhất với cơ chế Collision Retry
         String inviteCode = generateUniqueInviteCode();
         String shareableUrl = inviteCodeGenerator.buildShareableUrl(inviteCode);
 
-        // 4. Khởi tạo Entity với các ràng buộc bất biến cho mã mời chung gắn liền với clanId
-        InvitationCode invitation = InvitationCode.builder()
+        // 4. Lưu Entity vào CSDL
+        InvitationCode entity = InvitationCode.builder()
                 .inviteCode(inviteCode)
                 .clanId(clanId)
                 .inviteType(InviteType.GeneralClanInvite)
                 .shareableUrl(shareableUrl)
                 .targetBranchId(targetBranchId)
-                .targetMemberId(null) // Mã chung luôn có targetMemberId = null
-                .maxUses(request.getMaxUses() != null ? request.getMaxUses() : DEFAULT_MAX_USES)
+                .targetMemberId(null) // Luôn null đối với GeneralClanInvite
+                .maxUses(maxUses)
                 .usedCount(0)
                 .expiresAt(expiresAt)
                 .isActive(true)
                 .createdByAccountId(currentAccountId)
-                .createdAt(Instant.now())
                 .build();
 
-        InvitationCode saved = invitationCodeRepository.save(invitation);
-        log.info("Đã tạo mã mời chung dòng họ: clan={}, code={}, creator={}, targetBranch={}, expiresAt={}",
-                clanId, inviteCode, currentAccountId, targetBranchId, expiresAt);
+        InvitationCode saved = invitationCodeRepository.save(entity);
+        log.info("Đã tạo mã mời chung mới: code={}, clanId={}, maxUses={}, expiresAt={}",
+                inviteCode, clanId, maxUses, expiresAt);
 
-        return InviteCodeResponse.fromEntity(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -98,13 +102,13 @@ public class InvitationServiceImpl implements InvitationService {
         }
 
         String clanId = TenantContext.getClanId();
-        InvitationCode invitation = invitationCodeRepository.findByClanIdAndInviteCode(clanId, inviteCode.trim())
+        InvitationCode invitation = invitationCodeRepository
+                .findByClanIdAndInviteCode(clanId, inviteCode.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", inviteCode));
 
         invitation.setIsActive(false);
         invitationCodeRepository.save(invitation);
-
-        log.info("Đã vô hiệu hóa mã mời: clan={}, code={}, executedBy={}", clanId, inviteCode, currentAccountId);
+        log.info("Đã vô hiệu hóa mã mời: code={}, clanId={}, bởi accountId={}", inviteCode, clanId, currentAccountId);
     }
 
     @Override
@@ -113,12 +117,23 @@ public class InvitationServiceImpl implements InvitationService {
         return invitationCodeRepository
                 .findAllByClanIdAndInviteTypeAndIsActiveTrueOrderByCreatedAtDesc(clanId, InviteType.GeneralClanInvite)
                 .stream()
-                .map(InviteCodeResponse::fromEntity)
+                .map(this::toResponse)
                 .toList();
     }
 
     @Override
     public InviteCodeResponse getInviteByCode(String inviteCode) {
+        InvitationCode invitation = validateAndGetActiveInvite(inviteCode);
+        return toResponse(invitation);
+    }
+
+    @Override
+    public OnboardingBranchTreeNode getOnboardingBranchTree(String inviteCode) {
+        InvitationCode invitation = validateAndGetActiveInvite(inviteCode);
+        return genealogyQueryService.getOnboardingBranchTree(invitation.getClanId(), invitation.getTargetBranchId());
+    }
+
+    private InvitationCode validateAndGetActiveInvite(String inviteCode) {
         if (inviteCode == null || inviteCode.isBlank()) {
             throw new BadRequestException("Mã mời không được để trống");
         }
@@ -130,7 +145,22 @@ public class InvitationServiceImpl implements InvitationService {
             throw new BadRequestException("Mã mời đã hết hạn sử dụng");
         }
 
-        return InviteCodeResponse.fromEntity(invitation);
+        if (invitation.getMaxUses() != null && invitation.getUsedCount() != null && invitation.getUsedCount() >= invitation.getMaxUses()) {
+            throw new BadRequestException("Mã mời đã hết lượt sử dụng");
+        }
+
+        return invitation;
+    }
+
+    private InviteCodeResponse toResponse(InvitationCode entity) {
+        InviteCodeResponse response = InviteCodeResponse.fromEntity(entity);
+        if (entity.getClanId() != null) {
+            genealogyQueryService.getClanName(entity.getClanId()).ifPresent(response::setClanName);
+        }
+        if (entity.getClanId() != null && entity.getTargetBranchId() != null) {
+            genealogyQueryService.getBranchName(entity.getClanId(), entity.getTargetBranchId()).ifPresent(response::setTargetBranchName);
+        }
+        return response;
     }
 
     private String generateUniqueInviteCode() {
