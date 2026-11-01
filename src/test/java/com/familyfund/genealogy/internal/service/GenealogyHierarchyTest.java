@@ -110,7 +110,7 @@ class GenealogyHierarchyTest {
         assertEquals("Nguyen Clan", response.clanName());
         assertEquals(2, response.generationLevel());
         assertEquals("BR_ROOT", response.parentBranchId());
-        verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", null, "BR_ROOT");
+        verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", null, "BR_ROOT");
     }
 
     @Test
@@ -162,7 +162,7 @@ class GenealogyHierarchyTest {
         assertEquals("BR_NEW_PARENT", response.parentBranchId());
         assertEquals(4, grandChild.getGenerationLevel());
         assertEquals("Nguyen Clan", response.clanName());
-        verify(genealogyValidator).kiemTraChuTrinh("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
+        verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
     }
 
     @Test

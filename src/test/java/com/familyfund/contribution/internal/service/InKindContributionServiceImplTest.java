@@ -186,6 +186,35 @@ class InKindContributionServiceImplTest {
     }
 
     @Test
+    @DisplayName("Should throw BusinessRuleException when conversion method is BtcBenchmark but benchmarkId is null")
+    void recordInKindContribution_btcBenchmark_nullBenchmarkId_throwsBusinessRuleException() {
+        RecordInKindContributionRequest request = new RecordInKindContributionRequest(
+                EVENT_ID,
+                PAYER_ID,
+                "Heo quay",
+                new BigDecimal("2.0"),
+                "con",
+                BigDecimal.ZERO,
+                ConversionMethod.BtcBenchmark,
+                new BigDecimal("7000000"),
+                null,
+                null,
+                null
+        );
+
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ongoing, Instant.now());
+        MemberSummaryDto payerSummary = new MemberSummaryDto(PAYER_ID, "Nguyễn Văn A", CLAN_ID, "Chi 1");
+
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+        when(genealogyQueryService.findMemberSummary(PAYER_ID)).thenReturn(Optional.of(payerSummary));
+        when(currentUserProvider.currentAccountId()).thenReturn(Optional.of(RECEIVER_ACC_ID));
+
+        assertThatThrownBy(() -> inKindContributionService.recordInKindContribution(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Benchmark ID is required when conversion method is BtcBenchmark");
+    }
+
+    @Test
     @DisplayName("Should throw BusinessRuleException when converted value does not match benchmark unit price * quantity")
     void recordInKindContribution_btcBenchmark_mismatchedValue_throwsBusinessRuleException() {
         RecordInKindContributionRequest request = new RecordInKindContributionRequest(
@@ -542,9 +571,9 @@ class InKindContributionServiceImplTest {
                 .build();
 
         when(inKindContributionRepository.findByEventIdAndStatus(EVENT_ID, null)).thenReturn(List.of(ikc));
-        when(contributionRepository.findById("CTB_001")).thenReturn(Optional.of(c));
+        when(contributionRepository.findAllById(List.of("CTB_001"))).thenReturn(List.of(c));
         when(genealogyQueryService.findMemberSummary(PAYER_ID)).thenReturn(Optional.of(new MemberSummaryDto(PAYER_ID, "Nguyễn Văn A", CLAN_ID, "Chi 1")));
-        when(contributionMemberDetailRepository.findAllByContributionId("CTB_001")).thenReturn(List.of());
+        when(contributionMemberDetailRepository.findAllByContributionIdIn(List.of("CTB_001"))).thenReturn(List.of());
 
         List<InKindContributionDetailResponse> list = inKindContributionService.getInKindContributionsByEvent(EVENT_ID, null);
 

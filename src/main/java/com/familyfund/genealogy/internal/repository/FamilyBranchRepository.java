@@ -12,10 +12,13 @@ import java.util.Optional;
 @Repository
 public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, String> {
 
-    // Multi-tenant Scoped Queries
     Optional<FamilyBranch> findByClanIdAndParentBranchIsNull(String clanId);
 
     List<FamilyBranch> findByClanIdAndParentBranch_BranchId(String clanId, String parentBranchId);
+
+    List<FamilyBranch> findByClanIdOrderByGenerationLevelAsc(String clanId);
+
+    List<FamilyBranch> findByClanIdAndGenerationLevel(String clanId, Integer generationLevel);
 
     boolean existsByClanIdAndParentBranch_BranchId(String clanId, String parentBranchId);
 
@@ -23,7 +26,7 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
 
     boolean existsByClanIdAndBranchId(String clanId, String branchId);
 
-    // BRANCH_HEAD scope: the caller's member profile is the representative (Trưởng chi) of this branch
+    // BRANCH_HEAD scope: the caller's member profile is the representative (Branch Head) of this branch
     boolean existsByClanIdAndBranchIdAndRepresentative_MemberId(String clanId, String branchId, String representativeMemberId);
 
     List<FamilyBranch> findByClanIdAndParentBranch_BranchIdOrderByBranchNameAsc(String clanId, String parentBranchId);

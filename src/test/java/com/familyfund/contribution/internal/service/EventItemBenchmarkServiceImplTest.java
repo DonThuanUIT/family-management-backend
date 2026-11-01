@@ -102,6 +102,25 @@ class EventItemBenchmarkServiceImplTest {
     }
 
     @Test
+    @DisplayName("Should throw BusinessRuleException when benchmark item already exists in event")
+    void createBenchmark_duplicateItemName_throwsBusinessRuleException() {
+        CreateEventItemBenchmarkRequest request = new CreateEventItemBenchmarkRequest(
+                "Heo quay",
+                "con",
+                new BigDecimal("3500000"),
+                null
+        );
+
+        EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Draft, Instant.now());
+        when(eventQueryService.findEventSummary(EVENT_ID)).thenReturn(Optional.of(eventSummary));
+        when(benchmarkRepository.existsByEventIdAndItemNameIgnoreCase(EVENT_ID, "Heo quay")).thenReturn(true);
+
+        assertThatThrownBy(() -> benchmarkService.createBenchmark(EVENT_ID, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Benchmark already exists for item: Heo quay");
+    }
+
+    @Test
     @DisplayName("Should retrieve benchmarks by event ID")
     void getBenchmarksByEvent_success() {
         EventSummaryDto eventSummary = new EventSummaryDto(EVENT_ID, CLAN_ID, "Giỗ Tổ 2026", EventStatus.Ongoing, Instant.now());

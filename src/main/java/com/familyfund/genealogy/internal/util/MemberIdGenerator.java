@@ -11,9 +11,9 @@ import java.util.Locale;
  * <p>Format: {@code MEM} + 8-char Base36 timestamp + 6-char random suffix = 17 chars, always &le; 20.</p>
  * <pre>
  *   MEM  K4F8ZQ1M  7XB3QP
- *   │    │         └── CSPRNG suffix (Crockford Base32, no ambiguous 0/O/1/I/L)
- *   │    └──────────── epoch millis in Base36, fixed width, lexicographically sortable by time
- *   └───────────────── fixed prefix identifying a member primary key
+ *   |    |         +-- CSPRNG suffix (Crockford Base32, no ambiguous 0/O/1/I/L)
+ *   |    +------------ epoch millis in Base36, fixed width, lexicographically sortable by time
+ *   +----------------- fixed prefix identifying a member primary key
  * </pre>
  *
  * <p>Timestamp guarantees monotonic-ish, collision-sparse keys; the CSPRNG suffix decorrelates keys
@@ -29,14 +29,12 @@ public class MemberIdGenerator {
     private static final int TIMESTAMP_LENGTH = 8;
     private static final int RANDOM_LENGTH = 6;
     private static final int RADIX = 36;
-    /** Crockford Base32 alphabet: unambiguous characters only. */
-    private static final String ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
     private final SecureRandom random = new SecureRandom();
 
     /**
-     * @return a candidate member_id of at most 20 characters. Uniqueness against the database is
-     *         enforced by the caller (MemberRepository.existsByMemberId) and by the PK constraint.
+     * Generates a candidate member_id of at most 20 characters.
      */
     public String generate() {
         String timestamp = encodeTimestamp(System.currentTimeMillis());
@@ -45,21 +43,19 @@ public class MemberIdGenerator {
         return candidate.length() <= MAX_LENGTH ? candidate : candidate.substring(0, MAX_LENGTH);
     }
 
-    /** Epoch millis -> Base36, zero-padded to a fixed width so ids sort by creation time. */
     private String encodeTimestamp(long epochMillis) {
         String encoded = Long.toString(Math.max(epochMillis, 0L), RADIX).toUpperCase(Locale.ROOT);
         if (encoded.length() >= TIMESTAMP_LENGTH) {
-            // Far-future safety: keep the least significant digits so total length stays bounded.
             return encoded.substring(encoded.length() - TIMESTAMP_LENGTH);
         }
         return "0".repeat(TIMESTAMP_LENGTH - encoded.length()) + encoded;
     }
 
     private String randomSuffix() {
-        StringBuilder sb = new StringBuilder(RANDOM_LENGTH);
+        char[] chars = new char[RANDOM_LENGTH];
         for (int i = 0; i < RANDOM_LENGTH; i++) {
-            sb.append(ALPHABET.charAt(random.nextInt(ALPHABET.length())));
+            chars[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));
         }
-        return sb.toString();
+        return new String(chars);
     }
 }

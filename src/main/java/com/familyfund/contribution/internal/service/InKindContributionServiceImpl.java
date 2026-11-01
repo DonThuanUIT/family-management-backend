@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -85,7 +87,10 @@ public class InKindContributionServiceImpl implements InKindContributionService 
             throw new BusinessRuleException("Converted monetary value must be greater than or equal to 0");
         }
 
-        if (request.conversionMethod() == ConversionMethod.BtcBenchmark && request.benchmarkId() != null && !request.benchmarkId().isBlank()) {
+        if (request.conversionMethod() == ConversionMethod.BtcBenchmark) {
+            if (request.benchmarkId() == null || request.benchmarkId().isBlank()) {
+                throw new BusinessRuleException("Benchmark ID is required when conversion method is BtcBenchmark");
+            }
             EventItemBenchmark benchmark = benchmarkRepository.findByBenchmarkIdAndEventId(request.benchmarkId(), request.eventId())
                     .orElseThrow(() -> new ResourceNotFoundException("Benchmark not found with ID: " + request.benchmarkId() + " for event: " + request.eventId()));
 
@@ -372,7 +377,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
                         : inKind.getConvertedMonetaryValue();
                 String resolvedLocation = (request.storageLocation() != null && !request.storageLocation().isBlank())
                         ? request.storageLocation().trim()
-                        : "Từ đường dòng họ";
+                        : "Clan Ancestral Hall";
 
                 String clanIdToUse = (currentClanId != null && !currentClanId.isBlank()) ? currentClanId : eventSummary.clanId();
 
@@ -430,9 +435,20 @@ public class InKindContributionServiceImpl implements InKindContributionService 
         }
 
         List<InKindContribution> inKindList = inKindContributionRepository.findByEventIdAndStatus(eventId, status);
+        if (inKindList.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> contributionIds = inKindList.stream().map(InKindContribution::getContributionId).toList();
+        Map<String, Contribution> contributionMap = contributionRepository.findAllById(contributionIds).stream()
+                .collect(Collectors.toMap(Contribution::getContributionId, Function.identity()));
+
+        List<ContributionMemberDetail> allDetails = contributionMemberDetailRepository.findAllByContributionIdIn(contributionIds);
+        Map<String, List<ContributionMemberDetail>> detailsMap = allDetails.stream()
+                .collect(Collectors.groupingBy(ContributionMemberDetail::getContributionId));
 
         return inKindList.stream().map(ikc -> {
-            Contribution c = contributionRepository.findById(ikc.getContributionId()).orElse(null);
+            Contribution c = contributionMap.get(ikc.getContributionId());
             String payerMemberId = c != null ? c.getPayerMemberId() : null;
             String payerName = payerMemberId != null
                     ? genealogyQueryService.findMemberSummary(payerMemberId).map(MemberSummaryDto::fullName).orElse("Unknown")
@@ -441,7 +457,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
             Instant contributionDate = c != null ? c.getContributionDate() : null;
             String amountInWords = MoneyToWordsConverter.toVietnameseWords(ikc.getConvertedMonetaryValue());
 
-            List<ContributionMemberDetail> details = contributionMemberDetailRepository.findAllByContributionId(ikc.getContributionId());
+            List<ContributionMemberDetail> details = detailsMap.getOrDefault(ikc.getContributionId(), List.of());
             List<MemberAllocationResponse> allocations = details.stream().map(d -> {
                 String mName = genealogyQueryService.findMemberSummary(d.getMemberId())
                         .map(MemberSummaryDto::fullName)

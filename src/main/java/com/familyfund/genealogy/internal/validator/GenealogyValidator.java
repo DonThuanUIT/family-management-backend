@@ -4,7 +4,6 @@ import com.familyfund.core.exception.BranchCycleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -20,15 +19,15 @@ public class GenealogyValidator {
     }
 
     /**
-     * Thuật toán duyệt ngược từ nhánh cha được đề xuất lên nhánh gốc để ngăn chặn vòng lặp cha - con khép kín,
-     * đồng thời cô lập dữ liệu theo ClanId (Multi-tenancy).
+     * Traverses upward from the proposed parent branch to the root branch to prevent closed parent-child cycles,
+     * while enforcing multi-tenant isolation by clanId.
      *
-     * @param clanId                 Mã dòng họ hiện tại (bắt buộc)
-     * @param currentBranchId        ID nhánh hiện tại (null nếu là nhánh mới chưa tạo)
-     * @param proposedParentBranchId ID nhánh cha được đề xuất làm cấp trên
-     * @throws BranchCycleException khi phát hiện chu trình phả hệ
+     * @param clanId                 Current clan ID (required)
+     * @param currentBranchId        Current branch ID (null if creating a new branch)
+     * @param proposedParentBranchId Proposed parent branch ID
+     * @throws BranchCycleException when a genealogy cycle is detected
      */
-    public void kiemTraChuTrinh(String clanId, String currentBranchId, String proposedParentBranchId) {
+    public void validateNoCycles(String clanId, String currentBranchId, String proposedParentBranchId) {
         if (proposedParentBranchId == null) {
             return;
         }
@@ -62,5 +61,13 @@ public class GenealogyValidator {
 
             checkId = parent.getParentBranch() != null ? parent.getParentBranch().getBranchId() : null;
         }
+    }
+
+    /**
+     * Backward-compatible alias for {@link #validateNoCycles(String, String, String)}.
+     */
+    @Deprecated
+    public void kiemTraChuTrinh(String clanId, String currentBranchId, String proposedParentBranchId) {
+        validateNoCycles(clanId, currentBranchId, proposedParentBranchId);
     }
 }

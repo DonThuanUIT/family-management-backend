@@ -105,7 +105,7 @@ public class GenealogyServiceImpl implements GenealogyService {
                 ));
 
         // Cycle check within clan
-        genealogyValidator.kiemTraChuTrinh(clanId, null, request.parentBranchId());
+        genealogyValidator.validateNoCycles(clanId, null, request.parentBranchId());
         int childGenerationLevel = parent.getGenerationLevel() + 1;
 
         FamilyBranch childBranch = FamilyBranch.builder()
@@ -152,7 +152,7 @@ public class GenealogyServiceImpl implements GenealogyService {
                         ));
 
                 // 2. Check closed cycle within the clan
-                genealogyValidator.kiemTraChuTrinh(clanId, branchId, request.parentBranchId());
+                genealogyValidator.validateNoCycles(clanId, branchId, request.parentBranchId());
 
                 if (newParent.getGenerationLevel() == null) {
                     throw new BusinessRuleException("Parent branch generation level cannot be null");

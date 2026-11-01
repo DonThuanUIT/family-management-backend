@@ -12,6 +12,8 @@ public interface ContributionMemberDetailRepository extends JpaRepository<Contri
 
     List<ContributionMemberDetail> findAllByContributionId(String contributionId);
 
+    List<ContributionMemberDetail> findAllByContributionIdIn(List<String> contributionIds);
+
     List<ContributionMemberDetail> findAllByMemberId(String memberId);
 
     void deleteAllByContributionId(String contributionId);

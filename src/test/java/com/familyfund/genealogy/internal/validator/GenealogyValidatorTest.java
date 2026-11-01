@@ -29,10 +29,10 @@ class GenealogyValidatorTest {
     @DisplayName("Validation fails when clanId is null or blank -> Throws IllegalArgumentException")
     void testCycle_NullOrBlankClanId_ThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class, () ->
-                validator.kiemTraChuTrinh(null, "BR_A", "BR_B")
+                validator.validateNoCycles(null, "BR_A", "BR_B")
         );
         assertThrows(IllegalArgumentException.class, () ->
-                validator.kiemTraChuTrinh("   ", "BR_A", "BR_B")
+                validator.validateNoCycles("   ", "BR_A", "BR_B")
         );
     }
 
@@ -40,7 +40,7 @@ class GenealogyValidatorTest {
     @DisplayName("Direct cycle check: Branch points to itself as parent -> Throws BranchCycleException")
     void testCycle_SelfParent_ThrowsBranchCycleException() {
         assertThrows(BranchCycleException.class, () ->
-                validator.kiemTraChuTrinh("CLAN_01", "BR_01", "BR_01")
+                validator.validateNoCycles("CLAN_01", "BR_01", "BR_01")
         );
     }
 
@@ -55,7 +55,7 @@ class GenealogyValidatorTest {
 
         // Attempt to change parent of A to B
         assertThrows(BranchCycleException.class, () ->
-                validator.kiemTraChuTrinh("CLAN_01", "BR_A", "BR_B")
+                validator.validateNoCycles("CLAN_01", "BR_A", "BR_B")
         );
     }
 
@@ -74,7 +74,7 @@ class GenealogyValidatorTest {
 
         // Attempt to assign parent of A to D
         assertThrows(BranchCycleException.class, () ->
-                validator.kiemTraChuTrinh("CLAN_01", "BR_A", "BR_D")
+                validator.validateNoCycles("CLAN_01", "BR_A", "BR_D")
         );
     }
 
@@ -89,7 +89,7 @@ class GenealogyValidatorTest {
 
         // Create new child branch BR_NEW under BR_A
         assertDoesNotThrow(() ->
-                validator.kiemTraChuTrinh("CLAN_01", "BR_NEW", "BR_A")
+                validator.validateNoCycles("CLAN_01", "BR_NEW", "BR_A")
         );
     }
 }

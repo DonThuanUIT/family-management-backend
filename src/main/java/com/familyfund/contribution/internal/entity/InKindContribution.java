@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 /**
  * Entity mapping table `in_kind_contributions`.
- * Specialization for contributions made via In-Kind items (heo quay, mâm quả, đồ thờ...) with value conversion and lifecycle tracking.
+ * Specialization for contributions made via in-kind items (roast pork, fruit trays, altar offerings, etc.) with value conversion and lifecycle tracking.
  */
 @Entity
 @Table(name = "in_kind_contributions")

@@ -44,6 +44,10 @@ public class EventItemBenchmarkServiceImpl implements EventItemBenchmarkService 
             throw new BusinessRuleException("Cannot configure benchmarks for a closed event");
         }
 
+        if (benchmarkRepository.existsByEventIdAndItemNameIgnoreCase(eventId, request.itemName().trim())) {
+            throw new BusinessRuleException("Benchmark already exists for item: " + request.itemName().trim() + " in event: " + eventId);
+        }
+
         String clanIdToUse = (currentClanId != null && !currentClanId.isBlank()) ? currentClanId : eventSummary.clanId();
 
         String benchmarkId = generateUniqueBenchmarkId();
