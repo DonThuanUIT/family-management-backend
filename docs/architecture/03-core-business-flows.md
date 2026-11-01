@@ -260,7 +260,82 @@ sequenceDiagram
 
 ---
 
-## 8. Luồng 8: Tạm Ứng, Quyết Toán & Cơ Chế Chặn Khóa Sổ
+## 8. Luồng 8: Khởi Tạo Hạng Mục Công Việc & Phân Công Nhiệm Vụ Sự Kiện (US-07)
+
+Quy trình quản lý các hạng mục công việc chuẩn bị cho sự kiện (hậu cần, mua sắm lễ vật, trang trí...) với cơ chế phân công linh hoạt theo cá nhân hoặc chi nhánh gia phả, kết hợp phân quyền ngữ cảnh và thông báo bất đồng bộ:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Organizer as Ban Tổ Chức / Trưởng Tộc
+    participant Filter as TenantFilter & JwtAuthenticationFilter
+    participant API as TaskController (/api/v1/events/{id}/tasks)
+    participant Svc as TaskServiceImpl
+    participant GenSvc as GenealogyQueryService
+    participant DB as PostgreSQL (event_tasks, events)
+    participant Pub as ApplicationEventPublisher
+    participant Listener as TaskNotificationListener (@Async)
+    participant Sender as NotificationSender
+    actor Assignee as Thành Viên / Nhánh Gia Đình Được Gán
+
+    Note over Organizer,API: 1. Khởi tạo công việc (POST /events/{id}/tasks)
+    Organizer->>Filter: POST /events/{id}/tasks (+ Bearer Token)
+    Filter->>Filter: Nạp TenantContext (clanId) & SecurityContext
+    Filter->>API: Chuyển tiếp request
+    API->>Svc: createTask(eventId, CreateTaskRequest)
+    Svc->>DB: Kiểm tra sự kiện tồn tại và status != Closed
+    Svc->>Svc: Kiểm tra hạn chót (deadline > now && deadline < event.eventDatetime)
+    opt Có gán người/nhánh ngay khi tạo
+        Svc->>GenSvc: Xác thực assignedMemberId / assignedBranchId thuộc clan
+        Svc->>DB: Lưu công việc với status = InProgress
+        Svc->>Pub: publishEvent(TaskAssignedDomainEvent)
+    else Chưa gán người phụ trách
+        Svc->>DB: Lưu công việc với status = Unassigned
+    end
+    DB-->>API: TaskResponse
+    API-->>Organizer: HTTP 201 Created (ApiResponse<TaskResponse>)
+
+    Note over Organizer,API: 2. Phân công / Điều chuyển công việc (POST .../tasks/{taskId}/assign)
+    Organizer->>API: POST /events/{id}/tasks/{taskId}/assign (assignedMemberId, assignedBranchId)
+    API->>Svc: assignTask(eventId, taskId, AssignTaskRequest)
+    Svc->>DB: Kiểm tra task tồn tại, đúng eventId và status != Completed
+    Svc->>GenSvc: Xác thực thành viên & nhánh gia đình tồn tại trong dòng họ
+    Svc->>DB: Cập nhật assignedMemberId, assignedBranchId, status = InProgress
+    Svc->>Pub: publishEvent(new TaskAssignedDomainEvent(...))
+    API-->>Organizer: HTTP 200 OK (ApiResponse<TaskResponse>)
+
+    Note over Pub,Listener: 3. Lắng nghe bất đồng bộ & phát thông báo đa thành viên (@Async)
+    Pub-->>Listener: onTaskAssigned(event)
+    opt Có chỉ định nhánh gia đình (assignedBranchId)
+        Listener->>GenSvc: getMemberIdsByBranch(clanId, assignedBranchId)
+        GenSvc-->>Listener: Danh sách thành viên đang sống trong nhánh
+    end
+    Listener->>Listener: Hợp nhất (assignedMemberId + nhánh) & khử trùng lặp (Set)
+    Listener->>DB: INSERT INTO event_notifications (title <= 200, content, triggered_by <= 20)
+    Listener->>Sender: sendTaskAssignedNotification(recipients, content)
+    Sender-->>Assignee: Gửi thông báo đến tài khoản các thành viên nhận việc
+```
+
+### Các Ràng Buộc Nghiệp Vụ Cốt Lõi (Business Invariants):
+1. **Ràng buộc thời hạn (Deadline Validation)**:
+   - `deadline` bắt buộc phải là thời điểm trong tương lai (`deadline > Instant.now()`).
+   - `deadline` bắt buộc phải trước thời điểm diễn ra sự kiện (`deadline < event.getEventDatetime()`). Nếu vi phạm, trả về `400 Bad Request`.
+2. **Phân quyền theo ngữ cảnh (Contextual RBAC)**:
+   - Các thao tác khởi tạo hoặc phân công công việc được bảo vệ bởi:
+     ```java
+     @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'OrganizerMember')")
+     ```
+   - Cho phép Trưởng ban tổ chức (`HeadOfOrganizer`) và Thành viên ban tổ chức (`OrganizerMember`) chủ động phân chia công việc trong sự kiện được giao mà không cần quyền quản trị toàn cục.
+3. **Chuyển đổi trạng thái tự động**:
+   - Khi tạo việc chưa có người nhận: `Unassigned`.
+   - Khi được phân công người hoặc nhánh phụ trách: tự động chuyển sang `InProgress`.
+   - Không cho phép phân công lại khi công việc đã `Completed` hoặc sự kiện đã `Closed`.
+4. **Phát tán thông báo theo nhánh gia phả**:
+   - Khi gán việc cho một nhánh (`assignedBranchId`), hệ thống truy vấn danh sách toàn bộ thành viên đang sống trong chi/nhánh đó thông qua `GenealogyQueryService.getMemberIdsByBranch()` và gửi thông báo đồng loạt đến tất cả các thành viên trong nhánh.
+
+---
+
+## 9. Luồng 9: Tạm Ứng, Quyết Toán & Cơ Chế Chặn Khóa Sổ
 
 Quy trình quản lý chi tiêu nghiêm ngặt giúp ngăn chặn thất thoát quỹ và đảm bảo mọi khoản tạm ứng đều được đối soát:
 
@@ -298,7 +373,7 @@ sequenceDiagram
 
 ---
 
-## 9. Luồng 9: Đóng Góp Quỹ Họ & Phân Bổ Công Đức Đệ Quy
+## 10. Luồng 10: Đóng Góp Quỹ Họ & Phân Bổ Công Đức Đệ Quy
 
 Hệ thống hỗ trợ 2 hình thức đóng góp qua mô hình đa hình (Polymorphism / Class Table Inheritance):
 
@@ -321,7 +396,7 @@ graph TD
 
 ---
 
-## 10. Luồng 10: Sổ Cái Bất Biến (Audit Trail) & Giao Dịch Bù Trừ
+## 11. Luồng 11: Sổ Cái Bất Biến (Audit Trail) & Giao Dịch Bù Trừ
 
 Nhằm đáp ứng yêu cầu kiểm toán tối cao NFR-01, bảng `immutable_ledgers` vận hành theo mô hình chuỗi ghi bất biến:
 
