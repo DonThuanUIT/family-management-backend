@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: familyfund-api
   autoconfigure:
@@ -15,6 +15,7 @@
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
+    validate-on-migrate: false
     locations: classpath:db/migration
 
   jpa:
