@@ -17,8 +17,10 @@ public interface ClanAssetRepository extends JpaRepository<ClanAsset, String> {
 
     Optional<ClanAsset> findByAssetIdAndClanId(String assetId, String clanId);
 
+    Page<ClanAsset> findAllByClanId(String clanId, Pageable pageable);
+
     @Query("SELECT a FROM ClanAsset a WHERE a.clanId = :clanId " +
-           "AND (:keyword IS NULL OR LOWER(a.assetName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "AND (LOWER(a.assetName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "     OR LOWER(a.storageLocation) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<ClanAsset> searchAssets(@Param("clanId") String clanId,
                                  @Param("keyword") String keyword,

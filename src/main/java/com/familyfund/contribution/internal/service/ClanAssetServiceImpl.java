@@ -31,7 +31,12 @@ public class ClanAssetServiceImpl implements ClanAssetService {
             clanId = "CLAN_DEFAULT";
         }
 
-        Page<ClanAsset> page = clanAssetRepository.searchAssets(clanId, keyword, pageable);
+        Page<ClanAsset> page;
+        if (keyword != null && !keyword.isBlank()) {
+            page = clanAssetRepository.searchAssets(clanId, keyword.trim(), pageable);
+        } else {
+            page = clanAssetRepository.findAllByClanId(clanId, pageable);
+        }
         List<ClanAssetResponse> content = page.getContent().stream()
                 .map(this::toResponse)
                 .toList();
