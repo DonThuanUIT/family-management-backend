@@ -236,4 +236,45 @@ class GenealogyQueryServiceImplTest {
         when(memberRepository.findById("MEM_999")).thenReturn(Optional.empty());
         assertThat(genealogyQueryService.findMemberSummary("MEM_999")).isEmpty();
     }
+
+    @Test
+    @DisplayName("getMemberIdsByBranch returns active living members and excludes placeholders and deceased")
+    void testGetMemberIdsByBranch_Success() {
+        Member livingMember1 = Member.builder()
+                .memberId("MEM_001")
+                .status("Living")
+                .isPlaceholder(false)
+                .build();
+        Member livingMember2 = Member.builder()
+                .memberId("MEM_002")
+                .status(null)
+                .isPlaceholder(null)
+                .build();
+        Member deceasedMember = Member.builder()
+                .memberId("MEM_003")
+                .status("Deceased")
+                .isPlaceholder(false)
+                .build();
+        Member placeholderMember = Member.builder()
+                .memberId("MEM_004")
+                .status("Living")
+                .isPlaceholder(true)
+                .build();
+
+        when(memberRepository.findByBranch_ClanIdAndBranch_BranchId(CLAN_A, "BR_001"))
+                .thenReturn(List.of(livingMember1, livingMember2, deceasedMember, placeholderMember));
+
+        List<String> memberIds = genealogyQueryService.getMemberIdsByBranch(CLAN_A, "BR_001");
+
+        assertThat(memberIds).containsExactly("MEM_001", "MEM_002");
+    }
+
+    @Test
+    @DisplayName("getMemberIdsByBranch with null or blank clanId/branchId returns empty list")
+    void testGetMemberIdsByBranch_BlankInputs() {
+        assertThat(genealogyQueryService.getMemberIdsByBranch(null, "BR_001")).isEmpty();
+        assertThat(genealogyQueryService.getMemberIdsByBranch("   ", "BR_001")).isEmpty();
+        assertThat(genealogyQueryService.getMemberIdsByBranch(CLAN_A, null)).isEmpty();
+        assertThat(genealogyQueryService.getMemberIdsByBranch(CLAN_A, "   ")).isEmpty();
+    }
 }
