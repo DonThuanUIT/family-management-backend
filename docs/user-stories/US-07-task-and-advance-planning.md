@@ -320,3 +320,4 @@ cd family-management-backend; .\gradlew.bat test --tests "com.familyfund.event.*
 - **Contextual Security Verification**: Kiểm chứng đầy đủ quyền `ROLE_ADMIN`, `ROLE_CLAN_HEAD`, `HeadOfOrganizer`, `OrganizerMember` (được cấp phép) và từ chối `EventTreasurer`, `ROLE_MEMBER` khi tạo hoặc phân công việc (`403 Forbidden`).
 - **End-to-End Workflow**: Tạo việc $\rightarrow$ Phân công cá nhân/nhánh $\rightarrow$ Chuyển trạng thái `InProgress` $\rightarrow$ Lắng nghe phát sinh domain event $\rightarrow$ Ghi log notification thành công.
 - **Tất cả test cases** của module `event` đều passed 100%.
+
