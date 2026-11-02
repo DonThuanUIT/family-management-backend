@@ -39,6 +39,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
+import com.familyfund.identity.internal.util.JoinRequestIdGenerator;
+import org.mockito.Spy;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -87,6 +90,12 @@ class BranchJoinRequestServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Spy
+    private AccountIdGenerator accountIdGenerator = new AccountIdGenerator();
+
+    @Spy
+    private JoinRequestIdGenerator joinRequestIdGenerator = new JoinRequestIdGenerator();
 
     @InjectMocks
     private BranchJoinRequestServiceImpl branchJoinRequestService;

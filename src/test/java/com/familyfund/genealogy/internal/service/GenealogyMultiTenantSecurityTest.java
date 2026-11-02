@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -47,6 +49,8 @@ class GenealogyMultiTenantSecurityTest {
 
     @Mock
     private BranchMapper branchMapper;
+    @Spy
+    private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
 
     @InjectMocks
     private GenealogyServiceImpl genealogyService;

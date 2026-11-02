@@ -39,6 +39,8 @@ class GenealogyRootBranchTest {
 
     @Mock
     private ClanRepository clanRepository;
+    @Spy
+    private com.familyfund.genealogy.internal.util.BranchIdGenerator branchIdGenerator = new com.familyfund.genealogy.internal.util.BranchIdGenerator();
 
     @Spy
     private BranchMapper branchMapper = Mappers.getMapper(BranchMapper.class);

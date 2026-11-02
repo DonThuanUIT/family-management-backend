@@ -9,6 +9,8 @@ import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
+import com.familyfund.genealogy.internal.util.MemberIdGenerator;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,8 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
     private final FamilyBranchRepository familyBranchRepository;
     private final MemberRepository memberRepository;
     private final GenealogyValidator genealogyValidator;
+    private final BranchIdGenerator branchIdGenerator;
+    private final MemberIdGenerator memberIdGenerator;
 
     @Override
     public String createMemberForExistingBranch(CreateOnboardingMemberCommand command) {
@@ -39,7 +43,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
         FamilyBranch branch = familyBranchRepository.findByClanIdAndBranchId(command.clanId(), command.branchId())
                 .orElseThrow(() -> new ResourceNotFoundException("Nhánh gia phả", "branchId", command.branchId()));
 
-        String memberId = "MEM_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String memberId = memberIdGenerator.generate();
 
         Member member = Member.builder()
                 .memberId(memberId)
@@ -70,7 +74,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
         // Validate cycle prevention
         genealogyValidator.validateNoCycles(command.clanId(), null, command.parentBranchId());
 
-        String branchId = "BR_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String branchId = branchIdGenerator.generate();
         int childGenerationLevel = parentBranch.getGenerationLevel() + 1;
 
         // 1. Create Child Branch
@@ -86,7 +90,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
         FamilyBranch savedBranch = familyBranchRepository.save(childBranch);
 
         // 2. Create the first Member in this new branch
-        String memberId = "MEM_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String memberId = memberIdGenerator.generate();
 
         Member member = Member.builder()
                 .memberId(memberId)

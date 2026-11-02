@@ -29,7 +29,7 @@ public class MemberIdGenerator {
     private static final int TIMESTAMP_LENGTH = 8;
     private static final int RANDOM_LENGTH = 6;
     private static final int RADIX = 36;
-    private static final String ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    private static final String ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
     private final SecureRandom random = new SecureRandom();
 

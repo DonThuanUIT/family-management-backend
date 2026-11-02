@@ -24,6 +24,8 @@ import com.familyfund.identity.internal.repository.AccountRoleRepository;
 import com.familyfund.identity.internal.repository.BranchJoinRequestRepository;
 import com.familyfund.identity.internal.repository.InvitationCodeRepository;
 import com.familyfund.identity.internal.repository.UserAccountRepository;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
+import com.familyfund.identity.internal.util.JoinRequestIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -53,6 +55,8 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
     private final AccountRoleRepository accountRoleRepository;
     private final GenealogyQueryService genealogyQueryService;
     private final GenealogyMemberCommandService genealogyMemberCommandService;
+    private final AccountIdGenerator accountIdGenerator;
+    private final JoinRequestIdGenerator joinRequestIdGenerator;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -114,7 +118,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
         }
 
         // 4. Create and persist UserAccount in PendingApproval state
-        String accountId = "ACC_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String accountId = accountIdGenerator.generate();
         String encodedPassword = passwordEncoder.encode(request.password());
 
         UserAccount userAccount = UserAccount.builder()
@@ -129,7 +133,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
         UserAccount savedAccount = userAccountRepository.save(userAccount);
 
         // 5. Create and persist BranchJoinRequest in Pending state
-        String requestId = "REQ_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String requestId = joinRequestIdGenerator.generate();
         BranchJoinRequest joinRequest = BranchJoinRequest.builder()
                 .requestId(requestId)
                 .clanId(clanId)

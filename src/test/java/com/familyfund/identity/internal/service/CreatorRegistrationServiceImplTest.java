@@ -19,6 +19,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
+import org.mockito.Spy;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -45,6 +47,9 @@ class CreatorRegistrationServiceImplTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Spy
+    private AccountIdGenerator accountIdGenerator = new AccountIdGenerator();
 
     @InjectMocks
     private CreatorRegistrationServiceImpl registrationService;

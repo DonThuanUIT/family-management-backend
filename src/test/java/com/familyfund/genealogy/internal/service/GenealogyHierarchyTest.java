@@ -15,7 +15,9 @@ import com.familyfund.genealogy.internal.mapper.BranchMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
+import org.mockito.Spy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +54,9 @@ class GenealogyHierarchyTest {
 
     @Spy
     private BranchMapper branchMapper = Mappers.getMapper(BranchMapper.class);
+
+    @Spy
+    private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
 
     @InjectMocks
     private GenealogyServiceImpl genealogyService;
