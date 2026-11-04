@@ -14,7 +14,8 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-10** | **Cấu Hình JWT Token, Claims & Middleware Gán Quyền ROLE_CLAN_HEAD** | `com.familyfund.core` & `identity` | ✅ **Đã hoàn thành** | [`US-10-jwt-authentication-and-claims.md`](./US-10-jwt-authentication-and-claims.md) |
 | **US-16** | **Tạo Mã Mời (Invite Code) Chung Của Gia Phả** | `com.familyfund.identity` | ✅ **Đã hoàn thành** | [`US-16-general-clan-invite.md`](./US-16-general-clan-invite.md) |
 | **US-17** | **Đăng Ký Gia Nhập Dòng Họ Qua Mã Mời (Onboarding)** | `com.familyfund.identity` | ✅ **Đã hoàn thành** | [`US-17-branch-join-request.md`](./US-17-branch-join-request.md) |
-| **US-18** | **Đăng Ký Vị Trí & Liên Kết Thành Viên Gia Phả** | `com.familyfund.genealogy` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-18** | **Tạo Hồ Sơ Ảo (Vị Trí Lá) & Phát Hành Mã Liên Kết Vị Trí Dùng Một Lần** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-18-create-virtual-member-and-generate-position-link-code.md`](./US-18-create-virtual-member-and-generate-position-link-code.md) |
+| **US-19** | **Nhập Mã Liên Kết Vị Trí Khi Đăng Ký & Tự Động Gia Nhập Đúng Chi/Nhánh** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-19-enter-position-link-code-and-join-automatically.md`](./US-19-enter-position-link-code-and-join-automatically.md) |
 | **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-21-create-event-and-contextual-rbac.md`](./US-21-create-event-and-contextual-rbac.md) |
 | **US-22** | **Thông Báo Khi Mở Sự Kiện & Cập Nhật Lịch Trình** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-22-event-notification-and-reschedule.md`](./US-22-event-notification-and-reschedule.md) |
 | **US-25** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |

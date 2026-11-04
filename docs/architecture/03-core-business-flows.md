@@ -30,6 +30,8 @@ sequenceDiagram
 2. **Xác minh & Phê chuẩn**: Trưởng họ hoặc Trưởng chi đối chiếu phả hệ thực tế và chấp thuận đơn.
 3. **Liên kết hồ sơ (Claim Profile)**: Hệ thống sinh hồ sơ thành viên `members` với mã `claim_code`. Người dùng hoàn tất đăng ký tài khoản `user_accounts` gắn liền với hồ sơ phả hệ của mình.
 
+   > **Đã hiện thực (US-18 + US-19):** thay vì chờ duyệt rồi mới cấp `claim_code`, Trưởng tộc/Trưởng chi tạo sẵn hồ sơ ảo và phát hành `PositionLinkCode` dùng một lần (US-18). Người nhận mở link, đăng ký kèm mã (`POST /api/v1/position-links/{inviteCode}/claim`) và được liên kết vào đúng hồ sơ/chi/nhánh với `account_status = 'Active'` ngay, không cần bước xác minh (US-19). Luồng đơn gia nhập có phê duyệt vẫn giữ nguyên cho mã mời chung (US-17).
+
 ---
 
 ## 2. Luồng 2: Quản Lý Sự Kiện & Phân Quyền Động (Contextual RBAC)
