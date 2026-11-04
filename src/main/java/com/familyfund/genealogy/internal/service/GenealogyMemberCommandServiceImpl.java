@@ -1,10 +1,17 @@
 package com.familyfund.genealogy.internal.service;
 
 import com.familyfund.core.exception.BadRequestException;
+import com.familyfund.core.exception.DuplicateResourceException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.genealogy.api.ClaimVirtualMemberCommand;
 import com.familyfund.genealogy.api.CreateOnboardingBranchCommand;
 import com.familyfund.genealogy.api.CreateOnboardingMemberCommand;
+import com.familyfund.genealogy.api.CreateVirtualMemberCommand;
 import com.familyfund.genealogy.api.GenealogyMemberCommandService;
+import com.familyfund.genealogy.api.dto.VirtualMemberDto;
+import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
@@ -18,7 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Implementation of GenealogyMemberCommandService handling member & branch creation for US-17 onboarding.
+ * Implementation of GenealogyMemberCommandService handling member & branch creation for US-17 onboarding,
+ * virtual placeholder profiles for US-18 and the claiming of those placeholders for US-19.
  */
 @Slf4j
 @Service
@@ -29,6 +37,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
     private final FamilyBranchRepository familyBranchRepository;
     private final MemberRepository memberRepository;
     private final GenealogyValidator genealogyValidator;
+    private final MemberService memberService;
 
     @Override
     public String createMemberForExistingBranch(CreateOnboardingMemberCommand command) {
@@ -109,5 +118,103 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
                 branchId, memberId, command.clanId());
         return savedMember.getMemberId();
     }
-}
 
+    /**
+     * US-18: a virtual profile is a normal placeholder member (see {@link MemberService#createMember}), so the
+     * tenant scoping, branch existence (404), role scope (403), generation invariant (400) and the clan-wide
+     * duplicate profile guard (409) are reused instead of re-implemented here.
+     */
+    @Override
+    public VirtualMemberDto createVirtualMember(CreateVirtualMemberCommand command) {
+        if (command == null
+                || command.clanId() == null || command.clanId().isBlank()
+                || command.branchId() == null || command.branchId().isBlank()) {
+            throw new BadRequestException("Thông tin hồ sơ ảo không hợp lệ");
+        }
+
+        // The tenant is the authority: a command for a different clan must never create a profile here.
+        String clanId = command.clanId().trim();
+        if (!clanId.equals(TenantContext.getClanId())) {
+            throw new BadRequestException("Dòng họ trong ngữ cảnh không khớp với dòng họ của hồ sơ ảo");
+        }
+
+        MemberResponse created = memberService.createMember(command.branchId(), CreateMemberRequest.builder()
+                .fullName(command.fullName())
+                .dateOfBirth(command.dateOfBirth())
+                .gender(command.gender())
+                .generation(command.generation())
+                .status(command.status())
+                .deathDateLunar(command.deathDateLunar())
+                .build());
+
+        log.info("Đã tạo hồ sơ ảo (placeholder) cho vị trí lá: memberId={}, branchId={}, clanId={}",
+                created.memberId(), created.branchId(), created.clanId());
+
+        return new VirtualMemberDto(
+                created.memberId(),
+                created.fullName(),
+                created.dateOfBirth(),
+                created.gender(),
+                created.generation(),
+                created.status(),
+                created.deathDateLunar(),
+                created.branchId(),
+                created.branchName(),
+                created.clanId(),
+                created.isPlaceholder(),
+                created.createdAt()
+        );
+    }
+
+    /**
+     * US-19: the one-time position link code was redeemed, so the placeholder becomes the real profile of that
+     * person. Only {@code is_placeholder} changes: name, generation, branch and everything already recorded against
+     * this {@code member_id} (events, contributions, advances) stay exactly where they are.
+     *
+     * <p>The position is resolved by {@code clanId + memberId} instead of the {@code TenantContext} because the
+     * redemption request is anonymous: the owning clan is the one stamped on the invitation code, not the one the
+     * HTTP request happens to carry.</p>
+     */
+    @Override
+    public VirtualMemberDto claimVirtualMember(ClaimVirtualMemberCommand command) {
+        if (command == null
+                || command.clanId() == null || command.clanId().isBlank()
+                || command.memberId() == null || command.memberId().isBlank()) {
+            throw new BadRequestException("Thông tin nhận vị trí phả hệ không hợp lệ");
+        }
+
+        String clanId = command.clanId().trim();
+        String memberId = command.memberId().trim();
+
+        Member member = memberRepository.findByBranch_ClanIdAndMemberId(clanId, memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hồ sơ phả hệ", "memberId", memberId));
+
+        // A position is claimable exactly once: the code is one-time and the profile stops being a placeholder here.
+        if (!Boolean.TRUE.equals(member.getIsPlaceholder())) {
+            throw new DuplicateResourceException(
+                    "Vị trí phả hệ " + memberId + " đã được nhận trước đó nên không thể liên kết thêm tài khoản");
+        }
+
+        member.setIsPlaceholder(false);
+        Member saved = memberRepository.saveAndFlush(member);
+
+        FamilyBranch branch = saved.getBranch();
+        log.info("Đã nhận vị trí ảo (placeholder -> hồ sơ thật): memberId={}, branchId={}, clanId={}",
+                saved.getMemberId(), branch.getBranchId(), clanId);
+
+        return new VirtualMemberDto(
+                saved.getMemberId(),
+                saved.getFullName(),
+                saved.getDateOfBirth(),
+                saved.getGender(),
+                saved.getGeneration(),
+                saved.getStatus(),
+                saved.getDeathDateLunar(),
+                branch.getBranchId(),
+                branch.getBranchName(),
+                branch.getClanId(),
+                saved.getIsPlaceholder(),
+                saved.getCreatedAt()
+        );
+    }
+}

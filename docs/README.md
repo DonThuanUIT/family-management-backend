@@ -20,10 +20,12 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 * **[`TEMPLATE-US.md`](./user-stories/TEMPLATE-US.md)**: **Mẫu chuẩn (Barem)** để các thành viên trong team copy và điền thông tin khi hoàn thành bất kỳ User Story nào.
 * **[`US-04-child-branches-and-hierarchy.md`](./user-stories/US-04-child-branches-and-hierarchy.md)**: Đặc tả kỹ thuật đầy đủ của tính năng Quản lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả (Root Branch, Child Branch, Reparenting, In-memory tree assembly N+1, Cycle Prevention).
 * **[`US-16-general-clan-invite.md`](./user-stories/US-16-general-clan-invite.md)**: Đặc tả kỹ thuật đầy đủ của tính năng tạo mã mời chung dòng họ, kiểm soát bất biến, CSPRNG Base32, sequence diagram và kiểm thử E2E.
+* **[`US-18-create-virtual-member-and-generate-position-link-code.md`](./user-stories/US-18-create-virtual-member-and-generate-position-link-code.md)**: Đặc tả kỹ thuật đầy đủ của tính năng tạo hồ sơ ảo (vị trí lá, chưa có tài khoản) và phát hành mã `PositionLinkCode` dùng một lần, gồm ranh giới `identity → genealogy::api`, bảng ánh xạ schema, sequence diagram, ma trận HTTP `201/400/401/403/404/409` và kịch bản kiểm thử E2E.
+* **[`US-19-enter-position-link-code-and-join-automatically.md`](./user-stories/US-19-enter-position-link-code-and-join-automatically.md)**: Đặc tả kỹ thuật đầy đủ của tính năng nhập `PositionLinkCode` khi đăng ký để tự động liên kết tài khoản (mới hoặc đã có) vào đúng vị trí/chi/nhánh và kích hoạt `Active` không cần phê duyệt, gồm sequence diagram, bảng ánh xạ schema, ma trận HTTP `200/400/403/404/409` và kịch bản kiểm thử E2E.
 
 ### 3. 🛠 Quy Chuẩn & Hướng Dẫn Phát Triển ([`docs/guidelines/`](./guidelines/))
 * **[`development-guide.md`](./guidelines/development-guide.md)**: Hướng dẫn thiết lập môi trường cho dev mới (JDK 21, cấu hình `.env` cho Neon Cloud, Docker Compose cho Swagger/Adminer, lệnh biên dịch Gradle, chạy test suite 70 tests, chạy backend).
 * **[`modulith-rules.md`](./guidelines/modulith-rules.md)**: **Quy tắc vàng khi code Modular Monolith**: quy tắc phân chia `api` (public contract) vs `internal` (private implementation), cấm rò rỉ Repository, và chạy kiểm thử kiến trúc tự động (`ArchitectureTest`).
 
 ### 4. 📊 Bảng Theo Dõi Dự Án
-* **[`project-status.md`](./project-status.md)**: Dashboard theo dõi tiến độ từng nhiệm vụ (Tasks progress), 70 automated tests đã kiểm chứng thực tế và roadmap tiếp theo.
+* **[`project-status.md`](./project-status.md)**: Dashboard theo dõi tiến độ từng nhiệm vụ (Tasks progress), danh sách automated tests đã kiểm chứng thực tế (kèm số test từng class) và roadmap tiếp theo.
