@@ -14,6 +14,8 @@ public interface FamilyBranchRepository extends JpaRepository<FamilyBranch, Stri
 
     Optional<FamilyBranch> findByClanIdAndParentBranchIsNull(String clanId);
 
+    Optional<FamilyBranch> findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc(String clanId);
+
     List<FamilyBranch> findByClanIdAndParentBranch_BranchId(String clanId, String parentBranchId);
 
     List<FamilyBranch> findByClanIdOrderByGenerationLevelAsc(String clanId);

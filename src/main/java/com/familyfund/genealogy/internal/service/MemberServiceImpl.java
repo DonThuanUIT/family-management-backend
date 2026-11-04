@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -96,6 +97,30 @@ public class MemberServiceImpl implements MemberService {
         return memberMapper.toResponse(saved);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberResponse> getMembersByBranch(String rawBranchId) {
+        String clanId = TenantContext.getClanId();
+        String branchId = normalizeBranchId(rawBranchId);
+        if (!branchRepository.existsByClanIdAndBranchId(clanId, branchId)) {
+            throw new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId);
+        }
+        return memberRepository.findByBranch_ClanIdAndBranch_BranchId(clanId, branchId)
+                .stream()
+                .map(memberMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberResponse> getMembersByClan() {
+        String clanId = TenantContext.getClanId();
+        return memberRepository.findByBranch_ClanId(clanId)
+                .stream()
+                .map(memberMapper::toResponse)
+                .toList();
+    }
+
     /**
      * The branch now comes from the request path (POST /api/v1/branches/{branchId}/members), so it must be
      * validated here instead of by Bean Validation on the body: it cannot be blank and must fit
@@ -133,7 +158,7 @@ public class MemberServiceImpl implements MemberService {
                     clanId, fullName, gender, generation);
         }
         return memberRepository.existsByBranch_ClanIdAndFullNameIgnoreCaseAndGenderAndGenerationAndDateOfBirth(
-                clanId, fullName, gender, generation, dateOfBirth);
+                    clanId, fullName, gender, generation, dateOfBirth);
     }
 
     /**
