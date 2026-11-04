@@ -28,4 +28,17 @@ public interface NotificationSender {
      * @param recipientMemberIds list of recipient member IDs
      */
     void sendTaskAssignedNotification(String clanId, String eventId, String taskId, String title, String content, List<String> recipientMemberIds);
+
+    /**
+     * Sends a direct notification to a member regarding role assignment or revocation (US-03).
+     *
+     * @param clanId          the tenant clan ID
+     * @param targetMemberId  the recipient member ID
+     * @param targetAccountId the recipient user account ID (if available)
+     * @param roleCode        the role code assigned or revoked
+     * @param actionType      ASSIGN or REVOKE
+     * @param title           title of the notification
+     * @param content         content or explanation of the role change
+     */
+    void sendRoleChangedNotification(String clanId, String targetMemberId, String targetAccountId, String roleCode, String actionType, String title, String content);
 }

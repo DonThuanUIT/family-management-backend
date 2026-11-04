@@ -80,4 +80,24 @@ public interface GenealogyQueryService {
      * @return list of active member IDs in the branch
      */
     List<String> getMemberIdsByBranch(String clanId, String branchId);
+
+    /**
+     * Finds branch summary details by branch ID and clan ID.
+     */
+    java.util.Optional<com.familyfund.genealogy.api.dto.BranchSummaryDto> findBranchByIdAndClanId(String branchId, String clanId);
+
+    /**
+     * Retrieves all branches of a clan with their current representative details.
+     */
+    java.util.List<com.familyfund.genealogy.api.dto.BranchSummaryDto> findAllBranchesByClanId(String clanId);
+
+    /**
+     * Retrieves all living members belonging to a clan.
+     */
+    java.util.List<com.familyfund.genealogy.api.dto.MemberSummaryDto> findAllAliveMembersByClanId(String clanId);
+
+    /**
+     * Checks if a member is currently assigned as representative of any branch in the clan.
+     */
+    boolean isMemberRepresentativeOfAnyBranch(String memberId, String clanId);
 }
