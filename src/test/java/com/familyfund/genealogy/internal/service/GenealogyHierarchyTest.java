@@ -15,7 +15,9 @@ import com.familyfund.genealogy.internal.mapper.BranchMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
+import org.mockito.Spy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +54,9 @@ class GenealogyHierarchyTest {
 
     @Spy
     private BranchMapper branchMapper = Mappers.getMapper(BranchMapper.class);
+
+    @Spy
+    private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
 
     @InjectMocks
     private GenealogyServiceImpl genealogyService;
@@ -110,7 +115,8 @@ class GenealogyHierarchyTest {
         assertEquals("Nguyen Clan", response.clanName());
         assertEquals(2, response.generationLevel());
         assertEquals("BR_ROOT", response.parentBranchId());
-        verify(genealogyValidator).validateCycle("CLAN_DEFAULT", null, "BR_ROOT");
+        verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", null, "BR_ROOT");
+
     }
 
     @Test
@@ -162,7 +168,8 @@ class GenealogyHierarchyTest {
         assertEquals("BR_NEW_PARENT", response.parentBranchId());
         assertEquals(4, grandChild.getGenerationLevel());
         assertEquals("Nguyen Clan", response.clanName());
-        verify(genealogyValidator).validateCycle("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
+        verify(genealogyValidator).validateNoCycles("CLAN_DEFAULT", "BR_CHILD_1", "BR_NEW_PARENT");
+
     }
 
     @Test

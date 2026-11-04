@@ -7,9 +7,15 @@ Tài liệu này mô tả kiến trúc tổng thể, mô hình Modular Monolith,
 ## 1. Bối Cảnh Nghiệp Vụ & Mục Tiêu
 
 Hệ thống **Family Management Backend** giải quyết bài toán chuyển đổi số công tác quản trị dòng họ và quỹ tài chính gia đình, bao gồm:
+- **Đăng ký khởi tạo dòng họ & Thủy tổ (US-01)**: Khởi tạo nguyên tử thông tin dòng họ (Clan), Chi gốc (Root Branch), Cụ Thủy tổ và tài khoản Trưởng họ (`ROLE_CLAN_HEAD`).
+- **Quản lý hồ sơ thành viên (US-03)**: Tạo hồ sơ thành viên gia phả, phân quyền theo chi nhánh, chống trùng và khóa dòng cấp cơ sở dữ liệu ngăn chặn race condition.
 - **Quản lý phả hệ đa cấp (US-04)**: Lưu trữ cây phả hệ qua nhiều thế hệ, phân chia chi/nhánh với mô hình đa dòng họ (Multi-tenant), chống chu trình, tối ưu dựng cây in-memory không N+1.
-- **Tiếp nhận thành viên & Mã mời (US-16)**: Cung cấp mã mời chung gia phả CSPRNG Base32 bảo mật, xem trước công khai và quy trình nộp đơn gia nhập.
-- **Quản lý sự kiện & Phân quyền động**: Tổ chức các ngày giỗ tổ, lễ hội, mừng thọ với cơ chế phân quyền ngữ cảnh (Contextual RBAC) tự động thu hồi khi sự kiện kết thúc.
+- **Định danh & Phân quyền JWT (US-10)**: Xác thực không trạng thái (Stateless), cấp phát Access Token / Refresh Token với claims ngữ cảnh (`clanId`, `memberId`, `roles`).
+- **Mã mời chung gia phả (US-16)**: Cung cấp mã mời chung gia phả CSPRNG Base32 bảo mật, xem trước công khai và quy định vòng đời mã mời.
+- **Tiếp nhận thành viên tự do (Onboarding - US-17)**: Xem cây thu gọn, nộp đơn đề xuất vị trí (nhánh lá có sẵn hoặc tạo nhánh con mới) và quy trình xét duyệt hai cấp (Trưởng chi / Trưởng tộc).
+- **Quản lý sự kiện & Phân quyền động (US-21)**: Tổ chức giỗ tổ, lễ hội truyền thống theo máy trạng thái vòng đời (FSM) kết hợp phân quyền ngữ cảnh (Contextual RBAC qua `NhanSuSuKien`), tự động chuyển chế độ chỉ đọc khi sự kiện đóng.
+- **Thông báo sự kiện đa kênh (US-22)**: Phát Domain Events khi mở đăng ký hoặc thay đổi ngày giờ/địa điểm (schedule diff), xử lý bất đồng bộ qua `@Async @EventListener`.
+- **Phân hệ công việc & phân công nhiệm vụ (US-07)**: Khởi tạo các hạng mục chuẩn bị sự kiện (hậu cần, mua sắm...), phân công linh hoạt cho cá nhân hoặc chi nhánh gia đình, chuyển trạng thái tự động sang `InProgress` và phát thông báo bất đồng bộ đến toàn thể thành viên liên quan.
 - **Minh bạch hóa tài chính**: Quy trình cấp phát tạm ứng, thanh quyết toán hóa đơn thực tế và chốt sổ quỹ sự kiện.
 - **Sổ cái Quỹ chung bất biến (Immutable Ledger)**: Lưu vết toàn bộ biến động tài chính dòng họ, ngăn chặn sửa/xóa dữ liệu lịch sử và chỉ cho phép giao dịch bù trừ (Audit Trail NFR-01).
 - **Huy động đóng góp đa hình**: Tiếp nhận tiền mặt/chuyển khoản và hiện vật/lễ vật cúng tiến, quy đổi giá trị và chuyển vào danh mục tài sản lâu dài của dòng họ.
@@ -20,8 +26,8 @@ Hệ thống **Family Management Backend** giải quyết bài toán chuyển đ
 
 ```mermaid
 graph TD
-    Client["Clients (Mobile / Web App)"] -->|RESTful APIs / HTTP JSON| SBApp["Spring Boot 4.1.1 (Java 21 LTS)"]
-    SBApp -->|Spring Modulith 2.1.1| Modules["Domain Bounded Contexts (identity, genealogy, ...)"]
+    Client["Clients (Mobile / Web App)"] -->|RESTful APIs / HTTP JSON| SBApp["Spring Boot 4.1.1 (Java 25)"]
+    SBApp -->|Spring Modulith 2.1.1| Modules["Domain Bounded Contexts (identity, genealogy, event, ...)"]
     SBApp -->|Spring Data JPA / Hibernate / SSL| PG[("Neon Serverless PostgreSQL 16 (pgvector)")]
     SBApp -->|Spring AI 2.0.1| VectorExt["Vector Store Extension (AI Embedding)"]
     Admin["Admin / Developers"] -->|Web Browser :8088| Adminer["Adminer Container (Docker Compose)"]
@@ -31,13 +37,13 @@ graph TD
 
 | Thành phần | Công nghệ / Phiên bản | Vai trò & Đặc điểm kỹ thuật |
 | :--- | :--- | :--- |
-| **Ngôn ngữ & Runtime** | Java 21 (LTS) | Khóa cứng qua Gradle Toolchain (`languageVersion.set(21)`), tận dụng Virtual Threads và tính năng hiện đại của Java. |
+| **Ngôn ngữ & Runtime** | Java 25 | Khóa cứng qua Gradle Toolchain (`languageVersion.set(JavaLanguageVersion.of(25))`), tối ưu hóa hiệu năng và tương thích LTS/modern features. |
 | **Framework cốt lõi** | Spring Boot 4.1.1 | Nền tảng Spring Boot thế hệ mới với hiệu năng cao, Spring Data JPA, Spring Security, Validation. |
 | **Kiến trúc Module** | Spring Modulith 2.1.1 | Quản lý và kiểm soát ranh giới module (Modular Monolith), đóng gói package nội bộ và kiểm thử kiến trúc tự động (`ArchitectureTest.verifyModularity()`). |
 | **Cơ chế Multi-Tenancy** | `TenantFilter` + `TenantContext` | Tự động phân giải `clanId` qua HTTP Header `X-Clan-Id` hoặc query param `clanId`, lưu trữ ThreadLocal và cô lập dữ liệu theo từng dòng họ. |
-| **Mapping Object/DTO** | MapStruct 1.6.3 + Lombok Binding | Ánh xạ kiểu dữ liệu compile-time an toàn giữa Entity JPA và Java Record DTOs (`BranchMapper`). |
+| **Mapping Object/DTO** | MapStruct 1.6.3 + Lombok Binding | Ánh xạ kiểu dữ liệu compile-time an toàn giữa Entity JPA và Java Record DTOs (`BranchMapper`, `MemberMapper`). |
 | **Công nghệ AI** | Spring AI 2.0.1 (`spring-ai-starter-vector-store-pgvector`) | Hỗ trợ lưu trữ vector embedding gia phả, nghị quyết họ tộc phục vụ trợ lý AI thông minh (module `com.familyfund.ai`). |
-| **Cơ sở dữ liệu** | Neon Serverless PostgreSQL 16 (`pgvector`) | RDBMS đám mây hỗ trợ ACID nghiêm ngặt, JSONB, và mở rộng `vector` cho AI. Quản lý schema bằng Flyway Migrations (V1 $\rightarrow$ V4). |
+| **Cơ sở dữ liệu** | Neon Serverless PostgreSQL 16 (`pgvector`) | RDBMS đám mây hỗ trợ ACID nghiêm ngặt, JSONB, và mở rộng `vector` cho AI. Quản lý schema bằng Flyway Migrations (V1 $\rightarrow$ V7). |
 | **Build & Dependency** | Gradle Wrapper 9.x (Kotlin DSL) | Quản lý build nhất quán qua `build.gradle.kts`, tự động nạp biến môi trường từ `.env` khi chạy `bootRun` và `test`. |
 | **Quản trị CSDL Web** | Adminer (Latest via Docker) | Giao diện web trực quan tại cổng `8088` để kiểm tra dữ liệu và truy vấn SQL. |
 | **Đặc tả & Giao diện API** | Swagger UI (`swaggerapi/swagger-ui:latest`) | Hiển thị và tương tác trực tiếp với API tại cổng `8082` thông qua tài liệu OpenAPI 3.0 (`docker/swagger/openapi.yaml`). |
@@ -46,7 +52,7 @@ graph TD
 
 ## 3. Kiến Trúc Modular Monolith & Ranh Giới Bounded Contexts
 
-Hệ thống được thiết kế theo mô hình **Modular Monolith**, phân chia ranh giới theo các Bounded Context của Domain-Driven Design (DDD) và được kiểm soát biên giới bằng **Spring Modulith 2.1.1**.
+Hệ thống được thiết kế theo mô hình **Modular Monolith**, phân chia ranh giới theo các Bounded Context của Domain-Driven Design (DDD) và được kiểm soát biên giới nghiêm ngặt bằng **Spring Modulith 2.1.1**.
 
 ### 3.1. Danh Mục Các Bounded Contexts & Cấu Trúc Mã Nguồn
 
@@ -54,38 +60,55 @@ Hệ thống được thiết kế theo mô hình **Modular Monolith**, phân ch
 src/main/java/com/familyfund/
 ├── FamilyfundApiApplication.java    # Điểm khởi chạy ứng dụng Spring Boot
 │
-├── core/                           # Shared Kernel: Cấu hình chung, Security, Exception, Tenant, DTO
-│   ├── config/                     # SecurityConfig (@EnableMethodSecurity)
+├── core/                        # Shared Kernel: Cấu hình chung, Security, Exception, Tenant, DTO
+│   ├── config/             # SecurityConfig (@EnableMethodSecurity), AsyncConfig (@EnableAsync)
 │   ├── dto/                        # ApiResponse<T> chuẩn hóa envelope response toàn hệ thống
 │   ├── exception/                  # GlobalExceptionHandler, BadRequestException, ResourceNotFoundException,...
+│   ├── security/                   # JwtAuthenticationFilter, JwtTokenProvider, CurrentUserProvider, SystemRoles
 │   ├── tenant/                     # TenantContext (ThreadLocal) & TenantFilter (OncePerRequestFilter)
 │   └── package-info.java           # @ApplicationModule(type = OPEN) - Shared Kernel
 │
-├── identity/                       # Bounded Context: Định danh, Tài khoản, Mã mời (US-16) & Tiếp nhận
-│   ├── api/                        # Public Contract: InvitationService, CreateGeneralInviteRequest, InviteCodeResponse
+├── identity/                       # Bounded Context: Định danh, Tài khoản, Mã mời (US-16) & Onboarding (US-17)
+│   ├── api/                        # Public Contract: AuthService, InvitationService, BranchJoinRequestService
+│   │   ├── dto/                    # Public DTOs: InviteCodeResponse, JoinRequestResponse, SubmitJoinRequest,...
 │   │   └── package-info.java       # @NamedInterface("api")
 │   ├── internal/                   # Private Implementation
-│   │   ├── controller/             # InvitationController (/api/v1/invitations)
-│   │   ├── entity/                 # InvitationCode, InviteType
-│   │   ├── repository/             # InvitationCodeRepository
-│   │   ├── service/                # InvitationServiceImpl
+│   │   ├── controller/             # AuthController, InvitationController, BranchJoinRequestController
+│   │   ├── entity/                 # UserAccount, BranchJoinRequest, InvitationCode, AccountRole, SystemRole
+│   │   ├── repository/             # UserAccountRepository, BranchJoinRequestRepository, InvitationCodeRepository,...
+│   │   ├── service/                # AuthServiceImpl, InvitationServiceImpl, BranchJoinRequestServiceImpl
 │   │   └── util/                   # InviteCodeGenerator (Base32 CSPRNG)
 │   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "genealogy::api"})
 │
-├── genealogy/                      # Bounded Context: Quản lý Dòng họ, Chi nhánh (US-04), Cây phả hệ & Thành viên
-│   ├── api/                        # Public Contract: GenealogyQueryService
+├── genealogy/ # Bounded Context: Quản lý Dòng họ, Chi nhánh, Cây phả hệ & Thành viên
+│   ├── api/   # Public Contract: GenealogyQueryService, GenealogyMemberCommandService, GenealogyBootstrapService
+│   │   ├── dto/        # Public DTOs: OnboardingBranchTreeNode, CreateOnboardingMemberCommand,...
 │   │   └── package-info.java       # @NamedInterface("api")
 │   ├── internal/                   # Private Implementation
-│   │   ├── controller/             # GenealogyController (/api/v1/branches), MemberController (/api/v1/branches/{branchId}/members, /api/v1/members/{memberId}/assign-branch)
+│   │   ├── controller/             # GenealogyController (/api/v1/branches), MemberController (/api/v1/branches/{branchId}/members)
 │   │   ├── dto/                    # Request & Response Records (CreateChildBranchRequest, BranchTreeNodeResponse,...)
 │   │   ├── entity/                 # Clan, FamilyBranch, Member
-│   │   ├── mapper/                 # BranchMapper (MapStruct)
+│   │   ├── mapper/                 # BranchMapper, MemberMapper (MapStruct)
 │   │   ├── repository/             # ClanRepository, FamilyBranchRepository, MemberRepository
-│   │   ├── service/                # GenealogyService, GenealogyServiceImpl, GenealogyQueryServiceImpl
+│   │   ├── service/                # GenealogyServiceImpl, GenealogyQueryServiceImpl, GenealogyMemberCommandServiceImpl, MemberServiceImpl
 │   │   └── validator/              # GenealogyValidator (kiemTraChuTrinh)
 │   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core"})
 │
-├── event/                          # Bounded Context: Quản lý Sự kiện & Contextual RBAC
+├── event/                          # Bounded Context: Quản lý Sự kiện, Phân quyền động, Thông báo & Công việc (US-07, US-21, US-22)
+│   ├── api/                        # Public Contract: Domain Events & Public DTOs
+│   │   ├── dto/                    # TaskStatus, EventStatus, EventRole, EventSummaryDto
+│   │   ├── event/                  # TaskAssignedDomainEvent, EventOpenedDomainEvent, EventScheduleChangedDomainEvent
+│   │   └── package-info.java       # @NamedInterface("api")
+│   ├── internal/                   # Private Implementation
+│   │   ├── controller/             # EventController (/api/v1/events), TaskController (/api/v1/events/{eventId}/tasks)
+│   │   ├── dto/                    # CreateEventRequest, CreateTaskRequest, AssignTaskRequest, TaskResponse,...
+│   │   ├── entity/                 # Event, EventPersonnel, EventPersonnelId, EventNotification, EventTask
+│   │   ├── mapper/                 # EventMapper, TaskMapper (MapStruct)
+│   │   ├── notification/           # TaskNotificationListener, EventNotificationListener, NotificationSender
+│   │   ├── repository/             # EventRepository, EventPersonnelRepository, EventNotificationRepository, EventTaskRepository
+│   │   ├── security/               # EventSecurity / NhanSuSuKien (Contextual RBAC @Component)
+│   │   ├── service/                # EventServiceImpl, TaskServiceImpl, EventQueryServiceImpl
+│   │   └── util/                   # EventIdGenerator, TaskIdGenerator, NotificationIdGenerator
 │   └── package-info.java           # @ApplicationModule(allowedDependencies = {"core", "identity::api", "genealogy::api"})
 │
 ├── finance/                        # Bounded Context: Tài chính, Tạm ứng, Quyết toán & Sổ cái bất biến
@@ -100,13 +123,13 @@ src/main/java/com/familyfund/
 
 ### 3.2. Quy Tắc Quy Hoạch Package Chuẩn Hóa
 1. **Quy tắc Public API (`*.api.*`)**:
-   - Chứa interface dịch vụ dùng để gọi giữa các module (ví dụ: `GenealogyQueryService`), public DTOs, hoặc domain events.
+   - Chứa interface dịch vụ dùng để gọi giữa các module (ví dụ: `GenealogyQueryService`, `GenealogyMemberCommandService`), public DTOs, hoặc domain events (ví dụ: `EventOpenedDomainEvent`).
    - Được đánh dấu `@NamedInterface("api")` trong `package-info.java`.
    - Các module bên ngoài CHỈ ĐƯỢC PHÉP phụ thuộc vào package `api` này.
 2. **Quy tắc Internal Implementation (`*.internal.*`)**:
    - Chứa Controllers, Entity JPA, Spring Data Repositories, Service Implementations, và tiện ích nội bộ.
    - **Nghiêm cấm** các module khác import trực tiếp các class trong `internal`.
-   - **Xóa bỏ triệt để rò rỉ Repository**: Ví dụ `InvitationServiceImpl` (thuộc `identity`) không được phép inject `FamilyBranchRepository` (thuộc `genealogy`), mà phải gọi qua `GenealogyQueryService` trong `genealogy.api`.
+   - **Xóa bỏ triệt để rò rỉ Repository**: Ví dụ `InvitationServiceImpl` và `BranchJoinRequestServiceImpl` (thuộc `identity`) không được phép inject `FamilyBranchRepository` hay `MemberRepository` (thuộc `genealogy`), mà phải giao tiếp qua `GenealogyQueryService` hoặc `GenealogyMemberCommandService` trong `genealogy.api`.
 3. **Shared Kernel (`com.familyfund.core`)**:
    - Được đánh dấu `type = ApplicationModule.Type.OPEN` để tất cả các module có thể truy cập các tiện ích bảo mật, DTO phản hồi chung (`ApiResponse<T>`), bộ lọc đa người dùng `TenantFilter` và ngoại lệ toàn cục.
 
@@ -157,6 +180,6 @@ Trong mô hình thực tế của phân hệ Gia phả và Định danh, tồn t
 2. `family_branches.representative_id` $\rightarrow$ `members.member_id`, nhưng `members.branch_id` $\rightarrow$ `family_branches.branch_id`.
 
 ### Giải Pháp Kiến Trúc Triển Khai
-- Trong kịch bản Flyway Migrations (V1 $\rightarrow$ V4), các bảng `clans` và `family_branches` được khởi tạo trước với cột khóa ngoại cho phép giá trị `NULL`.
+- Trong kịch bản Flyway Migrations (V1 $\rightarrow$ V7), các bảng `clans` và `family_branches` được khởi tạo trước với cột khóa ngoại cho phép giá trị `NULL`.
 - Sau khi toàn bộ các bảng `members` và `user_accounts` được tạo, các ràng buộc khóa ngoại được bổ sung bằng câu lệnh `ALTER TABLE ... ADD CONSTRAINT` kèm tùy chọn `ON DELETE SET NULL`.
-- Ở tầng ứng dụng Spring Boot, quy trình đăng ký dòng họ mới sẽ chia thành 2 bước nguyên tử (atomic transaction): Tạo Clan $\rightarrow$ Tạo Member & Account $\rightarrow$ Cập nhật `founder_account_id` vào Clan.
+- Ở tầng ứng dụng Spring Boot, quy trình đăng ký dòng họ mới sẽ chia thành 2 bước nguyên tử (atomic transaction) thông qua `GenealogyBootstrapService`: Tạo Clan $\rightarrow$ Tạo Member & Account $\rightarrow$ Cập nhật `founder_account_id` vào Clan.

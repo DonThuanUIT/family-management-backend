@@ -64,6 +64,17 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    /**
+     * Invitation / position-link rejections: keeps the HTTP status of {@link BadRequestException} but also exposes
+     * the machine-readable reason (revoked / expired / exhausted) so clients do not have to parse the message.
+     */
+    @ExceptionHandler(InviteCodeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInviteCodeException(InviteCodeException ex) {
+        log.warn("Invite code rejected [{}]: {}", ex.getCode(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.errorWithCode(ex.getCode(), ex.getMessage()));
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequestException(BadRequestException ex) {
         log.warn("Bad request: {}", ex.getMessage());

@@ -9,6 +9,9 @@ import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
+import com.familyfund.genealogy.internal.util.ClanIdGenerator;
+import com.familyfund.genealogy.internal.util.MemberIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,11 +27,14 @@ public class GenealogyBootstrapServiceImpl implements GenealogyBootstrapService 
     private final ClanRepository clanRepository;
     private final FamilyBranchRepository branchRepository;
     private final MemberRepository memberRepository;
+    private final ClanIdGenerator clanIdGenerator;
+    private final BranchIdGenerator branchIdGenerator;
+    private final MemberIdGenerator memberIdGenerator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ClanBootstrapResult bootstrapClanAndCreator(ClanBootstrapCommand command) {
-        String clanId = "CLAN_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String clanId = clanIdGenerator.generate();
 
         Clan clan = Clan.builder()
                 .clanId(clanId)
@@ -40,7 +46,7 @@ public class GenealogyBootstrapServiceImpl implements GenealogyBootstrapService 
                 .build();
         Clan savedClan = clanRepository.save(clan);
 
-        String rootBranchId = "BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String rootBranchId = branchIdGenerator.generate();
         FamilyBranch rootBranch = FamilyBranch.builder()
                 .branchId(rootBranchId)
                 .clanId(clanId)
@@ -53,7 +59,7 @@ public class GenealogyBootstrapServiceImpl implements GenealogyBootstrapService 
 
         Member ancestor = null;
         if (savedClan.getAncestorName() != null && !savedClan.getAncestorName().isBlank()) {
-            String ancestorMemberId = "MEM_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String ancestorMemberId = memberIdGenerator.generate();
             ancestor = Member.builder()
                     .memberId(ancestorMemberId)
                     .fullName(savedClan.getAncestorName())
@@ -72,7 +78,7 @@ public class GenealogyBootstrapServiceImpl implements GenealogyBootstrapService 
                 ? command.creatorGeneration()
                 : (ancestor != null ? 2 : 1);
 
-        String creatorMemberId = "MEM_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String creatorMemberId = memberIdGenerator.generate();
         Member creator = Member.builder()
                 .memberId(creatorMemberId)
                 .fullName(command.creatorFullName().trim())

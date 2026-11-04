@@ -13,16 +13,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * Member endpoints of the genealogy bounded context.
  *
  * <p>Creation is nested under the owning branch ({@code POST /api/v1/branches/{branchId}/members})
  * so the resource hierarchy of the API mirrors {@code members.branch_id -> family_branches.branch_id}.
- * The class deliberately has no class-level {@code @RequestMapping}: the two endpoints live under
+ * The class deliberately has no class-level {@code @RequestMapping}: endpoints live under
  * different resource roots ({@code /branches} and {@code /members}).</p>
- *
- * <p>The contract of both endpoints is documented in {@code docker/swagger/openapi.yaml}, which is
- * served by the Swagger UI container on port 8082.</p>
  */
 @RestController
 @RequiredArgsConstructor
@@ -45,6 +44,21 @@ public class MemberController {
         MemberResponse response = memberService.createMember(branchId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Member created successfully"));
+    }
+
+    @GetMapping("/api/v1/branches/{branchId}/members")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<MemberResponse>>> getBranchMembers(
+            @PathVariable String branchId) {
+        List<MemberResponse> response = memberService.getMembersByBranch(branchId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/api/v1/members")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<MemberResponse>>> getClanMembers() {
+        List<MemberResponse> response = memberService.getMembersByClan();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PutMapping("/api/v1/members/{memberId}/assign-branch")

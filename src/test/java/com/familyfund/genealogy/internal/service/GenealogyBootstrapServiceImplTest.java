@@ -8,6 +8,10 @@ import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
+import com.familyfund.genealogy.internal.util.ClanIdGenerator;
+import com.familyfund.genealogy.internal.util.MemberIdGenerator;
+import org.mockito.Spy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +41,15 @@ class GenealogyBootstrapServiceImplTest {
     @Mock
     private MemberRepository memberRepository;
 
+    @Spy
+    private ClanIdGenerator clanIdGenerator = new ClanIdGenerator();
+
+    @Spy
+    private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
+
+    @Spy
+    private MemberIdGenerator memberIdGenerator = new MemberIdGenerator();
+
     @InjectMocks
     private GenealogyBootstrapServiceImpl bootstrapService;
 
@@ -62,15 +75,15 @@ class GenealogyBootstrapServiceImplTest {
         ClanBootstrapResult result = bootstrapService.bootstrapClanAndCreator(command);
 
         assertThat(result).isNotNull();
-        assertThat(result.clanId()).startsWith("CLAN_");
+        assertThat(result.clanId()).startsWith(ClanIdGenerator.PREFIX);
         assertThat(result.clanName()).isEqualTo("Dòng họ Vũ");
         assertThat(result.ancestorName()).isEqualTo("Cụ Tổ Vũ Hồn");
         assertThat(result.originLocation()).isEqualTo("Hải Dương");
         assertThat(result.establishedYear()).isEqualTo(1850);
         assertThat(result.description()).isEqualTo("Chi phái Mộ Trạch");
-        assertThat(result.rootBranchId()).startsWith("BR_");
+        assertThat(result.rootBranchId()).startsWith(BranchIdGenerator.PREFIX);
         assertThat(result.rootBranchName()).isEqualTo("Nhánh Gốc");
-        assertThat(result.creatorMemberId()).startsWith("MEM_");
+        assertThat(result.creatorMemberId()).startsWith(MemberIdGenerator.PREFIX);
         assertThat(result.creatorFullName()).isEqualTo("Vũ Văn Bình");
         assertThat(result.creatorGender()).isEqualTo("Male");
         assertThat(result.creatorGeneration()).isEqualTo(12);

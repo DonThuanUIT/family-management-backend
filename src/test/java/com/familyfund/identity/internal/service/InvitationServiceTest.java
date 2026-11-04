@@ -1,12 +1,14 @@
 package com.familyfund.identity.internal.service;
 
 import com.familyfund.core.exception.BadRequestException;
+import com.familyfund.core.exception.InviteCodeException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.UpdateInvitationRequest;
 import com.familyfund.identity.internal.entity.InvitationCode;
 import com.familyfund.identity.internal.entity.InviteType;
 import com.familyfund.identity.internal.repository.InvitationCodeRepository;
@@ -318,5 +320,186 @@ class InvitationServiceTest {
         assertNotNull(result);
         assertEquals("BR_01", result.branchId());
         assertEquals("Chi Trưởng", result.branchName());
+    }
+
+    // ------------------------------------------------------------------ update / regenerate (mutating invitation_codes)
+
+    @Test
+    @DisplayName("Update invite applies expiry, max uses and activation flag present in the payload")
+    void updateInviteCode_ShouldApplyOnlyPresentFields() {
+        String code = "INV_UPD_01";
+        InvitationCode existing = InvitationCode.builder()
+                .inviteCode(code)
+                .clanId(TEST_CLAN_ID)
+                .inviteType(InviteType.GeneralClanInvite)
+                .isActive(false)
+                .maxUses(5)
+                .usedCount(3)
+                .expiresAt(Instant.now().minus(1, ChronoUnit.DAYS))
+                .build();
+        Instant newExpiry = Instant.now().plus(10, ChronoUnit.DAYS);
+
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.of(existing));
+        when(invitationCodeRepository.save(any(InvitationCode.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InviteCodeResponse response = invitationService.updateInviteCode(code,
+                UpdateInvitationRequest.builder().isActive(true).maxUses(9).expiresAt(newExpiry).build(),
+                testAccountId);
+
+        assertTrue(response.getIsActive());
+        assertEquals(9, response.getMaxUses());
+        assertEquals(newExpiry, response.getExpiresAt());
+        verify(invitationCodeRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("Update invite with validityDays recomputes the expiry from now")
+    void updateInviteCode_ValidityDays_ShouldComputeRelativeExpiry() {
+        String code = "INV_UPD_02";
+        InvitationCode existing = InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).isActive(true).maxUses(5).usedCount(0)
+                .build();
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.of(existing));
+        when(invitationCodeRepository.save(any(InvitationCode.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Instant before = Instant.now();
+        InviteCodeResponse response = invitationService.updateInviteCode(code,
+                UpdateInvitationRequest.builder().validityDays(3).build(), testAccountId);
+
+        assertNotNull(response.getExpiresAt());
+        assertTrue(response.getExpiresAt().isAfter(before.plus(2, ChronoUnit.DAYS)));
+        assertTrue(response.getExpiresAt().isBefore(before.plus(4, ChronoUnit.DAYS)));
+    }
+
+    @Test
+    @DisplayName("Update invite rejects a max uses lower than the counter already consumed")
+    void updateInviteCode_MaxUsesBelowUsedCount_ShouldThrow() {
+        String code = "INV_UPD_03";
+        InvitationCode existing = InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).isActive(true).maxUses(10).usedCount(4)
+                .build();
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.of(existing));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> invitationService
+                .updateInviteCode(code, UpdateInvitationRequest.builder().maxUses(2).build(), testAccountId));
+        assertTrue(ex.getMessage().contains("không được nhỏ hơn số lượt đã dùng"));
+        verify(invitationCodeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Update invite without any field is rejected")
+    void updateInviteCode_EmptyPayload_ShouldThrow() {
+        assertThrows(BadRequestException.class, () -> invitationService
+                .updateInviteCode("INV_UPD_04", UpdateInvitationRequest.builder().build(), testAccountId));
+    }
+
+    @Test
+    @DisplayName("Update invite cannot touch a code of another clan (IDOR guard)")
+    void updateInviteCode_CodeFromAnotherClan_ShouldThrowNotFound() {
+        String code = "INV_UPD_05";
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> invitationService
+                .updateInviteCode(code, UpdateInvitationRequest.builder().maxUses(3).build(), testAccountId));
+        verify(invitationCodeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Regenerate revokes the previous code and issues a new one with a reset counter")
+    void regenerateInviteCode_ShouldReplaceOldCode() {
+        String oldCode = "INV_OLD_01";
+        InvitationCode existing = InvitationCode.builder()
+                .inviteCode(oldCode)
+                .clanId(TEST_CLAN_ID)
+                .inviteType(InviteType.GeneralClanInvite)
+                .targetBranchId("BR_01")
+                .maxUses(20)
+                .usedCount(7)
+                .isActive(true)
+                .expiresAt(Instant.now().plus(5, ChronoUnit.DAYS))
+                .createdByAccountId("ACC_OLD")
+                .build();
+
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, oldCode)).thenReturn(Optional.of(existing));
+        when(inviteCodeGenerator.generateCode()).thenReturn("NEWCODE1");
+        when(invitationCodeRepository.existsByInviteCode("NEWCODE1")).thenReturn(false);
+        when(inviteCodeGenerator.buildShareableUrl("NEWCODE1")).thenReturn("http://localhost:3000/join?code=NEWCODE1");
+        when(invitationCodeRepository.save(any(InvitationCode.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InviteCodeResponse response = invitationService.regenerateInviteCode(oldCode, null, testAccountId);
+
+        assertFalse(existing.getIsActive(), "the replaced code must be revoked, not deleted");
+        assertEquals("NEWCODE1", response.getInviteCode());
+        assertEquals(0, response.getUsedCount());
+        assertEquals(20, response.getMaxUses());
+        assertEquals("BR_01", response.getTargetBranchId());
+        assertEquals(TEST_CLAN_ID, response.getClanId());
+        assertTrue(response.getIsActive());
+    }
+
+    @Test
+    @DisplayName("Regenerate refuses position link codes because target_member_id is UNIQUE")
+    void regenerateInviteCode_PositionLink_ShouldThrow() {
+        String code = "POS_LINK_01";
+        InvitationCode existing = InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).inviteType(InviteType.PositionLinkCode)
+                .isActive(true).maxUses(1).usedCount(0).build();
+        when(invitationCodeRepository.findByClanIdAndInviteCode(TEST_CLAN_ID, code)).thenReturn(Optional.of(existing));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> invitationService.regenerateInviteCode(code, null, testAccountId));
+        assertTrue(ex.getMessage().contains("Không thể tái tạo mã liên kết vị trí"));
+        verify(invitationCodeRepository, never()).save(any());
+    }
+
+    // ------------------------------------------------------------------ machine-readable rejection reasons
+
+    @Test
+    @DisplayName("An expired code carries INVITE_CODE_EXPIRED")
+    void getInviteByCode_Expired_CarriesErrorCode() {
+        String code = "EXPIRED_CODE_2";
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.of(InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).isActive(true).maxUses(10).usedCount(0)
+                .expiresAt(Instant.now().minus(1, ChronoUnit.DAYS)).build()));
+
+        InviteCodeException ex = assertThrows(InviteCodeException.class, () -> invitationService.getInviteByCode(code));
+        assertEquals(InviteCodeException.EXPIRED, ex.getCode());
+        assertTrue(ex.getMessage().contains("hết hạn sử dụng"));
+    }
+
+    @Test
+    @DisplayName("An exhausted code carries INVITE_CODE_EXHAUSTED")
+    void getInviteByCode_Exhausted_CarriesErrorCode() {
+        String code = "EXHAUSTED_CODE_2";
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.of(InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).isActive(true).maxUses(3).usedCount(3)
+                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).build()));
+
+        InviteCodeException ex = assertThrows(InviteCodeException.class, () -> invitationService.getInviteByCode(code));
+        assertEquals(InviteCodeException.EXHAUSTED, ex.getCode());
+        assertTrue(ex.getMessage().contains("hết lượt sử dụng"));
+    }
+
+    @Test
+    @DisplayName("A revoked code carries INVITE_CODE_REVOKED instead of a plain not-found")
+    void getInviteByCode_Revoked_CarriesErrorCode() {
+        String code = "REVOKED_CODE_2";
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.empty());
+        when(invitationCodeRepository.findByInviteCode(code)).thenReturn(Optional.of(InvitationCode.builder()
+                .inviteCode(code).clanId(TEST_CLAN_ID).isActive(false).build()));
+
+        InviteCodeException ex = assertThrows(InviteCodeException.class, () -> invitationService.getInviteByCode(code));
+        assertEquals(InviteCodeException.REVOKED, ex.getCode());
+        assertTrue(ex.getMessage().contains("đã bị thu hồi"));
+    }
+
+    @Test
+    @DisplayName("An unknown code still returns a 404 not-found")
+    void getInviteByCode_Unknown_ThrowsNotFound() {
+        String code = "MISSING_CODE";
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(code)).thenReturn(Optional.empty());
+        when(invitationCodeRepository.findByInviteCode(code)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.getInviteByCode(code));
     }
 }

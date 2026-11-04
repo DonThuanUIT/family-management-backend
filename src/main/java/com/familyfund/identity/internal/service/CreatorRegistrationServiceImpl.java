@@ -14,6 +14,7 @@ import com.familyfund.identity.internal.entity.SystemRole;
 import com.familyfund.identity.internal.entity.UserAccount;
 import com.familyfund.identity.internal.repository.SystemRoleRepository;
 import com.familyfund.identity.internal.repository.UserAccountRepository;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,6 +37,7 @@ public class CreatorRegistrationServiceImpl implements CreatorRegistrationServic
     private final SystemRoleRepository systemRoleRepository;
     private final GenealogyBootstrapService genealogyBootstrapService;
     private final PasswordEncoder passwordEncoder;
+    private final AccountIdGenerator accountIdGenerator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -76,7 +78,7 @@ public class CreatorRegistrationServiceImpl implements CreatorRegistrationServic
         assignedRoles.add(clanHeadRole);
 
         // 3. Create and persist UserAccount
-        String accountId = "ACC_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String accountId = accountIdGenerator.generate();
         String passwordHash = passwordEncoder.encode(request.password().trim());
 
         UserAccount userAccount = UserAccount.builder()

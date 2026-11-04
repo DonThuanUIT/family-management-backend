@@ -8,9 +8,11 @@ import com.familyfund.genealogy.api.CreateOnboardingBranchCommand;
 import com.familyfund.genealogy.api.CreateOnboardingMemberCommand;
 import com.familyfund.genealogy.api.GenealogyMemberCommandService;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.identity.api.dto.ApproveJoinRequest;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
 import com.familyfund.identity.api.dto.RejectJoinRequest;
 import com.familyfund.identity.api.dto.SubmitJoinRequest;
+import com.familyfund.identity.api.event.JoinRequestReviewedDomainEvent;
 import com.familyfund.identity.internal.entity.AccountRole;
 import com.familyfund.identity.internal.entity.AccountStatus;
 import com.familyfund.identity.internal.entity.BranchJoinRequest;
@@ -32,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +42,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
+import com.familyfund.identity.internal.util.JoinRequestIdGenerator;
+import org.mockito.Spy;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,6 +54,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -87,6 +94,15 @@ class BranchJoinRequestServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Spy
+    private AccountIdGenerator accountIdGenerator = new AccountIdGenerator();
+
+    @Spy
+    private JoinRequestIdGenerator joinRequestIdGenerator = new JoinRequestIdGenerator();
 
     @InjectMocks
     private BranchJoinRequestServiceImpl branchJoinRequestService;
@@ -391,7 +407,7 @@ class BranchJoinRequestServiceTest {
         when(branchJoinRequestRepository.save(any(BranchJoinRequest.class))).thenAnswer(inv -> inv.getArgument(0));
         when(genealogyQueryService.getBranchName(CLAN_ID, "BR_ROOT")).thenReturn(Optional.of("Chi Gốc"));
 
-        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest("REQ_APP_01", auth);
+        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest("REQ_APP_01", null, auth);
 
         assertNotNull(response);
         assertEquals(JoinRequestApprovalStatus.Approved, response.approvalStatus());
@@ -449,7 +465,7 @@ class BranchJoinRequestServiceTest {
         when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(INVITE_CODE)).thenReturn(Optional.of(mockInvitation));
         when(branchJoinRequestRepository.save(any(BranchJoinRequest.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest("REQ_APP_02", auth);
+        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest("REQ_APP_02", null, auth);
 
         assertNotNull(response);
         assertEquals(JoinRequestApprovalStatus.Approved, response.approvalStatus());
@@ -473,7 +489,7 @@ class BranchJoinRequestServiceTest {
                 .thenReturn(Optional.of(request));
 
         assertThrows(BusinessRuleException.class,
-                () -> branchJoinRequestService.approveJoinRequest("REQ_APP_03", auth));
+                () -> branchJoinRequestService.approveJoinRequest("REQ_APP_03", null, auth));
     }
 
     @Test
@@ -502,7 +518,7 @@ class BranchJoinRequestServiceTest {
         when(genealogyQueryService.getBranchIdsManagedByMember(CLAN_ID, "MEM_HEAD")).thenReturn(List.of("BR_01"));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> branchJoinRequestService.approveJoinRequest("REQ_APP_04", auth));
+                () -> branchJoinRequestService.approveJoinRequest("REQ_APP_04", null, auth));
         assertTrue(ex.getMessage().contains("không có quyền phê duyệt"));
     }
 
@@ -540,5 +556,196 @@ class BranchJoinRequestServiceTest {
         assertEquals(JoinRequestApprovalStatus.Rejected, response.approvalStatus());
         assertEquals("Thông tin đời thứ không trùng khớp gia phả gốc", response.rejectionReason());
         assertEquals(AccountStatus.Deactivated, pendingAccount.getAccountStatus());
+    }
+
+    // --- Approver override of the proposed position ---
+
+    @Test
+    @DisplayName("approveJoinRequest with a branch override creates the member in the corrected branch")
+    @SuppressWarnings("unchecked")
+    void approveJoinRequest_WithBranchOverride_UsesOverriddenBranch() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("ACC_CLAN_HEAD");
+        when(auth.getAuthorities()).thenReturn((Collection) List.of(new SimpleGrantedAuthority("ROLE_CLAN_HEAD")));
+
+        UserAccount pendingAccount = UserAccount.builder()
+                .accountId("ACC_USER_OVR")
+                .accountStatus(AccountStatus.PendingApproval)
+                .phoneNumber("0987000111")
+                .build();
+
+        BranchJoinRequest request = BranchJoinRequest.builder()
+                .requestId("REQ_OVR_01")
+                .clanId(CLAN_ID)
+                .userAccount(pendingAccount)
+                .inviteCode(INVITE_CODE)
+                .fullName("Lê Văn Được")
+                .dateOfBirth(LocalDate.of(1990, 6, 1))
+                .gender("Male")
+                .proposalType(ProposalType.ExistingBranchLeaf)
+                .targetBranchId("BR_ROOT")
+                .proposedGeneration(4)
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        when(branchJoinRequestRepository.findWithAccountByRequestIdAndClanId("REQ_OVR_01", CLAN_ID))
+                .thenReturn(Optional.of(request));
+        when(genealogyQueryService.existsBranch(CLAN_ID, "BR_CHI_2")).thenReturn(true);
+        when(genealogyMemberCommandService.createMemberForExistingBranch(any(CreateOnboardingMemberCommand.class)))
+                .thenReturn("MEM_OVR_01");
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(accountRoleRepository.save(any(AccountRole.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(invitationCodeRepository.findByInviteCodeAndIsActiveTrue(INVITE_CODE)).thenReturn(Optional.of(mockInvitation));
+        when(branchJoinRequestRepository.save(any(BranchJoinRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(genealogyQueryService.getBranchName(CLAN_ID, "BR_CHI_2")).thenReturn(Optional.of("Chi 2"));
+
+        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest(
+                "REQ_OVR_01", new ApproveJoinRequest("BR_CHI_2", null), auth);
+
+        ArgumentCaptor<CreateOnboardingMemberCommand> cmdCaptor =
+                ArgumentCaptor.forClass(CreateOnboardingMemberCommand.class);
+        verify(genealogyMemberCommandService).createMemberForExistingBranch(cmdCaptor.capture());
+        assertEquals("BR_CHI_2", cmdCaptor.getValue().branchId(), "member must be created in the corrected branch");
+        assertEquals("BR_CHI_2", request.getTargetBranchId(), "the approved request must record the corrected branch");
+        assertEquals("BR_CHI_2", response.targetBranchId());
+        assertEquals("Chi 2", response.targetBranchName());
+    }
+
+    @Test
+    @DisplayName("approveJoinRequest with an override branch outside the clan throws 404 and writes nothing")
+    @SuppressWarnings("unchecked")
+    void approveJoinRequest_OverrideBranchNotFound_ThrowsNotFound() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("ACC_CLAN_HEAD");
+
+        BranchJoinRequest request = BranchJoinRequest.builder()
+                .requestId("REQ_OVR_02")
+                .clanId(CLAN_ID)
+                .userAccount(UserAccount.builder().accountId("ACC_USER_OVR2").build())
+                .inviteCode(INVITE_CODE)
+                .fullName("Lê Văn Không")
+                .gender("Male")
+                .proposalType(ProposalType.ExistingBranchLeaf)
+                .targetBranchId("BR_ROOT")
+                .proposedGeneration(3)
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        when(branchJoinRequestRepository.findWithAccountByRequestIdAndClanId("REQ_OVR_02", CLAN_ID))
+                .thenReturn(Optional.of(request));
+        when(genealogyQueryService.existsBranch(CLAN_ID, "BR_GHOST")).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> branchJoinRequestService
+                .approveJoinRequest("REQ_OVR_02", new ApproveJoinRequest("BR_GHOST", null), auth));
+
+        verify(genealogyMemberCommandService, never()).createMemberForExistingBranch(any());
+        verify(branchJoinRequestRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("approveJoinRequest refuses an override into a branch the reviewer does not manage")
+    @SuppressWarnings("unchecked")
+    void approveJoinRequest_OverrideOutsideReviewerScope_ThrowsBadRequest() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("ACC_BRANCH_HEAD");
+        when(auth.getAuthorities()).thenReturn((Collection) List.of(new SimpleGrantedAuthority("ROLE_BRANCH_HEAD")));
+
+        BranchJoinRequest request = BranchJoinRequest.builder()
+                .requestId("REQ_OVR_03")
+                .clanId(CLAN_ID)
+                .userAccount(UserAccount.builder().accountId("ACC_USER_OVR3").build())
+                .inviteCode(INVITE_CODE)
+                .fullName("Lê Thị Ngoài")
+                .gender("Female")
+                .proposalType(ProposalType.ExistingBranchLeaf)
+                .targetBranchId("BR_01")
+                .proposedGeneration(3)
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        UserAccount branchHead = UserAccount.builder().accountId("ACC_BRANCH_HEAD").memberId("MEM_HEAD").build();
+
+        when(branchJoinRequestRepository.findWithAccountByRequestIdAndClanId("REQ_OVR_03", CLAN_ID))
+                .thenReturn(Optional.of(request));
+        when(genealogyQueryService.existsBranch(CLAN_ID, "BR_02")).thenReturn(true);
+        when(userAccountRepository.findById("ACC_BRANCH_HEAD")).thenReturn(Optional.of(branchHead));
+        when(genealogyQueryService.getBranchIdsManagedByMember(CLAN_ID, "MEM_HEAD")).thenReturn(List.of("BR_01"));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> branchJoinRequestService
+                .approveJoinRequest("REQ_OVR_03", new ApproveJoinRequest("BR_02", null), auth));
+        assertTrue(ex.getMessage().contains("không có quyền phê duyệt"));
+    }
+
+    @Test
+    @DisplayName("Renaming the child branch is only allowed for NewChildBranch proposals")
+    @SuppressWarnings("unchecked")
+    void approveJoinRequest_RenameOnExistingLeaf_ThrowsBadRequest() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("ACC_CLAN_HEAD");
+
+        BranchJoinRequest request = BranchJoinRequest.builder()
+                .requestId("REQ_OVR_04")
+                .clanId(CLAN_ID)
+                .userAccount(UserAccount.builder().accountId("ACC_USER_OVR4").build())
+                .inviteCode(INVITE_CODE)
+                .fullName("Lê Văn Tên")
+                .gender("Male")
+                .proposalType(ProposalType.ExistingBranchLeaf)
+                .targetBranchId("BR_ROOT")
+                .proposedGeneration(3)
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        when(branchJoinRequestRepository.findWithAccountByRequestIdAndClanId("REQ_OVR_04", CLAN_ID))
+                .thenReturn(Optional.of(request));
+
+        assertThrows(BadRequestException.class, () -> branchJoinRequestService
+                .approveJoinRequest("REQ_OVR_04", new ApproveJoinRequest(null, "Chi Mới"), auth));
+    }
+
+    // --- Applicant notification ---
+
+    @Test
+    @DisplayName("rejectJoinRequest publishes a reviewed event carrying the rejection reason")
+    void rejectJoinRequest_PublishesReviewedEvent() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("ACC_CLAN_HEAD");
+        when(auth.getAuthorities()).thenReturn((Collection) List.of(new SimpleGrantedAuthority("ROLE_CLAN_HEAD")));
+
+        UserAccount pendingAccount = UserAccount.builder()
+                .accountId("ACC_USER_REJ")
+                .accountStatus(AccountStatus.PendingApproval)
+                .phoneNumber("0987000222")
+                .build();
+
+        BranchJoinRequest request = BranchJoinRequest.builder()
+                .requestId("REQ_REJ_01")
+                .clanId(CLAN_ID)
+                .userAccount(pendingAccount)
+                .inviteCode(INVITE_CODE)
+                .fullName("Phạm Thị Bị Từ Chối")
+                .gender("Female")
+                .proposalType(ProposalType.ExistingBranchLeaf)
+                .targetBranchId("BR_ROOT")
+                .proposedGeneration(3)
+                .approvalStatus(JoinRequestApprovalStatus.Pending)
+                .build();
+
+        when(branchJoinRequestRepository.findWithAccountByRequestIdAndClanId("REQ_REJ_01", CLAN_ID))
+                .thenReturn(Optional.of(request));
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(branchJoinRequestRepository.save(any(BranchJoinRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(genealogyQueryService.getBranchName(CLAN_ID, "BR_ROOT")).thenReturn(Optional.of("Chi Gốc"));
+
+        branchJoinRequestService.rejectJoinRequest("REQ_REJ_01", new RejectJoinRequest("Thông tin không khớp"), auth);
+
+        ArgumentCaptor<JoinRequestReviewedDomainEvent> captor =
+                ArgumentCaptor.forClass(JoinRequestReviewedDomainEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        JoinRequestReviewedDomainEvent event = captor.getValue();
+        assertFalse(event.approved());
+        assertEquals("REQ_REJ_01", event.requestId());
+        assertEquals("0987000222", event.phoneNumber());
+        assertEquals("Thông tin không khớp", event.rejectionReason());
     }
 }

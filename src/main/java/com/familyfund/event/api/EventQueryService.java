@@ -2,6 +2,7 @@ package com.familyfund.event.api;
 
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventSummaryDto;
+import com.familyfund.event.api.dto.RegistrationSummaryDto;
 
 import java.util.Optional;
 import java.util.Set;
@@ -25,4 +26,9 @@ public interface EventQueryService {
      * Gets all contextual roles held by a member for a given event.
      */
     Set<EventRole> getMemberRolesInEvent(String eventId, String memberId);
+
+    /**
+     * Retrieves aggregated attendee and meal metrics for an event (US-06).
+     */
+    Optional<RegistrationSummaryDto> getRegistrationSummary(String eventId);
 }

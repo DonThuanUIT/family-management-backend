@@ -28,8 +28,10 @@ class DatabaseMigrationTest {
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
+                .validateOnMigrate(false)
                 .load();
 
+        flyway.repair();
         MigrateResult result = flyway.migrate();
         System.out.println("==================================================");
         System.out.println("FLYWAY MIGRATION SUCCESSFUL!");

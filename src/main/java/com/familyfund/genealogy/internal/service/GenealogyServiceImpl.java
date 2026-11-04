@@ -16,6 +16,7 @@ import com.familyfund.genealogy.internal.mapper.BranchMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +38,7 @@ public class GenealogyServiceImpl implements GenealogyService {
     private final ClanRepository clanRepository;
     private final GenealogyValidator genealogyValidator;
     private final BranchMapper branchMapper;
+    private final BranchIdGenerator branchIdGenerator;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,7 +61,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
         FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
                 .orElseGet(() -> FamilyBranch.builder()
-                        .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                        .branchId(branchIdGenerator.generate())
                         .clanId(clanId)
                         .generationLevel(1)
                         .parentBranch(null)
@@ -105,11 +107,11 @@ public class GenealogyServiceImpl implements GenealogyService {
                 ));
 
         // Cycle check within clan
-        genealogyValidator.validateCycle(clanId, null, request.parentBranchId());
+        genealogyValidator.validateNoCycles(clanId, null, request.parentBranchId());
         int childGenerationLevel = parent.getGenerationLevel() + 1;
 
         FamilyBranch childBranch = FamilyBranch.builder()
-                .branchId("BR_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .branchId(branchIdGenerator.generate())
                 .clanId(clanId)
                 .branchName(request.branchName().trim())
                 .generationLevel(childGenerationLevel)
@@ -152,7 +154,7 @@ public class GenealogyServiceImpl implements GenealogyService {
                         ));
 
                 // 2. Check closed cycle within the clan
-                genealogyValidator.validateCycle(clanId, branchId, request.parentBranchId());
+                genealogyValidator.validateNoCycles(clanId, branchId, request.parentBranchId());
 
                 if (newParent.getGenerationLevel() == null) {
                     throw new BusinessRuleException("Parent branch generation level cannot be null");

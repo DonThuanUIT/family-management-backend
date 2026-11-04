@@ -63,8 +63,6 @@ public class PositionLinkServiceImpl implements PositionLinkService {
     static final int MAX_CODE_ATTEMPTS = 5;
     /** family_branches.branch_id is VARCHAR(20). */
     static final int BRANCH_ID_MAX_LENGTH = 20;
-    /** invitation_codes.invite_code is VARCHAR(30). */
-    static final int INVITE_CODE_MAX_LENGTH = 30;
 
     private final InvitationCodeRepository invitationCodeRepository;
     private final UserAccountRepository userAccountRepository;
@@ -245,34 +243,9 @@ public class PositionLinkServiceImpl implements PositionLinkService {
      * and bound to a position. Every rule is read-only, so nothing is written when one of them fails.
      */
     private InvitationCode loadClaimablePositionLink(String rawInviteCode) {
-        if (rawInviteCode == null || rawInviteCode.isBlank()) {
-            throw new BadRequestException("Mã liên kết vị trí không được để trống");
-        }
-        String inviteCode = rawInviteCode.trim();
-        if (inviteCode.length() > INVITE_CODE_MAX_LENGTH) {
-            throw new BadRequestException(
-                    "Mã liên kết vị trí không được vượt quá " + INVITE_CODE_MAX_LENGTH + " ký tự");
-        }
-
-        // A general clan invite is not a position link, so it must not be redeemable here (404 keeps it invisible).
-        InvitationCode invitation = invitationCodeRepository.findById(inviteCode)
-                .filter(entity -> entity.getInviteType() == InviteType.PositionLinkCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Mã liên kết vị trí", "inviteCode", inviteCode));
-
-        if (!Boolean.TRUE.equals(invitation.getIsActive())) {
-            throw new BadRequestException("Mã liên kết vị trí đã được sử dụng hoặc đã bị vô hiệu hoá");
-        }
-        if (invitation.getExpiresAt() != null && !invitation.getExpiresAt().isAfter(Instant.now())) {
-            throw new BadRequestException("Mã liên kết vị trí đã hết hạn sử dụng");
-        }
-        if (invitation.getMaxUses() != null && invitation.getUsedCount() != null
-                && invitation.getUsedCount() >= invitation.getMaxUses()) {
-            throw new BadRequestException("Mã liên kết vị trí đã hết lượt sử dụng");
-        }
-        if (invitation.getTargetMemberId() == null || invitation.getTargetMemberId().isBlank()) {
-            throw new BadRequestException("Mã liên kết vị trí không gắn với vị trí phả hệ nào");
-        }
-        return invitation;
+        // Shared gate with the onboarding flow: 404 for an unknown code or a general clan invite, and a distinct
+        // 400 + code (INVITE_CODE_REVOKED / INVITE_CODE_EXPIRED / INVITE_CODE_EXHAUSTED) otherwise.
+        return InviteCodeGuard.requireUsableForPositionLink(invitationCodeRepository, rawInviteCode);
     }
 
     /**

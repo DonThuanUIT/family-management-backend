@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Entity mapping table `family_branches`.
- * Represents a hierarchical Chi/Nhánh in the family genealogy tree.
+ * Represents a hierarchical branch in the family genealogy tree.
  */
 @Entity
 @Table(name = "family_branches")
