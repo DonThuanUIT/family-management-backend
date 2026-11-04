@@ -8,6 +8,7 @@ import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
@@ -117,6 +118,25 @@ public class MemberServiceImpl implements MemberService {
         String clanId = TenantContext.getClanId();
         return memberRepository.findByBranch_ClanId(clanId)
                 .stream()
+                .map(memberMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberResponse> searchMembers(MemberSearchCriteria criteria) {
+        String clanId = TenantContext.getClanId();
+        MemberSearchCriteria clean = criteria != null ? criteria : MemberSearchCriteria.of(null, null, null, null, null, null);
+
+        return memberRepository.searchMembers(
+                clanId,
+                clean.keyword(),
+                clean.memberId(),
+                clean.fullName(),
+                clean.generation(),
+                clean.branchId(),
+                clean.status()
+        ).stream()
                 .map(memberMapper::toResponse)
                 .toList();
     }

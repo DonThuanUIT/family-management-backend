@@ -3,6 +3,7 @@ package com.familyfund.genealogy.internal.controller;
 import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.genealogy.internal.dto.request.AssignMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.service.GenealogyService;
 import com.familyfund.genealogy.internal.service.MemberService;
@@ -59,6 +60,20 @@ public class MemberController {
     public ResponseEntity<ApiResponse<List<MemberResponse>>> getClanMembers() {
         List<MemberResponse> response = memberService.getMembersByClan();
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping({"/api/v1/members/search", "/api/members/search"})
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<MemberResponse>>> searchMembers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String memberId,
+            @RequestParam(required = false) String fullName,
+            @RequestParam(required = false) Integer generation,
+            @RequestParam(required = false) String branchId,
+            @RequestParam(required = false) String status) {
+        MemberSearchCriteria criteria = MemberSearchCriteria.of(keyword, memberId, fullName, generation, branchId, status);
+        List<MemberResponse> response = memberService.searchMembers(criteria);
+        return ResponseEntity.ok(ApiResponse.success(response, "Member search completed successfully"));
     }
 
     @PutMapping("/api/v1/members/{memberId}/assign-branch")

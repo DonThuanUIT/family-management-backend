@@ -37,4 +37,30 @@ public interface MemberRepository extends JpaRepository<Member, String> {
 
     @Query("SELECT m.branch.branchId, COUNT(m) FROM Member m WHERE m.branch.clanId = :clanId GROUP BY m.branch.branchId")
     List<Object[]> countMembersByBranchForClan(@Param("clanId") String clanId);
+
+    @Query(value = """
+            SELECT m.* FROM members m
+            JOIN family_branches b ON m.branch_id = b.branch_id
+            WHERE b.clan_id = :clanId
+              AND (CAST(:branchId AS text) IS NULL OR m.branch_id = :branchId)
+              AND (:generation IS NULL OR m.generation = :generation)
+              AND (CAST(:status AS text) IS NULL OR m.status = :status)
+              AND (CAST(:memberId AS text) IS NULL OR m.member_id ILIKE CONCAT('%', CAST(:memberId AS text), '%'))
+              AND (CAST(:fullName AS text) IS NULL OR unaccent(CAST(m.full_name AS text)) ILIKE unaccent(CAST(CONCAT('%', CAST(:fullName AS text), '%') AS text)))
+              AND (CAST(:keyword AS text) IS NULL OR (
+                    m.member_id ILIKE CONCAT('%', CAST(:keyword AS text), '%')
+                    OR unaccent(CAST(m.full_name AS text)) ILIKE unaccent(CAST(CONCAT('%', CAST(:keyword AS text), '%') AS text))
+                    OR unaccent(CAST(b.branch_name AS text)) ILIKE unaccent(CAST(CONCAT('%', CAST(:keyword AS text), '%') AS text))
+                  ))
+            ORDER BY m.generation ASC, m.member_id ASC
+            """, nativeQuery = true)
+    List<Member> searchMembers(
+            @Param("clanId") String clanId,
+            @Param("keyword") String keyword,
+            @Param("memberId") String memberId,
+            @Param("fullName") String fullName,
+            @Param("generation") Integer generation,
+            @Param("branchId") String branchId,
+            @Param("status") String status
+    );
 }

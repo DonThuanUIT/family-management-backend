@@ -1,6 +1,7 @@
 package com.familyfund.genealogy.internal.service;
 
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 
 import java.util.List;
@@ -37,4 +38,14 @@ public interface MemberService {
      * @return list of all member profiles in the clan
      */
     List<MemberResponse> getMembersByClan();
+
+    /**
+     * Searches member profiles within the caller's clan based on flexible search criteria (US-30 / Task #111).
+     * Supports accent-insensitive (unaccented) fuzzy matching on full name, partial matching on member ID,
+     * generation level, and branch ID.
+     *
+     * @param criteria search filter criteria
+     * @return matching member profiles
+     */
+    List<MemberResponse> searchMembers(MemberSearchCriteria criteria);
 }
