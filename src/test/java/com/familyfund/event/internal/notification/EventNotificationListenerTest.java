@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -109,6 +110,45 @@ class EventNotificationListenerTest {
                 eq(EVENT_ID),
                 eq(event.title()),
                 eq(event.contentChanges())
+        );
+    }
+    @Test
+    @DisplayName("Handles RoleChangedDomainEvent: saves notification for event scope and dispatches")
+    void handleRoleChanged_EventScope() {
+        when(notificationIdGenerator.generate()).thenReturn(NOTIF_ID);
+
+        com.familyfund.event.api.event.RoleChangedDomainEvent event = new com.familyfund.event.api.event.RoleChangedDomainEvent(
+                "AUD_123",
+                CLAN_ID,
+                "ACC_HEAD",
+                "MEM_001",
+                "ACC_001",
+                com.familyfund.event.api.dto.RoleActionType.ASSIGN,
+                com.familyfund.event.api.dto.AssignableRoleCode.HeadOfOrganizer,
+                com.familyfund.event.api.dto.RoleScopeType.EVENT,
+                EVENT_ID,
+                "Giỗ Tổ 2026",
+                "Bổ nhiệm trưởng BTC",
+                Instant.now()
+        );
+
+        listener.onRoleChanged(event);
+
+        ArgumentCaptor<EventNotification> captor = ArgumentCaptor.forClass(EventNotification.class);
+        verify(eventNotificationRepository).save(captor.capture());
+        EventNotification saved = captor.getValue();
+
+        assertEquals(NOTIF_ID, saved.getNotificationId());
+        assertEquals(EVENT_ID, saved.getEventId());
+
+        verify(notificationSender).sendRoleChangedNotification(
+                eq(CLAN_ID),
+                eq("MEM_001"),
+                eq("ACC_001"),
+                eq("HeadOfOrganizer"),
+                eq("ASSIGN"),
+                anyString(),
+                anyString()
         );
     }
 }
