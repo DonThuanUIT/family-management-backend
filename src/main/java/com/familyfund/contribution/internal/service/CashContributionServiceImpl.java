@@ -230,6 +230,59 @@ public class CashContributionServiceImpl implements CashContributionService {
         );
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ElectronicReceiptResponse> getCashContributionsByEvent(String eventId) {
+        List<Contribution> contributions = contributionRepository.findByEventId(eventId);
+        if (contributions == null || contributions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
+                .orElse(new EventSummaryDto(eventId, null, "Đại Lễ Giỗ Tổ", null, null));
+
+        List<ElectronicReceiptResponse> responses = new ArrayList<>();
+        for (Contribution contribution : contributions) {
+            if (contribution.getContributionType() != ContributionType.Cash) {
+                continue;
+            }
+
+            CashContribution cashContribution = cashContributionRepository.findById(contribution.getContributionId())
+                    .orElse(null);
+            if (cashContribution == null) {
+                continue;
+            }
+
+            MemberSummaryDto payerMember = genealogyQueryService.findMemberSummary(contribution.getPayerMemberId())
+                    .orElse(new MemberSummaryDto(contribution.getPayerMemberId(), "Thành viên", null, null));
+
+            List<ContributionMemberDetail> details = contributionMemberDetailRepository.findAllByContributionId(contribution.getContributionId());
+            List<MemberAllocationResponse> allocations = details.stream().map(d -> {
+                String name = genealogyQueryService.findMemberSummary(d.getMemberId())
+                        .map(MemberSummaryDto::fullName)
+                        .orElse("Thành viên");
+                return new MemberAllocationResponse(d.getMemberId(), name, d.getRecordedAmount());
+            }).toList();
+
+            responses.add(new ElectronicReceiptResponse(
+                    cashContribution.getReceiptNumber(),
+                    contribution.getContributionId(),
+                    contribution.getEventId(),
+                    eventSummary.eventName(),
+                    contribution.getPayerMemberId(),
+                    payerMember.fullName(),
+                    contribution.getReceiverAccountId(),
+                    cashContribution.getAmount(),
+                    MoneyToWordsConverter.toVietnameseWords(cashContribution.getAmount()),
+                    cashContribution.getPaymentMethod(),
+                    contribution.getContributionDate(),
+                    allocations
+            ));
+        }
+
+        return responses;
+    }
+
     private String generateUniqueContributionId() {
         for (int i = 0; i < 5; i++) {
             String candidate = contributionIdGenerator.generate();

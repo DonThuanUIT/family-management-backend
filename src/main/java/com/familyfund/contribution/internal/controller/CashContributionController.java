@@ -43,4 +43,15 @@ public class CashContributionController {
         ElectronicReceiptResponse response = cashContributionService.getReceiptByReceiptNumber(receiptNumber);
         return ResponseEntity.ok(ApiResponse.success(response, "Electronic receipt retrieved successfully"));
     }
+
+    /**
+     * Retrieve all cash electronic receipts for a specific event.
+     */
+    @GetMapping("/events/{eventId}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<ElectronicReceiptResponse>>> getCashContributionsByEvent(
+            @PathVariable String eventId) {
+        java.util.List<ElectronicReceiptResponse> response = cashContributionService.getCashContributionsByEvent(eventId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cash contributions retrieved successfully"));
+    }
 }

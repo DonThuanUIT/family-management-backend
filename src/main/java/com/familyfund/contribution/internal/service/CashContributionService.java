@@ -3,6 +3,8 @@ package com.familyfund.contribution.internal.service;
 import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
 import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
 
+import java.util.List;
+
 /**
  * Internal service interface for handling cash contributions and electronic receipts.
  */
@@ -23,4 +25,12 @@ public interface CashContributionService {
      * @return electronic receipt details
      */
     ElectronicReceiptResponse getReceiptByReceiptNumber(String receiptNumber);
+
+    /**
+     * Retrieves all cash electronic receipts for a specific event.
+     *
+     * @param eventId target event ID
+     * @return list of electronic receipts
+     */
+    List<ElectronicReceiptResponse> getCashContributionsByEvent(String eventId);
 }
