@@ -222,3 +222,58 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
         );
     }
 }
+    @Override
+    public java.util.Optional<String> assignBranchRepresentative(String branchId, String clanId, String newRepresentativeMemberId) {
+        if (branchId == null || branchId.isBlank() || clanId == null || clanId.isBlank() || newRepresentativeMemberId == null || newRepresentativeMemberId.isBlank()) {
+            throw new BadRequestException("branchId, clanId và newRepresentativeMemberId không được để trống");
+        }
+
+        FamilyBranch branch = familyBranchRepository.findByClanIdAndBranchId(clanId.trim(), branchId.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Nhánh gia phả", "branchId", branchId));
+
+        Member newRepresentative = memberRepository.findByBranch_ClanIdAndMemberId(clanId.trim(), newRepresentativeMemberId.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Thành viên", "memberId", newRepresentativeMemberId));
+
+        if (!"Living".equalsIgnoreCase(newRepresentative.getStatus())) {
+            throw new BadRequestException("Chỉ thành viên còn sống mới có thể đảm nhận vai trò Trưởng nhánh");
+        }
+
+        String previousRepresentativeId = branch.getRepresentative() != null ? branch.getRepresentative().getMemberId() : null;
+
+        branch.setRepresentative(newRepresentative);
+        familyBranchRepository.save(branch);
+
+        log.info("Assigned representative [{}] to branch [{}] in clan [{}]. Previous representative was [{}]",
+                newRepresentativeMemberId, branchId, clanId, previousRepresentativeId);
+
+        if (previousRepresentativeId != null && !previousRepresentativeId.equals(newRepresentativeMemberId)) {
+            return java.util.Optional.of(previousRepresentativeId);
+        }
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public void revokeBranchRepresentative(String branchId, String clanId, String targetMemberId) {
+        if (branchId == null || branchId.isBlank() || clanId == null || clanId.isBlank()) {
+            throw new BadRequestException("branchId và clanId không được để trống");
+        }
+
+        FamilyBranch branch = familyBranchRepository.findByClanIdAndBranchId(clanId.trim(), branchId.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Nhánh gia phả", "branchId", branchId));
+
+        if (branch.getRepresentative() == null) {
+            return;
+        }
+
+        if (targetMemberId != null && !targetMemberId.isBlank()) {
+            if (!targetMemberId.trim().equals(branch.getRepresentative().getMemberId())) {
+                throw new BadRequestException("Thành viên '" + targetMemberId + "' không phải là Trưởng nhánh hiện tại của nhánh '" + branch.getBranchName() + "'");
+            }
+        }
+
+        branch.setRepresentative(null);
+        familyBranchRepository.save(branch);
+
+        log.info("Revoked representative from branch [{}] in clan [{}]", branchId, clanId);
+    }
+}

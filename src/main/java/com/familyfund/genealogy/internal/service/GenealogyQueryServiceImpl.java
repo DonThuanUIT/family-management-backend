@@ -5,6 +5,7 @@ import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
+import com.familyfund.genealogy.api.dto.BranchSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
@@ -220,5 +221,63 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
                 .filter(m -> m.getStatus() == null || Member.STATUS_LIVING.equalsIgnoreCase(m.getStatus()))
                 .map(Member::getMemberId)
                 .toList();
+    }
+    @Override
+    public java.util.Optional<BranchSummaryDto> findBranchByIdAndClanId(String branchId, String clanId) {
+        if (branchId == null || branchId.isBlank() || clanId == null || clanId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return familyBranchRepository.findByClanIdAndBranchId(clanId.trim(), branchId.trim())
+                .map(this::toBranchSummaryDto);
+    }
+
+    @Override
+    public java.util.List<BranchSummaryDto> findAllBranchesByClanId(String clanId) {
+        if (clanId == null || clanId.isBlank()) {
+            return java.util.Collections.emptyList();
+        }
+        return familyBranchRepository.findAllByClanIdWithRepresentative(clanId.trim())
+                .stream()
+                .map(this::toBranchSummaryDto)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<MemberSummaryDto> findAllAliveMembersByClanId(String clanId) {
+        if (clanId == null || clanId.isBlank()) {
+            return java.util.Collections.emptyList();
+        }
+        return memberRepository.findByBranch_ClanId(clanId.trim())
+                .stream()
+                .filter(m -> !Boolean.TRUE.equals(m.getIsPlaceholder()))
+                .filter(m -> m.getStatus() == null || Member.STATUS_LIVING.equalsIgnoreCase(m.getStatus()))
+                .map(m -> new MemberSummaryDto(
+                        m.getMemberId(),
+                        m.getFullName(),
+                        m.getBranch() != null ? m.getBranch().getClanId() : null,
+                        m.getBranch() != null ? m.getBranch().getBranchId() : null
+                ))
+                .toList();
+    }
+
+    @Override
+    public boolean isMemberRepresentativeOfAnyBranch(String memberId, String clanId) {
+        if (memberId == null || memberId.isBlank() || clanId == null || clanId.isBlank()) {
+            return false;
+        }
+        return !familyBranchRepository.findByClanIdAndRepresentative_MemberId(clanId.trim(), memberId.trim()).isEmpty();
+    }
+
+    private BranchSummaryDto toBranchSummaryDto(FamilyBranch branch) {
+        String repId = branch.getRepresentative() != null ? branch.getRepresentative().getMemberId() : null;
+        String repName = branch.getRepresentative() != null ? branch.getRepresentative().getFullName() : null;
+        return new BranchSummaryDto(
+                branch.getBranchId(),
+                branch.getClanId(),
+                branch.getBranchName(),
+                branch.getGenerationLevel(),
+                repId,
+                repName
+        );
     }
 }

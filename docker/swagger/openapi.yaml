@@ -1719,6 +1719,145 @@ paths:
         '404':
           description: Tài sản không tồn tại
 
+  /roles/assign:
+    post:
+      summary: Chỉ định vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
+      description: |
+        Chỉ Trưởng tộc (ROLE_CLAN_HEAD) hoặc Admin (ROLE_ADMIN) có quyền thực hiện.
+        Với Trưởng nhánh (ROLE_BRANCH_HEAD): gắn representative_id vào family_branches và gắn vào account_roles (bắt buộc thành viên đã có tài khoản Active).
+        Với nhân sự sự kiện (HeadOfOrganizer, OrganizerMember, EventTreasurer): cập nhật bảng event_personnel.
+        Tự động phát thông báo bất đồng bộ và ghi vào audit_logs.
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - memberId
+                - roleCode
+                - scopeType
+                - scopeId
+              properties:
+                memberId:
+                  type: string
+                  example: MEM20261016A1B2C3
+                roleCode:
+                  type: string
+                  enum: [ROLE_BRANCH_HEAD, HeadOfOrganizer, OrganizerMember, EventTreasurer]
+                  example: ROLE_BRANCH_HEAD
+                scopeType:
+                  type: string
+                  enum: [BRANCH, EVENT]
+                  example: BRANCH
+                scopeId:
+                  type: string
+                  example: BR_CHI_1
+                description:
+                  type: string
+                  example: Bổ nhiệm Trưởng chi nhánh
+      responses:
+        '200':
+          description: Chỉ định vai trò thành công
+        '400':
+          description: Dữ liệu không hợp lệ hoặc thành viên chưa có tài khoản Active
+        '403':
+          description: Không có quyền truy cập
+        '404':
+          description: Không tìm thấy thành viên, chi nhánh hoặc sự kiện
+
+  /roles/revoke:
+    post:
+      summary: Thu hồi vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
+      description: |
+        Chỉ Trưởng tộc hoặc Admin có quyền thực hiện.
+        Thu hồi Trưởng nhánh sẽ gỡ representative_id và gỡ ROLE_BRANCH_HEAD khỏi account_roles (nếu không còn nhánh nào khác).
+        Thu hồi nhân sự sự kiện sẽ xóa bản ghi khỏi event_personnel.
+        Tự động ghi audit_logs và phát thông báo.
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - memberId
+                - roleCode
+                - scopeType
+                - scopeId
+              properties:
+                memberId:
+                  type: string
+                  example: MEM20261016A1B2C3
+                roleCode:
+                  type: string
+                  enum: [ROLE_BRANCH_HEAD, HeadOfOrganizer, OrganizerMember, EventTreasurer]
+                  example: ROLE_BRANCH_HEAD
+                scopeType:
+                  type: string
+                  enum: [BRANCH, EVENT]
+                  example: BRANCH
+                scopeId:
+                  type: string
+                  example: BR_CHI_1
+                reason:
+                  type: string
+                  example: Thay đổi nhân sự
+      responses:
+        '200':
+          description: Thu hồi vai trò thành công
+        '400':
+          description: Dữ liệu không hợp lệ
+        '403':
+          description: Không có quyền truy cập
+
+  /roles/audit-logs:
+    get:
+      summary: Tra cứu nhật ký kiểm toán phân quyền (US-03)
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [BRANCH, EVENT]
+        - name: scopeId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách nhật ký kiểm toán
+
+  /roles/overview:
+    get:
+      summary: Lấy dữ liệu tổng hợp phân quyền dòng họ (US-03)
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tổng quan phân quyền nhánh và thành viên
+
 components:
   securitySchemes:
     BearerAuth:

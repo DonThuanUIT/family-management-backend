@@ -53,5 +53,22 @@ public interface GenealogyMemberCommandService {
      * @throws com.familyfund.core.exception.DuplicateResourceException  the position was already claimed (409)
      */
     VirtualMemberDto claimVirtualMember(ClaimVirtualMemberCommand command);
+     * Assigns a new representative member to a family branch.
+     *
+     * @param branchId                  ID of the branch
+     * @param clanId                    ID of the tenant clan
+     * @param newRepresentativeMemberId ID of the member to assign as representative
+     * @return Optional containing the previous representative memberId if one was assigned and is different
+     */
+    java.util.Optional<String> assignBranchRepresentative(String branchId, String clanId, String newRepresentativeMemberId);
+
+    /**
+     * Revokes representative assignment from a branch.
+     *
+     * @param branchId       ID of the branch
+     * @param clanId         ID of the tenant clan
+     * @param targetMemberId ID of the member expected to be the current representative
+     */
+    void revokeBranchRepresentative(String branchId, String clanId, String targetMemberId);
 }
 
