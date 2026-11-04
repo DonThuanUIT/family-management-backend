@@ -1,4 +1,4 @@
-﻿openapi: 3.0.3
+openapi: 3.0.3
 info:
   title: Family Management Fund API (familyfund-api)
   version: 1.0.0
@@ -697,6 +697,232 @@ paths:
         '200':
           description: Danh sách thông báo sự kiện
 
+  /events/{eventId}/registrations:
+    post:
+      summary: Đăng ký tham gia sự kiện (US-06)
+      description: |
+        Thành viên / Người đại diện hộ gia đình đăng ký số lượng người tham dự, khẩu phần ăn (chay/mặn) và phương tiện di chuyển khi sự kiện đang mở tiếp nhận đăng ký (RegistrationOpen).
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_2026_01
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAttendeesRequest'
+      responses:
+        '201':
+          description: Đăng ký tham gia sự kiện thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc sự kiện không mở đăng ký
+        '409':
+          description: Hộ gia đình đã có lượt đăng ký đang hoạt động
+    get:
+      summary: Danh sách hộ gia đình đăng ký tham gia sự kiện (US-06)
+      description: |
+        Ban tổ chức, Trưởng tộc hoặc Admin xem danh sách tất cả các hộ gia đình đã đăng ký (hỗ trợ phân trang).
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: "registrationDate,desc"
+      responses:
+        '200':
+          description: Danh sách lượt đăng ký phân trang
+
+  /events/{eventId}/registrations/summary:
+    get:
+      summary: Tổng hợp số liệu cộng dồn cỗ bàn và người tham dự (US-06)
+      description: |
+        Cung cấp số liệu thống kê tổng hợp cộng dồn thời gian thực cho Ban tổ chức nắm bắt chính xác số lượng cỗ bàn, người tham dự để chuẩn bị khánh tiết chu đáo.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thống kê số lượng đăng ký, người tham dự và cỗ bàn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistrationSummary'
+
+  /events/{eventId}/registrations/me:
+    get:
+      summary: Xem thông tin đăng ký của chính hộ gia đình (US-06)
+      description: |
+        Thành viên tra cứu thông tin đăng ký hiện tại của hộ gia đình mình cho sự kiện.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin đăng ký của hộ gia đình
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+        '404':
+          description: Hộ gia đình chưa đăng ký sự kiện này
+
+  /events/{eventId}/registrations/{registrationId}:
+    get:
+      summary: Xem chi tiết một lượt đăng ký tham gia sự kiện (US-06)
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết lượt đăng ký
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/request-modification:
+    post:
+      summary: Gửi yêu cầu thay đổi số lượng người / khẩu phần / phương tiện (US-06)
+      description: |
+        Người đại diện hộ gia đình gửi yêu cầu chỉnh sửa thông tin đăng ký kèm lý do. Lượt đăng ký chuyển sang trạng thái PendingModification chờ Ban tổ chức phê duyệt.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestModifyRegistrationRequest'
+      responses:
+        '200':
+          description: Yêu cầu thay đổi thông tin đã được ghi nhận chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/request-cancellation:
+    post:
+      summary: Gửi yêu cầu hủy đăng ký tham gia sự kiện (US-06)
+      description: |
+        Người đại diện hộ gia đình gửi yêu cầu hủy đăng ký kèm lý do. Lượt đăng ký chuyển sang trạng thái PendingCancellation chờ Ban tổ chức phê duyệt.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestCancelRegistrationRequest'
+      responses:
+        '200':
+          description: Yêu cầu hủy đăng ký đã được ghi nhận chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /events/{eventId}/registrations/{registrationId}/review:
+    post:
+      summary: Ban tổ chức xét duyệt yêu cầu sửa đổi hoặc hủy đăng ký (US-06)
+      description: |
+        Trưởng ban tổ chức (HeadOfOrganizer), Trưởng tộc hoặc Admin phê duyệt (chấp thuận hoặc từ chối) yêu cầu thay đổi/hủy của hộ gia đình dựa trên tình hình chuẩn bị cỗ bàn thực tế.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: registrationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRegistrationRequest'
+      responses:
+        '200':
+          description: Xét duyệt yêu cầu thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegistration'
+
   /events/{eventId}/advance-vouchers:
     post:
       summary: Lập phiếu cấp phát kinh phí tạm ứng (Phân hệ 3)
@@ -861,6 +1087,10 @@ paths:
   /invitations/{inviteCode}:
     get:
       summary: Xem chi tiết thông tin mã mời (Public cho trang đón tiếp US-17)
+      description: |
+        Kiểm tra mã trước khi cho người dùng đi tiếp. Ba tình huống từ chối có `code` khác nhau để client
+        hiển thị đúng thông báo: mã bị thu hồi (`INVITE_CODE_REVOKED`), mã hết hạn (`INVITE_CODE_EXPIRED`),
+        mã hết lượt dùng (`INVITE_CODE_EXHAUSTED`). Mã không tồn tại trả `404` như trước.
       tags:
         - Invitations & Onboarding
       parameters:
@@ -873,8 +1103,54 @@ paths:
       responses:
         '200':
           description: Thông tin mã mời
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: |-
+            Mã không còn dùng được. `code` cho biết lý do:
+            - `INVITE_CODE_REVOKED`: mã đã bị thu hồi / vô hiệu hoá
+            - `INVITE_CODE_EXPIRED`: mã đã hết hạn
+            - `INVITE_CODE_EXHAUSTED`: mã đã hết lượt sử dụng
         '404':
-          description: Mã mời không tồn tại hoặc đã bị vô hiệu hóa
+          description: Mã mời không tồn tại
+    patch:
+      summary: Cập nhật hạn dùng / số lượt / trạng thái của mã mời (Trưởng tộc hoặc Admin)
+      description: |
+        Chỉ áp dụng các trường có trong payload. `maxUses` không được nhỏ hơn `usedCount` hiện tại.
+        `isActive = true` dùng để kích hoạt lại một mã đã bị thu hồi; `validityDays` tính lại hạn từ thời điểm gọi
+        khi không truyền `expiresAt`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 8K9P2X7N
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvitationRequest'
+      responses:
+        '200':
+          description: Cập nhật thành công, trả về mã mời sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: Payload rỗng, `expiresAt` không ở tương lai, hoặc `maxUses` nhỏ hơn số lượt đã dùng
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Mã mời không tồn tại trong dòng họ hiện hành
 
   /invitations/{inviteCode}/deactivate:
     patch:
@@ -895,6 +1171,554 @@ paths:
         '403':
           description: Không có quyền thực hiện
 
+  /invitations/{inviteCode}/regenerate:
+    post:
+      summary: Tái tạo mã mời mới thay cho mã cũ (Trưởng tộc hoặc Admin)
+      description: |
+        Thu hồi mã cũ (`is_active = false`, bản ghi vẫn giữ để tra cứu) và phát hành mã mới kế thừa loại mã,
+        nhánh mục tiêu, `maxUses` của mã cũ với `used_count` đặt lại bằng 0. Hạn dùng của mã mới: `expiresAt` >
+        `validityDays` (nếu truyền) > phần hạn còn lại của mã cũ > 30 ngày mặc định.
+        Mã liên kết vị trí (`PositionLinkCode`) không tái tạo được vì `target_member_id` là UNIQUE — hãy tạo
+        hồ sơ ảo mới.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 8K9P2X7N
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvitationRequest'
+      responses:
+        '201':
+          description: Mã mới được tạo, header `Location` trỏ tới `/api/v1/invitations/{newCode}`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: Mã cũ là PositionLinkCode, hoặc `maxUses` nhỏ hơn số lượt đã dùng
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Mã mời không tồn tại trong dòng họ hiện hành
+
+  /join-requests:
+    get:
+      summary: Danh sách yêu cầu gia nhập theo trạng thái & phạm vi nhánh (US-17)
+      description: |
+        `ROLE_CLAN_HEAD` và `ROLE_ADMIN` xem toàn dòng họ; `ROLE_BRANCH_HEAD` chỉ thấy yêu cầu thuộc các nhánh
+        mình quản lý (nhánh mình đại diện + nhánh con cháu). Truyền `branchId` ngoài phạm vi quản lý ⇒ `400`.
+        Mặc định `status = Pending`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Approved, Rejected]
+            default: Pending
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: BR_CHI_2
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Danh sách yêu cầu gia nhập phân trang
+        '400':
+          description: "`branchId` nằm ngoài phạm vi nhánh mà người duyệt quản lý"
+        '403':
+          description: Không có quyền duyệt yêu cầu
+
+  /join-requests/{requestId}/approve:
+    post:
+      summary: Phê duyệt yêu cầu gia nhập, có thể chỉnh lại vị trí trước khi duyệt (US-17)
+      description: |
+        Trong một transaction: tạo `members` (và `family_branches` con nếu `proposalType = NewChildBranch`),
+        gắn `user_accounts.member_id`, kích hoạt `account_status = Active`, cấp `ROLE_MEMBER`, tăng
+        `invitation_codes.used_count`, cập nhật yêu cầu sang `Approved`, rồi phát domain event để thông báo
+        kết quả cho người xin gia nhập.
+
+        Body là tuỳ chọn: không gửi body thì dùng đúng vị trí ứng viên đề xuất. Nếu gửi `targetBranchId`, hệ thống
+        kiểm tra nhánh tồn tại trong dòng họ (`404`) và người duyệt có quyền trên nhánh đó (`400`), sau đó lưu lại
+        nhánh đã chỉnh vào yêu cầu. `proposedNewBranchName` chỉ dùng được với `NewChildBranch`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: REQ12345678901234
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveJoinRequest'
+      responses:
+        '200':
+          description: Đã phê duyệt, trả về yêu cầu sau khi duyệt (kèm nhánh thực tế)
+        '400':
+          description: Yêu cầu đã được xử lý, người duyệt không có quyền trên nhánh, hoặc payload sai
+        '404':
+          description: Yêu cầu hoặc nhánh chỉnh lại không tồn tại trong dòng họ hiện hành
+
+  /join-requests/{requestId}/reject:
+    post:
+      summary: Từ chối yêu cầu gia nhập kèm lý do (US-17)
+      description: |
+        Lưu `rejection_reason`, chuyển yêu cầu sang `Rejected`, vô hiệu hoá tài khoản tạm (`Deactivated`) và phát
+        domain event để gửi thông báo kết quả (kèm lý do) cho người xin gia nhập.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: REQ12345678901234
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejectionReason]
+              properties:
+                rejectionReason:
+                  type: string
+                  maxLength: 500
+                  example: Thông tin gia phả đề xuất không khớp với phả hệ thực tế
+      responses:
+        '200':
+          description: Đã từ chối, trả về yêu cầu kèm lý do
+        '400':
+          description: Lý do trống/ quá 500 ký tự, hoặc yêu cầu đã được xử lý
+        '404':
+          description: Yêu cầu không tồn tại trong dòng họ hiện hành
+
+  /contributions/cash:
+    post:
+      summary: Ghi nhận đóng góp bằng tiền mặt hoặc chuyển khoản & cấp phiếu thu điện tử (US-09)
+      description: |
+        Tiếp nhận khoản đóng góp tại sự kiện, tự động sinh mã phiếu thu duy nhất (PT-YYYYMMDD-XXXXX),
+        và phân bổ tỷ lệ công đức vào contribution_member_details phục vụ tính toán đệ quy US-11.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+                - payerMemberId
+                - amount
+                - paymentMethod
+              properties:
+                eventId:
+                  type: string
+                  example: EVT20261029ABC
+                payerMemberId:
+                  type: string
+                  example: MEM01J0001
+                amount:
+                  type: number
+                  format: double
+                  example: 1000000
+                paymentMethod:
+                  type: string
+                  enum: [Cash, BankTransfer]
+                  example: Cash
+                allocations:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - memberId
+                      - amount
+                    properties:
+                      memberId:
+                        type: string
+                        example: MEM01J0002
+                      amount:
+                        type: number
+                        format: double
+                        example: 500000
+      responses:
+        '201':
+          description: Ghi nhận đóng góp và cấp phiếu thu điện tử thành công
+        '400':
+          description: Dữ liệu không hợp lệ hoặc tổng phân bổ không khớp
+        '403':
+          description: Không có quyền thủ quỹ hoặc sự kiện đã đóng
+        '404':
+          description: Sự kiện hoặc thành viên không tồn tại
+
+  /contributions/cash/receipts/{receiptNumber}:
+    get:
+      summary: Tra cứu phiếu thu điện tử theo mã số biên lai (US-09)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: receiptNumber
+          in: path
+          required: true
+          schema:
+            type: string
+            example: PT-20261029-A1B2C3
+      responses:
+        '200':
+          description: Tra cứu phiếu thu điện tử thành công
+        '404':
+          description: Không tìm thấy biên lai
+
+  /events/{eventId}/benchmarks:
+    post:
+      summary: Ban hành định mức giá hiện vật cúng tiến của sự kiện (US-10, Task #72)
+      description: |
+        Ban tổ chức (HeadOfOrganizer, EventTreasurer) hoặc Trưởng tộc/Admin thiết lập đơn giá định mức
+        cho các hiện vật cúng tiến phổ biến (heo quay, mâm xôi, gà luộc, v.v.) trong sự kiện.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventItemBenchmarkRequest'
+      responses:
+        '201':
+          description: Tạo định mức giá thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEventItemBenchmark'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc đã tồn tại định mức cho vật phẩm này
+        '403':
+          description: Không có quyền thiết lập định mức
+        '404':
+          description: Sự kiện không tồn tại
+    get:
+      summary: Lấy danh sách định mức giá hiện vật theo sự kiện (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      responses:
+        '200':
+          description: Danh sách định mức giá hiện vật
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Event item benchmarks retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EventItemBenchmarkResponse'
+
+  /events/{eventId}/benchmarks/{benchmarkId}:
+    delete:
+      summary: Xóa định mức giá hiện vật của sự kiện (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+        - name: benchmarkId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: BM20261031A1B2C3D4
+      responses:
+        '200':
+          description: Xóa định mức giá thành công
+        '403':
+          description: Không có quyền xóa định mức
+        '404':
+          description: Sự kiện hoặc định mức không tồn tại
+
+  /contributions/in-kind:
+    post:
+      summary: Tiếp nhận hiện vật cúng tiến & quy đổi giá trị tương đương (US-10, Task #72, #74)
+      description: |
+        Tiếp nhận hiện vật cúng tiến (heo quay, mâm quả, lư hương...), tự động tính giá trị tiền mặt quy đổi tương đương
+        theo phương thức BTC Benchmark, Invoice (đối soát thực tế), hoặc Agreement (thỏa thuận),
+        đồng thời cấp mã phiếu thu điện tử duy nhất (PT-YYYYMMDD-XXXXX) và khởi tạo trạng thái vòng đời là Pending.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordInKindContributionRequest'
+      responses:
+        '201':
+          description: Tiếp nhận hiện vật và cấp biên lai điện tử thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindReceipt'
+        '400':
+          description: Dữ liệu không hợp lệ hoặc thiếu thông tin quy đổi
+        '403':
+          description: Không có quyền tiếp nhận hiện vật
+        '404':
+          description: Sự kiện hoặc thành viên không tồn tại
+
+  /contributions/in-kind/{id}:
+    get:
+      summary: Xem chi tiết đóng góp hiện vật cúng tiến (US-10, Task #72)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CTB20261031ABC12345
+      responses:
+        '200':
+          description: Lấy chi tiết hiện vật cúng tiến thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindContributionDetail'
+        '404':
+          description: Không tìm thấy hiện vật cúng tiến
+
+  /contributions/in-kind/receipts/{receiptNumber}:
+    get:
+      summary: Tra cứu phiếu thu điện tử hiện vật theo mã số biên lai (US-10, Task #74)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: receiptNumber
+          in: path
+          required: true
+          schema:
+            type: string
+            example: PT-20261031-K9L8M7
+      responses:
+        '200':
+          description: Tra cứu phiếu thu điện tử hiện vật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInKindReceipt'
+        '404':
+          description: Không tìm thấy biên lai
+
+  /contributions/in-kind/{id}/lifecycle:
+    put:
+      summary: Phân loại vòng đời hiện vật cúng tiến sau sự kiện (US-10, Task #73)
+      description: |
+        Phân loại hiện vật sau sự kiện:
+        - Consumed (Tiêu hao tại cỗ/sự kiện)
+        - Returned (Hoàn trả cho người dâng cúng)
+        - AddedToCommonAssets (Tự động kết chuyển vào danh mục tài sản chung dòng họ - clan_assets)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CTB20261031ABC12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessInKindLifecycleRequest'
+      responses:
+        '200':
+          description: Xử lý vòng đời hiện vật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseProcessInKindLifecycle'
+        '400':
+          description: Hiện vật đã được xử lý hoặc dữ liệu vị trí lưu trữ không hợp lệ
+        '403':
+          description: Không có quyền phân loại vòng đời
+        '404':
+          description: Không tìm thấy hiện vật
+
+  /contributions/in-kind/events/{eventId}:
+    get:
+      summary: Danh sách tất cả hiện vật cúng tiến theo sự kiện (US-10, Task #73)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT20261029ABC
+      responses:
+        '200':
+          description: Danh sách hiện vật cúng tiến
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Event in-kind contributions retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InKindContributionDetailResponse'
+
+  /clan-assets:
+    get:
+      summary: Danh sách tài sản tích lũy chung của dòng họ có phân trang & tìm kiếm (US-10, Task #73, #74)
+      description: |
+        Truy xuất danh mục tài sản lâu bền của dòng họ (đồ thờ, bàn ghế, lư đồng, v.v.),
+        hỗ trợ tìm kiếm theo tên tài sản và phân trang.
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "Lư đồng"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Danh sách tài sản dòng họ phân trang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClanAssetSummary'
+
+  /clan-assets/{id}:
+    get:
+      summary: Chi tiết tài sản dòng họ (US-10, Task #73)
+      tags:
+        - Contributions & Fund
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: AST20261031ABC12345
+      responses:
+        '200':
+          description: Chi tiết tài sản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClanAsset'
+        '404':
+          description: Tài sản không tồn tại
+
 components:
   securitySchemes:
     BearerAuth:
@@ -906,6 +1730,79 @@ components:
         Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
 
   schemas:
+    UpdateInvitationRequest:
+      type: object
+      description: |
+        Payload cập nhật / tái tạo mã mời. Mọi trường đều tuỳ chọn nhưng phải có ít nhất một trường khi cập nhật.
+      properties:
+        isActive:
+          type: boolean
+          description: Bật/tắt hiệu lực của mã (false = thu hồi nhưng vẫn giữ bản ghi).
+        expiresAt:
+          type: string
+          format: date-time
+          description: Mốc hết hạn tuyệt đối, phải ở tương lai.
+        validityDays:
+          type: integer
+          minimum: 1
+          description: Số ngày hiệu lực tính từ lúc gọi, dùng khi không truyền `expiresAt`.
+        maxUses:
+          type: integer
+          minimum: 1
+          description: Số lượt sử dụng tối đa; không được nhỏ hơn `usedCount` hiện tại.
+
+    ApproveJoinRequest:
+      type: object
+      description: |
+        Nội dung tuỳ chọn khi phê duyệt, cho phép người duyệt chỉnh lại vị trí trước khi tạo hồ sơ.
+      properties:
+        targetBranchId:
+          type: string
+          maxLength: 20
+          description: |
+            Nhánh thực tế gán hồ sơ (ExistingBranchLeaf) hoặc nhánh cha của chi nhánh mới (NewChildBranch).
+            Bỏ trống để dùng vị trí ứng viên đề xuất.
+          example: BR_CHI_2
+        proposedNewBranchName:
+          type: string
+          maxLength: 100
+          description: Tên chi nhánh mới nếu muốn đổi, chỉ hợp lệ với `NewChildBranch`.
+          example: Chi 3 - Nhánh Ất
+
+    ApiResponseInviteCode:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            inviteCode:
+              type: string
+            clanId:
+              type: string
+            inviteType:
+              type: string
+              enum: [GeneralClanInvite, PositionLinkCode]
+            shareableUrl:
+              type: string
+            targetBranchId:
+              type: string
+            maxUses:
+              type: integer
+            usedCount:
+              type: integer
+            expiresAt:
+              type: string
+              format: date-time
+            isActive:
+              type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
     CreateMemberRequest:
       type: object
       description: |
@@ -1319,4 +2216,76 @@ components:
           type: string
           format: date-time
 
+
+    ApiResponseClanAssetSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Clan assets retrieved successfully
+        data:
+          $ref: '#/components/schemas/ClanAssetSummaryResponse'
+
+    RegisterAttendeesRequest:
+      type: object
+      required:
+        - totalAttendees
+      properties:
+        representativeMemberId:
+          type: string
+          maxLength: 20
+        totalAttendees:
+          type: integer
+          minimum: 1
+        vegetarianMeals:
+          type: integer
+          minimum: 0
+          default: 0
+        savoryMeals:
+          type: integer
+          minimum: 0
+          default: 0
+        dietaryRequirements:
+          type: string
+          maxLength: 255
+        transportationNotes:
+          type: string
+          maxLength: 255
+        attendingMemberIds:
+          type: array
+          items:
+            type: string
+            maxLength: 20
+
+    ApiResponseRegistration:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Đăng ký tham gia sự kiện thành công
+        data:
+          $ref: '#/components/schemas/RegistrationResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseRegistrationSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RegistrationSummaryResponse'
+        timestamp:
+          type: string
+          format: date-time
 

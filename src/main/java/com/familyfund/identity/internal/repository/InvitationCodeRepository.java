@@ -22,6 +22,12 @@ public interface InvitationCodeRepository extends JpaRepository<InvitationCode, 
     Optional<InvitationCode> findByInviteCodeAndIsActiveTrue(String inviteCode);
 
     /**
+     * Finds an invitation by its code regardless of state, so a revoked (is_active = false) code can be
+     * reported as revoked instead of as "not found".
+     */
+    Optional<InvitationCode> findByInviteCode(String inviteCode);
+
+    /**
      * Finds an invitation by clan and invite code (multi-tenant scoped lookup).
      */
     Optional<InvitationCode> findByClanIdAndInviteCode(String clanId, String inviteCode);

@@ -4,9 +4,13 @@ import com.familyfund.event.api.EventQueryService;
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
+import com.familyfund.event.api.dto.RegistrationSummaryDto;
 import com.familyfund.event.internal.entity.EventPersonnel;
+import com.familyfund.event.internal.mapper.RegistrationMapper;
 import com.familyfund.event.internal.repository.EventPersonnelRepository;
 import com.familyfund.event.internal.repository.EventRepository;
+import com.familyfund.event.internal.repository.FamilyRegistrationRepository;
+import com.familyfund.event.internal.repository.RegistrationAggregateProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +25,8 @@ public class EventQueryServiceImpl implements EventQueryService {
 
     private final EventRepository eventRepository;
     private final EventPersonnelRepository eventPersonnelRepository;
+    private final FamilyRegistrationRepository familyRegistrationRepository;
+    private final RegistrationMapper registrationMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -48,5 +54,16 @@ public class EventQueryServiceImpl implements EventQueryService {
         return eventPersonnelRepository.findAllByEventIdAndMemberId(eventId, memberId).stream()
                 .map(EventPersonnel::getEventRole)
                 .collect(Collectors.toSet());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<RegistrationSummaryDto> getRegistrationSummary(String eventId) {
+        return eventRepository.findById(eventId)
+                .map(e -> {
+                    RegistrationAggregateProjection projection =
+                            familyRegistrationRepository.getAggregateSummary(eventId, e.getClanId());
+                    return registrationMapper.toSummaryDto(eventId, projection);
+                });
     }
 }

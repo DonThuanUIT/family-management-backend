@@ -3,6 +3,7 @@ package com.familyfund.identity.api;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.UpdateInvitationRequest;
 
 import java.util.List;
 
@@ -27,6 +28,32 @@ public interface InvitationService {
      * @param currentAccountId the ID of the authenticated user performing deactivation
      */
     void deactivateInviteCode(String inviteCode, String currentAccountId);
+
+    /**
+     * Updates the mutable attributes of an existing invitation code: activation flag, expiry and maximum uses.
+     * Only the fields present in the payload are applied; the code itself never changes.
+     *
+     * @param inviteCode       the code to update (must belong to the current clan)
+     * @param request          the attributes to change; at least one must be present
+     * @param currentAccountId the ID of the authenticated user performing the update
+     * @return the updated invitation code
+     */
+    InviteCodeResponse updateInviteCode(String inviteCode, UpdateInvitationRequest request, String currentAccountId);
+
+    /**
+     * Issues a fresh code that replaces an existing general clan invitation: the old code is revoked
+     * ({@code is_active = false}) and a new one inherits its type, target branch and usage limit, with a reset
+     * {@code used_count}.
+     *
+     * <p>Position link codes cannot be regenerated: {@code invitation_codes.target_member_id} is UNIQUE, so a new
+     * code for the same position has to be issued through the virtual-member endpoint instead.</p>
+     *
+     * @param inviteCode       the code to replace (must belong to the current clan)
+     * @param request          optional overrides for expiry / max uses on the new code; may be {@code null}
+     * @param currentAccountId the ID of the authenticated user performing the regeneration
+     * @return the newly created invitation code
+     */
+    InviteCodeResponse regenerateInviteCode(String inviteCode, UpdateInvitationRequest request, String currentAccountId);
 
     /**
      * Retrieves all active general clan invitations ordered by most recent.

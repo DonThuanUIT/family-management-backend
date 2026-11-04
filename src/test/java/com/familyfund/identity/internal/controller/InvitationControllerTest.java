@@ -1,12 +1,14 @@
 package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.exception.GlobalExceptionHandler;
+import com.familyfund.core.exception.InviteCodeException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.BranchJoinRequestService;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.UpdateInvitationRequest;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
 import com.familyfund.identity.api.dto.SubmitJoinRequest;
 import com.familyfund.identity.internal.entity.InviteType;
@@ -271,5 +273,97 @@ class InvitationControllerTest {
                 .andExpect(jsonPath("$.message").value("Vô hiệu hóa mã mời thành công"));
 
         verify(invitationService).deactivateInviteCode(eq(code), anyString());
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/invitations/{inviteCode} should update the code and return 200 OK")
+    void updateInvite_ShouldReturn200() throws Exception {
+        String jsonPayload = """
+                {
+                  "isActive": true,
+                  "maxUses": 42,
+                  "validityDays": 15
+                }
+                """;
+
+        InviteCodeResponse updated = InviteCodeResponse.builder()
+                .inviteCode("8K9P2X7N")
+                .clanId("CLAN_01")
+                .maxUses(42)
+                .usedCount(3)
+                .isActive(true)
+                .expiresAt(Instant.parse("2030-01-01T00:00:00Z"))
+                .build();
+
+        when(invitationService.updateInviteCode(eq("8K9P2X7N"), any(UpdateInvitationRequest.class), anyString()))
+                .thenReturn(updated);
+
+        mockMvc.perform(patch("/api/v1/invitations/8K9P2X7N")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Cập nhật mã mời thành công"))
+                .andExpect(jsonPath("$.data.maxUses").value(42))
+                .andExpect(jsonPath("$.data.isActive").value(true));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/invitations/{inviteCode} with maxUses below 1 should return 400 with field errors")
+    void updateInvite_InvalidMaxUses_ShouldReturn400() throws Exception {
+        mockMvc.perform(patch("/api/v1/invitations/8K9P2X7N")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"maxUses\": 0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errors.maxUses").exists());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/invitations/{inviteCode}/regenerate should return 201 with the new code")
+    void regenerateInvite_ShouldReturn201() throws Exception {
+        InviteCodeResponse regenerated = InviteCodeResponse.builder()
+                .inviteCode("NEWCODE1")
+                .clanId("CLAN_01")
+                .maxUses(100)
+                .usedCount(0)
+                .isActive(true)
+                .build();
+
+        when(invitationService.regenerateInviteCode(eq("8K9P2X7N"), any(), anyString())).thenReturn(regenerated);
+
+        mockMvc.perform(post("/api/v1/invitations/8K9P2X7N/regenerate")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", containsString("/api/v1/invitations/NEWCODE1")))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.inviteCode").value("NEWCODE1"))
+                .andExpect(jsonPath("$.data.usedCount").value(0));
+    }
+
+    @Test
+    @DisplayName("An expired code returns 400 with code INVITE_CODE_EXPIRED")
+    void getInviteByCode_Expired_ShouldReturnErrorCode() throws Exception {
+        when(invitationService.getInviteByCode("8K9P2X7N"))
+                .thenThrow(new InviteCodeException(InviteCodeException.EXPIRED,
+                        "Mã mời '8K9P2X7N' đã hết hạn sử dụng"));
+
+        mockMvc.perform(get("/api/v1/invitations/8K9P2X7N"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVITE_CODE_EXPIRED"))
+                .andExpect(jsonPath("$.message", containsString("hết hạn sử dụng")));
+    }
+
+    @Test
+    @DisplayName("A revoked code returns 400 with code INVITE_CODE_REVOKED")
+    void getInviteByCode_Revoked_ShouldReturnErrorCode() throws Exception {
+        when(invitationService.getInviteByCode("8K9P2X7N"))
+                .thenThrow(new InviteCodeException(InviteCodeException.REVOKED,
+                        "Mã mời '8K9P2X7N' đã bị thu hồi"));
+
+        mockMvc.perform(get("/api/v1/invitations/8K9P2X7N"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVITE_CODE_REVOKED"));
     }
 }

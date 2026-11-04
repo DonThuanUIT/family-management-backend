@@ -215,6 +215,59 @@ sequenceDiagram
 
 ---
 
+### 5.3. Luồng Cập Nhật Mã Mời (`PATCH /api/v1/invitations/{inviteCode}`)
+
+Trưởng tộc/Admin chỉnh lại thuộc tính của một mã **đã phát hành** mà không phải tạo mã mới:
+
+| Trường | Ý nghĩa | Ràng buộc |
+| :--- | :--- | :--- |
+| `isActive` | `false` = thu hồi (giữ bản ghi để tra cứu), `true` = kích hoạt lại | — |
+| `expiresAt` | Mốc hết hạn tuyệt đối | `@Future` (phải ở tương lai) |
+| `validityDays` | Tính lại hạn từ thời điểm gọi | `@Min(1)`, ưu tiên thấp hơn `expiresAt` |
+| `maxUses` | Số lượt sử dụng tối đa | `@Min(1)` **và** không nhỏ hơn `usedCount` hiện tại |
+
+Payload phải có ít nhất một trường; mã được tra theo `clan_id` của tenant nên mã của dòng họ khác trả `404` (chống IDOR).
+Trường không gửi lên được giữ nguyên — API này thay thế dần `PATCH /{inviteCode}/deactivate` (vẫn giữ để tương thích).
+
+### 5.4. Luồng Tái Tạo Mã Mời (`POST /api/v1/invitations/{inviteCode}/regenerate`)
+
+Khi mã bị lộ hoặc hết hạn, Trưởng tộc/Admin phát hành mã mới thay cho mã cũ:
+
+1. Thu hồi mã cũ: `is_active = FALSE` (bản ghi vẫn còn để đối soát audit trail).
+2. Sinh mã mới bằng `InviteCodeGenerator` (CSPRNG Base32, chống va chạm) và ghi một bản ghi mới kế thừa
+   `invite_type`, `target_branch_id`, `max_uses` của mã cũ với `used_count = 0`.
+3. Hạn dùng của mã mới theo thứ tự ưu tiên: `expiresAt` (nếu truyền) → `validityDays` (nếu truyền) →
+   phần hạn còn lại của mã cũ → 30 ngày mặc định.
+4. Trả `201 Created` + header `Location` trỏ tới `/api/v1/invitations/{newCode}`.
+
+> **Không tái tạo được `PositionLinkCode`**: `invitation_codes.target_member_id` là `UNIQUE`, nên mã liên kết vị trí
+> phải được cấp lại bằng cách tạo hồ sơ ảo mới (US-18). Gọi regenerate trên loại mã này trả `400`.
+
+### 5.5. Mã Phản Hồi Khi Người Dùng Nhập Mã Sai
+
+`GET /api/v1/invitations/{inviteCode}`, `GET /{inviteCode}/tree` và `POST /{inviteCode}/join` dùng chung một cổng
+kiểm tra (`InviteCodeGuard`), nên mọi tình huống từ chối đều có `code` riêng trong envelope lỗi:
+
+| HTTP | `code` | Khi nào | `message` |
+| :---: | :--- | :--- | :--- |
+| `404` | *không có* | Mã không tồn tại trong hệ thống | `Mã mời không tồn tại với inviteCode: '...'` |
+| `400` | `INVITE_CODE_REVOKED` | Mã tồn tại nhưng `is_active = FALSE` (bị thu hồi) | `Mã mời '...' đã bị thu hồi hoặc đã được sử dụng` |
+| `400` | `INVITE_CODE_EXPIRED` | `expires_at` đã qua | `Mã mời '...' đã hết hạn sử dụng` |
+| `400` | `INVITE_CODE_EXHAUSTED` | `used_count >= max_uses` | `Mã mời '...' đã hết lượt sử dụng` |
+
+Ví dụ envelope lỗi (client chỉ cần đọc `code`, không phải so khớp chuỗi tiếng Việt):
+
+```json
+{
+  "success": false,
+  "code": "INVITE_CODE_REVOKED",
+  "message": "Mã mời '8K9P2X7N' đã bị thu hồi hoặc đã được sử dụng",
+  "timestamp": "2026-11-04T10:00:00Z"
+}
+```
+
+---
+
 ## 6. Hướng Dẫn Kiểm Thử Toàn Diện (Testing & End-to-End Guide)
 
 Hệ thống cung cấp đầy đủ cả kiểm thử tự động (Automated Unit/Controller Tests) và kịch bản kiểm thử tích hợp thực tế (End-to-End manual testing).

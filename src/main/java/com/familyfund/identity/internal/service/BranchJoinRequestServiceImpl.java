@@ -10,8 +10,10 @@ import com.familyfund.genealogy.api.GenealogyMemberCommandService;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.identity.api.BranchJoinRequestService;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
+import com.familyfund.identity.api.dto.ApproveJoinRequest;
 import com.familyfund.identity.api.dto.RejectJoinRequest;
 import com.familyfund.identity.api.dto.SubmitJoinRequest;
+import com.familyfund.identity.api.event.JoinRequestReviewedDomainEvent;
 import com.familyfund.identity.internal.entity.AccountRole;
 import com.familyfund.identity.internal.entity.AccountRoleId;
 import com.familyfund.identity.internal.entity.AccountStatus;
@@ -24,8 +26,11 @@ import com.familyfund.identity.internal.repository.AccountRoleRepository;
 import com.familyfund.identity.internal.repository.BranchJoinRequestRepository;
 import com.familyfund.identity.internal.repository.InvitationCodeRepository;
 import com.familyfund.identity.internal.repository.UserAccountRepository;
+import com.familyfund.identity.internal.util.AccountIdGenerator;
+import com.familyfund.identity.internal.util.JoinRequestIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -36,7 +41,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Service implementation for managing branch join requests (US-17).
@@ -53,26 +57,17 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
     private final AccountRoleRepository accountRoleRepository;
     private final GenealogyQueryService genealogyQueryService;
     private final GenealogyMemberCommandService genealogyMemberCommandService;
+    private final AccountIdGenerator accountIdGenerator;
+    private final JoinRequestIdGenerator joinRequestIdGenerator;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
     public JoinRequestResponse submitJoinRequest(String inviteCode, SubmitJoinRequest request) {
-        // 1. Validate Invite Code
-        if (inviteCode == null || inviteCode.isBlank()) {
-            throw new BadRequestException("Mã mời không được để trống");
-        }
-
-        InvitationCode invitation = invitationCodeRepository.findByInviteCodeAndIsActiveTrue(inviteCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", inviteCode));
-
-        if (invitation.getExpiresAt() != null && invitation.getExpiresAt().isBefore(Instant.now())) {
-            throw new BadRequestException("Mã mời đã hết hạn sử dụng");
-        }
-
-        if (invitation.getMaxUses() != null && invitation.getUsedCount() != null && invitation.getUsedCount() >= invitation.getMaxUses()) {
-            throw new BadRequestException("Mã mời đã hết lượt sử dụng");
-        }
+        // 1. Validate Invite Code (revoked / expired / exhausted each return their own error code)
+        InvitationCode invitation =
+                InviteCodeGuard.requireUsableForOnboarding(invitationCodeRepository, inviteCode);
 
         String clanId = invitation.getClanId();
 
@@ -114,7 +109,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
         }
 
         // 4. Create and persist UserAccount in PendingApproval state
-        String accountId = "ACC_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String accountId = accountIdGenerator.generate();
         String encodedPassword = passwordEncoder.encode(request.password());
 
         UserAccount userAccount = UserAccount.builder()
@@ -129,7 +124,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
         UserAccount savedAccount = userAccountRepository.save(userAccount);
 
         // 5. Create and persist BranchJoinRequest in Pending state
-        String requestId = "REQ_" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String requestId = joinRequestIdGenerator.generate();
         BranchJoinRequest joinRequest = BranchJoinRequest.builder()
                 .requestId(requestId)
                 .clanId(clanId)
@@ -202,7 +197,8 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
 
     @Override
     @Transactional
-    public JoinRequestResponse approveJoinRequest(String requestId, Authentication authentication) {
+    public JoinRequestResponse approveJoinRequest(String requestId, ApproveJoinRequest request,
+                                                  Authentication authentication) {
         String clanId = TenantContext.getClanId();
         String reviewerAccountId = resolveAccountId(authentication);
 
@@ -214,14 +210,24 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
             throw new BusinessRuleException("Yêu cầu này đã được xử lý (trạng thái: " + joinRequest.getApprovalStatus() + ")");
         }
 
-        verifyReviewerBranchAuthority(clanId, joinRequest.getTargetBranchId(), authentication);
+        // 0. Resolve the position actually used: the approver may correct what the applicant proposed.
+        String targetBranchId = resolveTargetBranchId(clanId, joinRequest, request);
+        String newBranchName = resolveNewBranchName(joinRequest, request);
+
+        verifyReviewerBranchAuthority(clanId, targetBranchId, authentication);
+
+        // Record the corrected position on the request so the approved row matches the created member
+        joinRequest.setTargetBranchId(targetBranchId);
+        if (newBranchName != null) {
+            joinRequest.setProposedNewBranchName(newBranchName);
+        }
 
         // 1. Cross-module call to genealogy module
         String createdMemberId;
         if (joinRequest.getProposalType() == ProposalType.ExistingBranchLeaf) {
             CreateOnboardingMemberCommand cmd = CreateOnboardingMemberCommand.builder()
                     .clanId(clanId)
-                    .branchId(joinRequest.getTargetBranchId())
+                    .branchId(targetBranchId)
                     .fullName(joinRequest.getFullName())
                     .dateOfBirth(joinRequest.getDateOfBirth())
                     .gender(joinRequest.getGender())
@@ -231,8 +237,8 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
         } else {
             CreateOnboardingBranchCommand cmd = CreateOnboardingBranchCommand.builder()
                     .clanId(clanId)
-                    .parentBranchId(joinRequest.getTargetBranchId())
-                    .newBranchName(joinRequest.getProposedNewBranchName())
+                    .parentBranchId(targetBranchId)
+                    .newBranchName(newBranchName)
                     .memberFullName(joinRequest.getFullName())
                     .memberDateOfBirth(joinRequest.getDateOfBirth())
                     .memberGender(joinRequest.getGender())
@@ -271,6 +277,22 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
                 requestId, createdMemberId, account.getAccountId(), reviewerAccountId);
 
         String branchName = genealogyQueryService.getBranchName(clanId, joinRequest.getTargetBranchId()).orElse(null);
+
+        // 6. Notify the applicant of the outcome (async listener, never blocks or rolls back the approval)
+        eventPublisher.publishEvent(new JoinRequestReviewedDomainEvent(
+                updatedRequest.getRequestId(),
+                account.getAccountId(),
+                account.getPhoneNumber(),
+                joinRequest.getFullName(),
+                clanId,
+                joinRequest.getTargetBranchId(),
+                branchName,
+                true,
+                null,
+                createdMemberId,
+                reviewerAccountId,
+                updatedRequest.getReviewedAt()));
+
         return JoinRequestResponse.fromEntity(updatedRequest, branchName);
     }
 
@@ -306,7 +328,65 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
                 requestId, account.getAccountId(), reviewerAccountId, request.rejectionReason());
 
         String branchName = genealogyQueryService.getBranchName(clanId, joinRequest.getTargetBranchId()).orElse(null);
+
+        // 3. Notify the applicant that the request was rejected, including the reason
+        eventPublisher.publishEvent(new JoinRequestReviewedDomainEvent(
+                updatedRequest.getRequestId(),
+                account.getAccountId(),
+                account.getPhoneNumber(),
+                joinRequest.getFullName(),
+                clanId,
+                joinRequest.getTargetBranchId(),
+                branchName,
+                false,
+                updatedRequest.getRejectionReason(),
+                null,
+                reviewerAccountId,
+                updatedRequest.getReviewedAt()));
+
         return JoinRequestResponse.fromEntity(updatedRequest, branchName);
+    }
+
+    /**
+     * Branch the approval will actually use: the approver's override when present, otherwise the applicant's
+     * proposal. An override must exist inside the current clan (404) — the reviewer's authority over it is checked
+     * by the caller, on the final branch rather than the proposed one.
+     */
+    private String resolveTargetBranchId(String clanId, BranchJoinRequest joinRequest, ApproveJoinRequest request) {
+        String proposed = trimToNull(joinRequest.getTargetBranchId());
+        String override = request != null ? trimToNull(request.targetBranchId()) : null;
+        if (override == null) {
+            return joinRequest.getTargetBranchId();
+        }
+        if (!genealogyQueryService.existsBranch(clanId, override)) {
+            throw new ResourceNotFoundException("Nhánh gia đình", "branchId", override);
+        }
+        log.info("Người duyệt điều chỉnh nhánh của yêu cầu {}: {} -> {}",
+                joinRequest.getRequestId(), proposed, override);
+        return override;
+    }
+
+    /**
+     * Name of the child branch to create for {@code NewChildBranch}; an approver may rename it, other proposal
+     * types keep whatever was stored.
+     */
+    private String resolveNewBranchName(BranchJoinRequest joinRequest, ApproveJoinRequest request) {
+        String override = request != null ? trimToNull(request.proposedNewBranchName()) : null;
+        if (override == null) {
+            return joinRequest.getProposedNewBranchName();
+        }
+        if (joinRequest.getProposalType() != ProposalType.NewChildBranch) {
+            throw new BadRequestException("Chỉ có thể đặt tên chi nhánh mới khi đề xuất là NewChildBranch");
+        }
+        return override;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isClanWideAdmin(Authentication authentication) {

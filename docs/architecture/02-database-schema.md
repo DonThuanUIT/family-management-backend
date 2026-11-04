@@ -1,8 +1,8 @@
-# Đặc Tả Cơ Sở Dữ Liệu PostgreSQL & Flyway Migrations (23 Bảng Chuẩn Hóa)
+# Đặc Tả Cơ Sở Dữ Liệu PostgreSQL & Flyway Migrations (24 Bảng Chuẩn Hóa)
 
-Tài liệu này đặc tả toàn bộ kiến trúc 23 bảng cơ sở dữ liệu, các ràng buộc toàn vẹn, chỉ mục tối ưu, và cơ chế chuyển đổi sang **Flyway Database Migration** phục vụ môi trường phát triển cục bộ và đám mây **Neon Serverless PostgreSQL** kết hợp công cụ Adminer / Swagger UI qua Docker Compose.
+Tài liệu này đặc tả toàn bộ kiến trúc 24 bảng cơ sở dữ liệu, các ràng buộc toàn vẹn, chỉ mục tối ưu, và cơ chế chuyển đổi sang **Flyway Database Migration** phục vụ môi trường phát triển cục bộ và đám mây **Neon Serverless PostgreSQL** kết hợp công cụ Adminer / Swagger UI qua Docker Compose.
 
-Bản thiết kế chuẩn hóa đáp ứng 100% User Stories (US-00 đến US-20).
+Bản thiết kế chuẩn hóa đáp ứng 100% User Stories (US-00 đến US-22).
 
 ---
 
@@ -10,6 +10,13 @@ Bản thiết kế chuẩn hóa đáp ứng 100% User Stories (US-00 đến US-2
 
 ```mermaid
 erDiagram
+    CLAN ||--o{ FAMILY_BRANCH : "clan_id"
+    CLAN ||--o{ INVITATION_CODE : "clan_id"
+    CLAN ||--o{ BRANCH_JOIN_REQUEST : "clan_id (V7)"
+    CLAN ||--o{ EVENT : "clan_id"
+    CLAN ||--o{ IMMUTABLE_LEDGER : "clan_id"
+    CLAN ||--o{ CLAN_ASSET : "clan_id"
+
     FAMILY_BRANCH ||--o{ FAMILY_BRANCH : "parent_branch_id (Cây phân cấp)"
     FAMILY_BRANCH ||--o{ MEMBER : "branch_id"
     FAMILY_BRANCH ||--o| MEMBER : "representative_id (Trưởng chi)"
@@ -76,27 +83,27 @@ erDiagram
 
 ---
 
-## 2. Chi Tiết 5 Phân Hệ & 23 Bảng Chuẩn Hóa
+## 2. Chi Tiết 5 Phân Hệ & 24 Bảng Chuẩn Hóa
 
 ### Phân Hệ 1: Cây Gia Phả, Định Danh & Lời Mời (8 Bảng)
 1. **`clans`**: Quản lý thông tin từng dòng họ / gia tộc (Tenant). Lưu trữ tên dòng họ (`clan_name`), thủy tổ, quê quán gốc, năm thành lập (V3).
 2. **`family_branches`**: Quản lý cấu trúc cây phả hệ (Adjacency List). Nhánh gốc có `generation_level = 1` và `parent_branch_id = NULL`. Đã chuẩn hóa 3NF loại bỏ `clan_name` ở V4 để `clans.clan_name` là Single Source of Truth (US-04).
-3. **`members`**: Hồ sơ gia phả cá nhân (gồm cả hồ sơ ảo `is_placeholder = true` chờ gán tài khoản - US-18).
-4. **`user_accounts`**: Tài khoản người dùng (quan hệ 1-1 với `members` sau khi được phê duyệt).
+3. **`members`**: Hồ sơ gia phả cá nhân (gồm cả hồ sơ ảo `is_placeholder = true` chờ gán tài khoản - US-03, US-18).
+4. **`user_accounts`**: Tài khoản người dùng (quan hệ 1-1 với `members` sau khi được phê duyệt). Trạng thái `PendingApproval`, `Active`, `Suspended`.
 5. **`system_roles`**: Danh mục vai trò (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
-6. **`account_roles`**: Bảng nối nhiều-nhiều giữa tài khoản và vai trò.
+6. **`account_roles`**: Bảng nối nhiều-nhiều giữa tài khoản và vai trò (`AccountRole`, `AccountRoleId`).
 7. **`invitation_codes`**: Quản lý mã mời chung (`GeneralClanInvite` - US-16) và mã liên kết vị trí (`PositionLinkCode` - US-18, US-19).
-8. **`branch_join_requests`**: Hồ sơ xin gia nhập dòng họ tự đề xuất vị trí (lá có sẵn hoặc tạo nhánh con mới - US-17).
+8. **`branch_join_requests`**: Hồ sơ xin gia nhập dòng họ tự đề xuất vị trí (lá có sẵn `ExistingLeaf` hoặc tạo nhánh con mới `NewChildBranch` - US-17). Bổ sung `clan_id` NOT NULL và index `idx_join_request_clan_status(clan_id, approval_status)` ở V7.
 
 ### Phân Hệ 2: Sự Kiện, Đăng Ký & Nhân Sự (5 Bảng)
-9. **`events`**: Quản lý sự kiện giỗ tổ, chạp mã, lễ hội truyền thống kèm ngân sách ước tính và ngày âm lịch.
-10. **`event_personnel`**: Phân quyền theo ngữ cảnh từng sự kiện (`HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer`). Khóa đọc `is_read_only = true` khi sự kiện đóng (US-13).
+9. **`events`**: Quản lý sự kiện giỗ tổ, chạp mã, lễ hội truyền thống kèm ngân sách ước tính và ngày âm lịch. Máy trạng thái: `Draft` $\rightarrow$ `RegistrationOpen` $\rightarrow$ `RegistrationClosed` $\rightarrow$ `Ongoing` $\rightarrow$ `Ended` $\rightarrow$ `Closed` (US-21).
+10. **`event_personnel`**: Phân quyền theo ngữ cảnh từng sự kiện (`HeadOfOrganizer`, `OrganizerMember`, `EventTreasurer`). Khóa đọc `is_read_only = true` khi sự kiện đóng (US-21).
 11. **`family_registrations`**: Đăng ký tham gia theo hộ gia đình (số suất ăn chay/mặn, nhu cầu đi lại - US-06).
 12. **`registration_member_details`**: Chi tiết thành viên gia đình tham gia và điểm danh thực tế (`is_checked_in`).
-13. **`event_notifications`**: Ghi nhận biến động lịch trình, địa điểm và gửi thông báo tới các thành viên.
+13. **`event_notifications`**: Ghi nhận biến động lịch trình, địa điểm và gửi thông báo đa kênh tới các thành viên (US-22).
 
 ### Phân Hệ 3: Phân Công & Tiến Độ Công Việc (2 Bảng)
-14: **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
+14. **`event_tasks`**: Hạng mục công việc chuẩn bị sự kiện, phân công linh hoạt cho cả Chi/Nhánh hoặc đích danh cá nhân (US-07).
 15. **`task_progress_alerts`**: Cảnh báo nhắc việc 24h và tự động leo thang cảnh báo quá hạn 12h tới Trưởng nhánh (US-08).
 
 ### Phân Hệ 4: Đóng Góp & Tài Sản Dòng Họ (5 Bảng)
@@ -116,12 +123,15 @@ erDiagram
 
 ## 3. Kiến Trúc Flyway Migrations & Cấu Hình Triển Khai
 
-### Cấu trúc file Migration
+### Cấu trúc file Migration (V1 $\rightarrow$ V7)
 Toàn bộ kịch bản DDL và dữ liệu khởi tạo được quản lý trong thư mục `src/main/resources/db/migration`:
 - [`V1__init_clan_genealogy_and_events_schema.sql`](../../src/main/resources/db/migration/V1__init_clan_genealogy_and_events_schema.sql): Tạo toàn bộ các bảng ban đầu, khóa chính, khóa ngoại, ràng buộc CHECK và Indexes.
 - [`V2__seed_system_roles_and_master_data.sql`](../../src/main/resources/db/migration/V2__seed_system_roles_and_master_data.sql): Khởi tạo 4 nhóm quyền hệ thống (`ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_MEMBER`, `ROLE_ADMIN`).
 - [`V3__create_clans_and_add_multitenancy_support.sql`](../../src/main/resources/db/migration/V3__create_clans_and_add_multitenancy_support.sql): Khởi tạo bảng `clans` và thiết lập quan hệ Multi-tenancy phân tách các dòng họ độc lập.
 - [`V4__drop_clan_name_from_family_branches.sql`](../../src/main/resources/db/migration/V4__drop_clan_name_from_family_branches.sql): Chuẩn hóa dữ liệu 3NF, loại bỏ cột dư thừa `clan_name` khỏi `family_branches`, quy tụ tên dòng họ về `clans` (Single Source of Truth - US-04).
+- [`V5__enforce_not_null_on_multitenant_clan_id.sql`](../../src/main/resources/db/migration/V5__enforce_not_null_on_multitenant_clan_id.sql): Ép buộc ràng buộc `NOT NULL` cho cột phân biệt đa người dùng `clan_id` trên toàn bộ các bảng cốt lõi (`family_branches`, `events`, `immutable_ledgers`, `invitation_codes`, `clan_assets`).
+- [`V6__seed_demo_accounts_and_test_data.sql`](../../src/main/resources/db/migration/V6__seed_demo_accounts_and_test_data.sql): Seed dữ liệu kiểm thử mẫu gồm Chi gốc (`BR_ROOT`), Chi con (`BR_CHI_2`), hồ sơ thành viên (`MEM_TRUONG_TOC`, `MEM_TRUONG_CHI`, `MEM_MAI_ANH`), tài khoản người dùng (`ACC_TRUONG_TOC`, `ACC_TRUONG_CHI`, `ACC_MAI_ANH`), phân quyền và mã mời demo (`DK-CHI2-NHA-A-05`).
+- [`V7__add_clan_id_to_branch_join_requests.sql`](../../src/main/resources/db/migration/V7__add_clan_id_to_branch_join_requests.sql): Bổ sung cột phân vùng đa dòng họ `clan_id` (FK tới `clans`, NOT NULL) cho bảng `branch_join_requests` và tạo chỉ mục phức hợp `idx_join_request_clan_status(clan_id, approval_status)` phục vụ US-17 Onboarding.
 
 ### Cơ sở dữ liệu Neon Serverless PostgreSQL
 Dự án sử dụng CSDL đám mây **Neon Serverless PostgreSQL** làm môi trường dữ liệu tiêu chuẩn:
@@ -131,7 +141,7 @@ Dự án sử dụng CSDL đám mây **Neon Serverless PostgreSQL** làm môi tr
    DB_USER="neondb_owner"
    DB_PASSWORD="your_neon_secret_password"
    ```
-2. Khi khởi chạy ứng dụng Spring Boot (`.\gradlew.bat bootRun`), Flyway sẽ tự động kết nối, chạy migration toàn bộ 23 bảng và lưu vết vào bảng `flyway_schema_history`.
+2. Khi khởi chạy ứng dụng Spring Boot (`.\gradlew.bat bootRun`), Flyway sẽ tự động kết nối, chạy migration toàn bộ 24 bảng và lưu vết vào bảng `flyway_schema_history`.
 
 ### Khởi chạy công cụ hỗ trợ qua Docker Compose
 ```bash

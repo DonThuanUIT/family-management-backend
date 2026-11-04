@@ -1,5 +1,6 @@
 package com.familyfund.identity.api;
 
+import com.familyfund.identity.api.dto.ApproveJoinRequest;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
 import com.familyfund.identity.api.dto.RejectJoinRequest;
 import com.familyfund.identity.api.dto.SubmitJoinRequest;
@@ -43,10 +44,11 @@ public interface BranchJoinRequestService {
      * Approves a branch join request, activates the user account, and creates the member on the genealogy tree (US-17).
      *
      * @param requestId      ID of the join request to approve
+     * @param request        optional corrections to the proposed position (branch, new branch name); may be null
      * @param authentication security principal
      * @return updated join request response
      */
-    JoinRequestResponse approveJoinRequest(String requestId, Authentication authentication);
+    JoinRequestResponse approveJoinRequest(String requestId, ApproveJoinRequest request, Authentication authentication);
 
     /**
      * Rejects a branch join request and deactivates the temporary user account (US-17).

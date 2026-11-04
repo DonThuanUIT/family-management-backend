@@ -3,6 +3,8 @@ package com.familyfund.genealogy.internal.service;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 
+import java.util.List;
+
 /**
  * Application service for genealogy member profiles (table `members`).
  */
@@ -20,4 +22,19 @@ public interface MemberService {
      * @throws com.familyfund.core.exception.DuplicateResourceException   same profile already exists in clan (409)
      */
     MemberResponse createMember(String branchId, CreateMemberRequest request);
+
+    /**
+     * Lists all member profiles residing in the given branch of the caller's clan.
+     *
+     * @param branchId target branch ID
+     * @return list of member profiles
+     */
+    List<MemberResponse> getMembersByBranch(String branchId);
+
+    /**
+     * Lists all member profiles in the caller's clan.
+     *
+     * @return list of all member profiles in the clan
+     */
+    List<MemberResponse> getMembersByClan();
 }

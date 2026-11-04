@@ -15,7 +15,10 @@ import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.util.BranchIdGenerator;
+import com.familyfund.genealogy.internal.util.MemberIdGenerator;
 import com.familyfund.genealogy.internal.validator.GenealogyValidator;
+import org.mockito.Spy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,6 +62,11 @@ class GenealogyMemberCommandServiceImplTest {
 
     @Mock
     private MemberService memberService;
+    @Spy
+    private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
+
+    @Spy
+    private MemberIdGenerator memberIdGenerator = new MemberIdGenerator();
 
     @InjectMocks
     private GenealogyMemberCommandServiceImpl commandService;
@@ -149,7 +157,7 @@ class GenealogyMemberCommandServiceImplTest {
 
         when(familyBranchRepository.findByClanIdAndBranchId(CLAN_ID, ROOT_BRANCH_ID))
                 .thenReturn(Optional.of(mockRootBranch));
-        doNothing().when(genealogyValidator).validateCycle(CLAN_ID, null, ROOT_BRANCH_ID);
+        doNothing().when(genealogyValidator).validateNoCycles(CLAN_ID, null, ROOT_BRANCH_ID);
 
         when(familyBranchRepository.save(any(FamilyBranch.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
