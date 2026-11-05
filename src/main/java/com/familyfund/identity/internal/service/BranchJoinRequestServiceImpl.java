@@ -1,8 +1,8 @@
 package com.familyfund.identity.internal.service;
 
-import com.familyfund.audit.annotation.Audited;
-import com.familyfund.audit.model.AuditAction;
-import com.familyfund.audit.model.AuditEntityType;
+import com.familyfund.core.audit.annotation.Audited;
+import com.familyfund.core.audit.model.AuditAction;
+import com.familyfund.core.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;

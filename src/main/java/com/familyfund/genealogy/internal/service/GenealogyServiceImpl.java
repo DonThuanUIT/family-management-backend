@@ -1,8 +1,8 @@
 package com.familyfund.genealogy.internal.service;
 
-import com.familyfund.audit.annotation.Audited;
-import com.familyfund.audit.model.AuditAction;
-import com.familyfund.audit.model.AuditEntityType;
+import com.familyfund.core.audit.annotation.Audited;
+import com.familyfund.core.audit.model.AuditAction;
+import com.familyfund.core.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
@@ -94,7 +94,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             rootBranch.setRepresentative(null);
         }
 
-        FamilyBranch saved = branchRepository.saveAndFlush(rootBranch);
+        FamilyBranch saved = branchRepository.save(rootBranch);
         return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
@@ -132,7 +132,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             childBranch.setRepresentative(rep);
         }
 
-        FamilyBranch saved = branchRepository.saveAndFlush(childBranch);
+        FamilyBranch saved = branchRepository.save(childBranch);
         return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
@@ -205,7 +205,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             }
         }
 
-        FamilyBranch saved = branchRepository.saveAndFlush(branch);
+        FamilyBranch saved = branchRepository.save(branch);
         Clan clan = clanRepository.findById(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
         return branchMapper.toDetailResponse(saved, clan.getClanName());
@@ -331,6 +331,6 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         member.setBranch(branch);
-        memberRepository.saveAndFlush(member);
+        memberRepository.save(member);
     }
 }

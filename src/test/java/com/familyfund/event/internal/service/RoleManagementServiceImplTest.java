@@ -16,7 +16,7 @@ import com.familyfund.event.internal.dto.request.RoleRevocationRequest;
 import com.familyfund.event.internal.dto.response.AuditLogResponse;
 import com.familyfund.event.internal.dto.response.RoleAssignmentResponse;
 import com.familyfund.event.internal.dto.response.RoleManagementOverviewResponse;
-import com.familyfund.event.internal.entity.AuditLog;
+import com.familyfund.core.audit.entity.AuditLog;
 import com.familyfund.event.internal.entity.Event;
 import com.familyfund.event.internal.entity.EventPersonnel;
 import com.familyfund.event.internal.entity.EventPersonnelId;

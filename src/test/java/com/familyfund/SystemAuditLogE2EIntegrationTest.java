@@ -1,7 +1,7 @@
 package com.familyfund;
 
-import com.familyfund.audit.model.AuditAction;
-import com.familyfund.audit.model.AuditEntityType;
+import com.familyfund.core.audit.model.AuditAction;
+import com.familyfund.core.audit.model.AuditEntityType;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.core.tenant.TenantFilter;
 import com.familyfund.event.api.dto.EventStatus;
