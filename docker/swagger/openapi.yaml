@@ -2370,34 +2370,30 @@ components:
 
     RegisterAttendeesRequest:
       type: object
-      required:
-        - totalAttendees
       properties:
         representativeMemberId:
           type: string
-          maxLength: 20
+          example: MEM_01
         totalAttendees:
           type: integer
-          minimum: 1
+          example: 3
         vegetarianMeals:
           type: integer
-          minimum: 0
-          default: 0
+          example: 1
         savoryMeals:
           type: integer
-          minimum: 0
-          default: 0
+          example: 2
         dietaryRequirements:
           type: string
-          maxLength: 255
+          example: Dị ứng đậu phộng
         transportationNotes:
           type: string
-          maxLength: 255
+          example: Đi xe riêng
         attendingMemberIds:
           type: array
           items:
             type: string
-            maxLength: 20
+          example: ["MEM_01", "MEM_02", "MEM_03"]
 
     ApiResponseRegistration:
       type: object
@@ -2428,3 +2424,118 @@ components:
           type: string
           format: date-time
 
+    SystemAuditLogResponse:
+      type: object
+      properties:
+        auditId:
+          type: string
+          example: AUD_01HXYZ9876
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        actorAccountId:
+          type: string
+          example: ACC_01
+        actorFullName:
+          type: string
+          example: Nguyễn Văn Trưởng
+        actionType:
+          type: string
+          enum: [ASSIGN, REVOKE, APPROVE, REJECT, CREATE, UPDATE, DELETE, STATUS_CHANGE, ASSIGN_PERSONNEL]
+          example: UPDATE
+        entityType:
+          type: string
+          enum: [ROLE, JOIN_REQUEST, BRANCH, MEMBER, EVENT, EVENT_PERSONNEL]
+          example: BRANCH
+        entityId:
+          type: string
+          example: BR_01
+        roleCode:
+          type: string
+          example: ROLE_BRANCH_HEAD
+        roleDisplayName:
+          type: string
+          example: Trưởng Chi / Nhánh
+        scopeType:
+          type: string
+          example: BRANCH
+        scopeId:
+          type: string
+          example: BR_01
+        scopeName:
+          type: string
+          example: Nhánh Trưởng
+        targetMemberId:
+          type: string
+          example: MEM_01
+        targetMemberName:
+          type: string
+          example: Nguyễn Văn A
+        targetAccountId:
+          type: string
+          example: ACC_02
+        description:
+          type: string
+          example: Cập nhật thông tin chi nhánh
+        oldValue:
+          type: object
+          description: Dữ liệu snapshot trước khi thực hiện thao tác
+        newValue:
+          type: object
+          description: Dữ liệu snapshot sau khi thực hiện thao tác
+        ipAddress:
+          type: string
+          example: 192.168.1.100
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemAuditLogResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 3
+
+    ApiResponseAuditLogPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Tra cứu nhật ký kiểm toán thành công
+        data:
+          $ref: '#/components/schemas/AuditLogPageResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseSystemAuditLog:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Lấy chi tiết bản ghi kiểm toán thành công
+        data:
+          $ref: '#/components/schemas/SystemAuditLogResponse'
+        timestamp:
+          type: string
+          format: date-time

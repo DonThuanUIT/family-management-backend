@@ -1,5 +1,8 @@
 package com.familyfund.identity.internal.service;
 
+import com.familyfund.core.audit.annotation.Audited;
+import com.familyfund.core.audit.model.AuditAction;
+import com.familyfund.core.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
@@ -197,6 +200,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.APPROVE, entityType = AuditEntityType.JOIN_REQUEST, entityId = "#requestId", description = "Phê duyệt đơn gia nhập dòng họ")
     public JoinRequestResponse approveJoinRequest(String requestId, ApproveJoinRequest request,
                                                   Authentication authentication) {
         String clanId = TenantContext.getClanId();
@@ -298,6 +302,7 @@ public class BranchJoinRequestServiceImpl implements BranchJoinRequestService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.REJECT, entityType = AuditEntityType.JOIN_REQUEST, entityId = "#requestId", description = "Từ chối đơn gia nhập dòng họ")
     public JoinRequestResponse rejectJoinRequest(String requestId, RejectJoinRequest request, Authentication authentication) {
         String clanId = TenantContext.getClanId();
         String reviewerAccountId = resolveAccountId(authentication);

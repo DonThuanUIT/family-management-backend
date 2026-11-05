@@ -53,6 +53,8 @@ public interface GenealogyMemberCommandService {
      * @throws com.familyfund.core.exception.DuplicateResourceException  the position was already claimed (409)
      */
     VirtualMemberDto claimVirtualMember(ClaimVirtualMemberCommand command);
+
+    /**
      * Assigns a new representative member to a family branch.
      *
      * @param branchId                  ID of the branch

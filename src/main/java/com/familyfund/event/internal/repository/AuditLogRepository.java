@@ -1,6 +1,6 @@
 package com.familyfund.event.internal.repository;
 
-import com.familyfund.event.internal.entity.AuditLog;
+import com.familyfund.core.audit.entity.AuditLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

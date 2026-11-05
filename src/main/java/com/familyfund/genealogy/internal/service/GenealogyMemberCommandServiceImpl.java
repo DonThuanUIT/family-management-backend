@@ -221,7 +221,7 @@ public class GenealogyMemberCommandServiceImpl implements GenealogyMemberCommand
                 saved.getCreatedAt()
         );
     }
-}
+
     @Override
     public java.util.Optional<String> assignBranchRepresentative(String branchId, String clanId, String newRepresentativeMemberId) {
         if (branchId == null || branchId.isBlank() || clanId == null || clanId.isBlank() || newRepresentativeMemberId == null || newRepresentativeMemberId.isBlank()) {
