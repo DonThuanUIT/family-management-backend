@@ -1,5 +1,8 @@
 package com.familyfund.genealogy.internal.service;
 
+import com.familyfund.audit.annotation.Audited;
+import com.familyfund.audit.model.AuditAction;
+import com.familyfund.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.DuplicateResourceException;
 import com.familyfund.core.exception.InvalidGenerationException;
@@ -43,6 +46,7 @@ public class MemberServiceImpl implements MemberService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.CREATE, entityType = AuditEntityType.MEMBER, entityId = "#result.memberId", description = "Tạo mới hồ sơ thành viên dòng họ")
     public MemberResponse createMember(String rawBranchId, CreateMemberRequest request) {
         String clanId = TenantContext.getClanId();
         String branchId = normalizeBranchId(rawBranchId);

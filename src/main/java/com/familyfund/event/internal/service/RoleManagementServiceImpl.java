@@ -136,6 +136,14 @@ public class RoleManagementServiceImpl implements RoleManagementService {
         // 2. Persist immutable AuditLog entry
         String auditId = auditIdGenerator.generate();
         Instant now = Instant.now();
+        Map<String, Object> roleNewValue = createRoleAuditPayload(
+                request.roleCode().getCode(),
+                request.scopeType().name(),
+                scopeId,
+                scopeName,
+                targetMemberId,
+                targetAccountId
+        );
         AuditLog auditLog = AuditLog.builder()
                 .auditId(auditId)
                 .clanId(clanId)
@@ -143,10 +151,14 @@ public class RoleManagementServiceImpl implements RoleManagementService {
                 .targetMemberId(targetMemberId)
                 .targetAccountId(targetAccountId)
                 .actionType(RoleActionType.ASSIGN.name())
+                .entityType("ROLE")
+                .entityId(scopeId)
                 .roleCode(request.roleCode().getCode())
                 .scopeType(request.scopeType().name())
                 .scopeId(scopeId)
                 .scopeName(scopeName)
+                .oldValue(null)
+                .newValue(roleNewValue)
                 .description(request.description())
                 .createdAt(now)
                 .build();
@@ -249,6 +261,14 @@ public class RoleManagementServiceImpl implements RoleManagementService {
         // Persist AuditLog entry
         String auditId = auditIdGenerator.generate();
         Instant now = Instant.now();
+        Map<String, Object> roleOldValue = createRoleAuditPayload(
+                request.roleCode().getCode(),
+                request.scopeType().name(),
+                scopeId,
+                scopeName,
+                targetMemberId,
+                targetAccountId
+        );
         AuditLog auditLog = AuditLog.builder()
                 .auditId(auditId)
                 .clanId(clanId)
@@ -256,10 +276,14 @@ public class RoleManagementServiceImpl implements RoleManagementService {
                 .targetMemberId(targetMemberId)
                 .targetAccountId(targetAccountId)
                 .actionType(RoleActionType.REVOKE.name())
+                .entityType("ROLE")
+                .entityId(scopeId)
                 .roleCode(request.roleCode().getCode())
                 .scopeType(request.scopeType().name())
                 .scopeId(scopeId)
                 .scopeName(scopeName)
+                .oldValue(roleOldValue)
+                .newValue(null)
                 .description(request.reason())
                 .createdAt(now)
                 .build();
@@ -409,5 +433,25 @@ public class RoleManagementServiceImpl implements RoleManagementService {
             throw new BadRequestException("Vai trò '" + roleCode.getCode() + "' chỉ áp dụng cho phạm vi '" +
                     roleCode.getSupportedScope() + "', không thể gắn với phạm vi '" + scopeType + "'");
         }
+    }
+
+    private Map<String, Object> createRoleAuditPayload(
+            String roleCode,
+            String scopeType,
+            String scopeId,
+            String scopeName,
+            String memberId,
+            String accountId
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("roleCode", roleCode);
+        payload.put("scopeType", scopeType);
+        payload.put("scopeId", scopeId);
+        payload.put("scopeName", scopeName);
+        payload.put("memberId", memberId);
+        if (accountId != null) {
+            payload.put("accountId", accountId);
+        }
+        return payload;
     }
 }

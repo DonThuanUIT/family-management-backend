@@ -1,5 +1,8 @@
 package com.familyfund.event.internal.service;
 
+import com.familyfund.audit.annotation.Audited;
+import com.familyfund.audit.model.AuditAction;
+import com.familyfund.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BadRequestException;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
@@ -53,6 +56,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.CREATE, entityType = AuditEntityType.EVENT, entityId = "#result.eventId", description = "Tạo mới sự kiện dòng họ")
     public EventResponse createEvent(CreateEventRequest request) {
         String clanId = TenantContext.getClanId();
         String createdByAccountId = currentUserProvider.currentAccountId()
@@ -85,6 +89,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.UPDATE, entityType = AuditEntityType.EVENT, entityId = "#eventId", description = "Cập nhật thông tin sự kiện")
     public EventResponse updateEvent(String eventId, UpdateEventRequest request) {
         String clanId = TenantContext.getClanId();
         Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
@@ -150,6 +155,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.STATUS_CHANGE, entityType = AuditEntityType.EVENT, entityId = "#eventId", description = "Thay đổi trạng thái vòng đời sự kiện")
     public EventResponse updateEventStatus(String eventId, UpdateEventStatusRequest request) {
         String clanId = TenantContext.getClanId();
         Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
@@ -196,6 +202,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    @Audited(action = AuditAction.ASSIGN_PERSONNEL, entityType = AuditEntityType.EVENT_PERSONNEL, entityId = "#eventId", description = "Phân bổ ban nhân sự phụ trách sự kiện")
     public List<EventPersonnelResponse> assignPersonnel(String eventId, AssignPersonnelRequest request) {
         String clanId = TenantContext.getClanId();
         Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)

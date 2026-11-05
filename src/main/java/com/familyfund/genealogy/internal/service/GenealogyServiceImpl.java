@@ -1,5 +1,8 @@
 package com.familyfund.genealogy.internal.service;
 
+import com.familyfund.audit.annotation.Audited;
+import com.familyfund.audit.model.AuditAction;
+import com.familyfund.audit.model.AuditEntityType;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.InvalidGenerationException;
 import com.familyfund.core.exception.ResourceNotFoundException;
@@ -54,6 +57,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.UPDATE, entityType = AuditEntityType.BRANCH, entityId = "'ROOT'", description = "Cập nhật thông tin nhánh gốc (Đại Tôn)")
     public BranchDetailResponse updateRootBranch(UpdateRootBranchRequest request) {
         String clanId = TenantContext.getClanId();
         Clan clan = clanRepository.findById(clanId)
@@ -90,12 +94,13 @@ public class GenealogyServiceImpl implements GenealogyService {
             rootBranch.setRepresentative(null);
         }
 
-        FamilyBranch saved = branchRepository.save(rootBranch);
+        FamilyBranch saved = branchRepository.saveAndFlush(rootBranch);
         return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.CREATE, entityType = AuditEntityType.BRANCH, entityId = "#result.branchId", description = "Tạo mới chi nhánh con")
     public BranchDetailResponse createChildBranch(CreateChildBranchRequest request) {
         String clanId = TenantContext.getClanId();
         Clan clan = clanRepository.findById(clanId)
@@ -127,12 +132,13 @@ public class GenealogyServiceImpl implements GenealogyService {
             childBranch.setRepresentative(rep);
         }
 
-        FamilyBranch saved = branchRepository.save(childBranch);
+        FamilyBranch saved = branchRepository.saveAndFlush(childBranch);
         return branchMapper.toDetailResponse(saved, clan.getClanName());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.UPDATE, entityType = AuditEntityType.BRANCH, entityId = "#branchId", description = "Cập nhật chi nhánh gia phả")
     public BranchDetailResponse updateBranch(String branchId, UpdateBranchRequest request) {
         String clanId = TenantContext.getClanId();
         FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
@@ -199,7 +205,7 @@ public class GenealogyServiceImpl implements GenealogyService {
             }
         }
 
-        FamilyBranch saved = branchRepository.save(branch);
+        FamilyBranch saved = branchRepository.saveAndFlush(branch);
         Clan clan = clanRepository.findById(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
         return branchMapper.toDetailResponse(saved, clan.getClanName());
@@ -280,6 +286,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.DELETE, entityType = AuditEntityType.BRANCH, entityId = "#branchId", description = "Xóa chi nhánh gia phả")
     public void deleteBranch(String branchId) {
         String clanId = TenantContext.getClanId();
         FamilyBranch branch = branchRepository.findByClanIdAndBranchId(clanId, branchId)
@@ -306,6 +313,7 @@ public class GenealogyServiceImpl implements GenealogyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Audited(action = AuditAction.UPDATE, entityType = AuditEntityType.MEMBER, entityId = "#memberId", description = "Điều chuyển thành viên sang chi nhánh khác")
     public void assignMemberToBranch(String memberId, String branchId) {
         String clanId = TenantContext.getClanId();
         Member member = memberRepository.findByBranch_ClanIdAndMemberId(clanId, memberId)
@@ -323,6 +331,6 @@ public class GenealogyServiceImpl implements GenealogyService {
         }
 
         member.setBranch(branch);
-        memberRepository.save(member);
+        memberRepository.saveAndFlush(member);
     }
 }
