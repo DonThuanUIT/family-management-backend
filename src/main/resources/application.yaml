@@ -40,6 +40,8 @@ server:
 app:
   invitation:
     base-url: ${APP_INVITE_BASE_URL:http://localhost:3000/join}
+    # US-18: redemption link of a one-time PositionLinkCode
+    position-link-base-url: ${APP_POSITION_LINK_BASE_URL:http://localhost:3000/position-link}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:3600000}

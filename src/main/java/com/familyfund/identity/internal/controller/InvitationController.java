@@ -8,6 +8,7 @@ import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
 import com.familyfund.identity.api.dto.SubmitJoinRequest;
+import com.familyfund.identity.api.dto.UpdateInvitationRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -111,6 +112,41 @@ public class InvitationController {
         String currentAccountId = resolveAccountId(authentication);
         invitationService.deactivateInviteCode(inviteCode, currentAccountId);
         return ResponseEntity.ok(ApiResponse.success(null, "Vô hiệu hóa mã mời thành công"));
+    }
+
+    /**
+     * Updates the mutable attributes of an invitation code: activation flag, expiry and maximum uses.
+     * Restricted to Clan Head (ROLE_CLAN_HEAD) or Admin (ROLE_ADMIN).
+     */
+    @PatchMapping("/{inviteCode}")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<InviteCodeResponse>> updateInvite(
+            @PathVariable String inviteCode,
+            @Valid @RequestBody UpdateInvitationRequest request,
+            Authentication authentication
+    ) {
+        String currentAccountId = resolveAccountId(authentication);
+        InviteCodeResponse response = invitationService.updateInviteCode(inviteCode, request, currentAccountId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật mã mời thành công"));
+    }
+
+    /**
+     * Replaces a general clan invitation with a freshly generated code; the previous code is revoked.
+     * Restricted to Clan Head (ROLE_CLAN_HEAD) or Admin (ROLE_ADMIN).
+     */
+    @PostMapping("/{inviteCode}/regenerate")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<InviteCodeResponse>> regenerateInvite(
+            @PathVariable String inviteCode,
+            @Valid @RequestBody(required = false) UpdateInvitationRequest request,
+            Authentication authentication
+    ) {
+        String currentAccountId = resolveAccountId(authentication);
+        InviteCodeResponse response = invitationService.regenerateInviteCode(inviteCode, request, currentAccountId);
+
+        URI location = URI.create("/api/v1/invitations/" + response.getInviteCode());
+        return ResponseEntity.created(location)
+                .body(ApiResponse.success(response, "Tái tạo mã mời thành công"));
     }
 
     private String resolveAccountId(Authentication authentication) {

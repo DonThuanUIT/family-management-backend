@@ -115,7 +115,7 @@ class BranchJoinRequestControllerTest {
                 .reviewedAt(Instant.now())
                 .build();
 
-        when(branchJoinRequestService.approveJoinRequest(eq("REQ_001"), any()))
+        when(branchJoinRequestService.approveJoinRequest(eq("REQ_001"), any(), any()))
                 .thenReturn(approvedResponse);
 
         mockMvc.perform(post("/api/v1/join-requests/REQ_001/approve")
@@ -125,7 +125,7 @@ class BranchJoinRequestControllerTest {
                 .andExpect(jsonPath("$.data.requestId").value("REQ_001"))
                 .andExpect(jsonPath("$.data.approvalStatus").value("Approved"));
 
-        verify(branchJoinRequestService).approveJoinRequest(eq("REQ_001"), any());
+        verify(branchJoinRequestService).approveJoinRequest(eq("REQ_001"), any(), any());
     }
 
     @Test

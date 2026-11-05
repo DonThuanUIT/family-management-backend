@@ -2,6 +2,7 @@ package com.familyfund.identity.internal.controller;
 
 import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.identity.api.BranchJoinRequestService;
+import com.familyfund.identity.api.dto.ApproveJoinRequest;
 import com.familyfund.identity.api.dto.JoinRequestResponse;
 import com.familyfund.identity.api.dto.RejectJoinRequest;
 import com.familyfund.identity.internal.entity.JoinRequestApprovalStatus;
@@ -58,9 +59,10 @@ public class BranchJoinRequestController {
     @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<JoinRequestResponse>> approveJoinRequest(
             @PathVariable String requestId,
+            @Valid @RequestBody(required = false) ApproveJoinRequest request,
             Authentication authentication
     ) {
-        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest(requestId, authentication);
+        JoinRequestResponse response = branchJoinRequestService.approveJoinRequest(requestId, request, authentication);
         return ResponseEntity.ok(ApiResponse.success(response, "Phê duyệt yêu cầu gia nhập thành công"));
     }
 

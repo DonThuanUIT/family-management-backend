@@ -46,6 +46,9 @@ public class SecurityConfig {
                         // Public: Previewing invitation, viewing onboarding tree, and submitting join request (US-17)
                         .requestMatchers(HttpMethod.GET, "/api/v1/invitations/{inviteCode}", "/api/v1/invitations/{inviteCode}/tree").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/invitations/{inviteCode}/join").permitAll()
+                        // Public: previewing and redeeming a one-time position link code (US-19)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/position-links/{inviteCode}").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/position-links/{inviteCode}/claim").permitAll()
                         // Join requests management (US-17 Tasks 3 & 5)
                         .requestMatchers("/api/v1/join-requests/**").authenticated()
                         // Swagger & Documentation

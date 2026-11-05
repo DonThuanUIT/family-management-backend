@@ -1,9 +1,16 @@
 package com.familyfund.genealogy.internal.service;
 
 import com.familyfund.core.exception.BadRequestException;
+import com.familyfund.core.exception.DuplicateResourceException;
 import com.familyfund.core.exception.ResourceNotFoundException;
+import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.genealogy.api.ClaimVirtualMemberCommand;
 import com.familyfund.genealogy.api.CreateOnboardingBranchCommand;
 import com.familyfund.genealogy.api.CreateOnboardingMemberCommand;
+import com.familyfund.genealogy.api.CreateVirtualMemberCommand;
+import com.familyfund.genealogy.api.dto.VirtualMemberDto;
+import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
@@ -24,11 +31,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,6 +60,8 @@ class GenealogyMemberCommandServiceImplTest {
     @Mock
     private GenealogyValidator genealogyValidator;
 
+    @Mock
+    private MemberService memberService;
     @Spy
     private BranchIdGenerator branchIdGenerator = new BranchIdGenerator();
 
@@ -193,5 +206,153 @@ class GenealogyMemberCommandServiceImplTest {
         verify(familyBranchRepository, never()).save(any());
         verify(memberRepository, never()).save(any());
     }
-}
 
+    // ------------------------------------------------ US-18: virtual (placeholder) profile creation
+
+    @Test
+    @DisplayName("createVirtualMember delegates to the member service and returns the placeholder profile")
+    void createVirtualMember_DelegatesToMemberService() {
+        TenantContext.setClanId(CLAN_ID);
+        try {
+            MemberResponse created = MemberResponse.builder()
+                    .memberId("MEM0000000000001")
+                    .fullName("Nguyễn Văn Ảo")
+                    .dateOfBirth(LocalDate.of(2000, 2, 2))
+                    .gender("Male")
+                    .generation(3)
+                    .status("Living")
+                    .branchId(ROOT_BRANCH_ID)
+                    .branchName("Chi Gốc")
+                    .clanId(CLAN_ID)
+                    .isPlaceholder(true)
+                    .build();
+            when(memberService.createMember(eq(ROOT_BRANCH_ID), any(CreateMemberRequest.class)))
+                    .thenReturn(created);
+
+            VirtualMemberDto dto = commandService.createVirtualMember(CreateVirtualMemberCommand.builder()
+                    .clanId(CLAN_ID)
+                    .branchId(ROOT_BRANCH_ID)
+                    .fullName("Nguyễn Văn Ảo")
+                    .dateOfBirth(LocalDate.of(2000, 2, 2))
+                    .gender("Male")
+                    .generation(3)
+                    .build());
+
+            ArgumentCaptor<CreateMemberRequest> captor = ArgumentCaptor.forClass(CreateMemberRequest.class);
+            verify(memberService).createMember(eq(ROOT_BRANCH_ID), captor.capture());
+            assertEquals("Nguyễn Văn Ảo", captor.getValue().fullName());
+            assertEquals(3, captor.getValue().generation());
+            assertNull(captor.getValue().status());
+
+            assertEquals("MEM0000000000001", dto.memberId());
+            assertEquals(CLAN_ID, dto.clanId());
+            assertEquals(ROOT_BRANCH_ID, dto.branchId());
+            assertEquals("Chi Gốc", dto.branchName());
+            assertTrue(dto.isPlaceholder());
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("createVirtualMember rejects a command aimed at another clan and creates nothing")
+    void createVirtualMember_ClanMismatch_Rejected() {
+        TenantContext.setClanId(CLAN_ID);
+        try {
+            assertThrows(BadRequestException.class, () -> commandService.createVirtualMember(
+                    CreateVirtualMemberCommand.builder()
+                            .clanId("CLAN_OTHER")
+                            .branchId(ROOT_BRANCH_ID)
+                            .fullName("Nguyễn Văn Ảo")
+                            .gender("Male")
+                            .generation(3)
+                            .build()));
+            verify(memberService, never()).createMember(anyString(), any());
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("createVirtualMember rejects a null or incomplete command")
+    void createVirtualMember_InvalidCommand_Rejected() {
+        assertThrows(BadRequestException.class, () -> commandService.createVirtualMember(null));
+        assertThrows(BadRequestException.class, () -> commandService.createVirtualMember(
+                CreateVirtualMemberCommand.builder().clanId(CLAN_ID).build()));
+        verify(memberService, never()).createMember(anyString(), any());
+    }
+
+    // ------------------------------------------------ US-19: claiming a placeholder position with a link code
+
+    private Member placeholderMember() {
+        return Member.builder()
+                .memberId("MEM_PLACEHOLDER_01")
+                .fullName("Nguyễn Văn Ảo")
+                .dateOfBirth(LocalDate.of(2000, 2, 2))
+                .gender("Male")
+                .generation(3)
+                .status("Living")
+                .branch(mockRootBranch)
+                .isPlaceholder(true)
+                .build();
+    }
+
+    @Test
+    @DisplayName("claimVirtualMember turns the placeholder into a real profile and keeps every other attribute")
+    void claimVirtualMember_FlipsPlaceholderFlag() {
+        Member placeholder = placeholderMember();
+        when(memberRepository.findByBranch_ClanIdAndMemberId(CLAN_ID, placeholder.getMemberId()))
+                .thenReturn(Optional.of(placeholder));
+        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        VirtualMemberDto dto = commandService.claimVirtualMember(ClaimVirtualMemberCommand.builder()
+                .clanId(CLAN_ID)
+                .memberId(placeholder.getMemberId())
+                .build());
+
+        assertFalse(placeholder.getIsPlaceholder());
+        assertFalse(dto.isPlaceholder());
+        assertEquals("MEM_PLACEHOLDER_01", dto.memberId());
+        assertEquals("Nguyễn Văn Ảo", dto.fullName());
+        assertEquals(3, dto.generation());
+        assertEquals(ROOT_BRANCH_ID, dto.branchId());
+        assertEquals("Chi Gốc", dto.branchName());
+        assertEquals(CLAN_ID, dto.clanId());
+        verify(memberRepository).saveAndFlush(placeholder);
+    }
+
+    @Test
+    @DisplayName("claimVirtualMember of an unknown position throws ResourceNotFoundException and writes nothing")
+    void claimVirtualMember_NotFound() {
+        when(memberRepository.findByBranch_ClanIdAndMemberId(CLAN_ID, "MEM_MISSING"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> commandService.claimVirtualMember(
+                ClaimVirtualMemberCommand.builder().clanId(CLAN_ID).memberId("MEM_MISSING").build()));
+        verify(memberRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("claimVirtualMember refuses a position that is already a real profile")
+    void claimVirtualMember_AlreadyClaimed() {
+        Member alreadyClaimed = placeholderMember();
+        alreadyClaimed.setIsPlaceholder(false);
+        when(memberRepository.findByBranch_ClanIdAndMemberId(CLAN_ID, alreadyClaimed.getMemberId()))
+                .thenReturn(Optional.of(alreadyClaimed));
+
+        assertThrows(DuplicateResourceException.class, () -> commandService.claimVirtualMember(
+                ClaimVirtualMemberCommand.builder().clanId(CLAN_ID).memberId(alreadyClaimed.getMemberId()).build()));
+        verify(memberRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("claimVirtualMember rejects a null or incomplete command without touching the database")
+    void claimVirtualMember_InvalidCommand() {
+        assertThrows(BadRequestException.class, () -> commandService.claimVirtualMember(null));
+        assertThrows(BadRequestException.class, () -> commandService.claimVirtualMember(
+                ClaimVirtualMemberCommand.builder().clanId(CLAN_ID).build()));
+        assertThrows(BadRequestException.class, () -> commandService.claimVirtualMember(
+                ClaimVirtualMemberCommand.builder().memberId("MEM_PLACEHOLDER_01").build()));
+        verify(memberRepository, never()).findByBranch_ClanIdAndMemberId(anyString(), anyString());
+    }
+}
