@@ -5,7 +5,7 @@ import com.familyfund.event.api.dto.AssignableRoleCode;
 import com.familyfund.event.api.dto.RoleScopeType;
 import com.familyfund.event.internal.dto.request.RoleAssignmentRequest;
 import com.familyfund.event.internal.dto.request.RoleRevocationRequest;
-import com.familyfund.event.internal.entity.AuditLog;
+import com.familyfund.core.audit.entity.AuditLog;
 import com.familyfund.event.internal.repository.AuditLogRepository;
 import com.familyfund.identity.internal.repository.AccountRoleRepository;
 import jakarta.persistence.EntityManager;
