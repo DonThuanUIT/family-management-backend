@@ -31,6 +31,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.aspectj:aspectjweaver:1.9.25.1")
+    implementation("com.github.librepdf:openpdf:2.0.3")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
     // JWT (io.jsonwebtoken)

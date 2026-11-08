@@ -5,6 +5,7 @@ import com.familyfund.contribution.internal.entity.ContributionMemberDetailId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,6 +16,8 @@ public interface ContributionMemberDetailRepository extends JpaRepository<Contri
     List<ContributionMemberDetail> findAllByContributionIdIn(List<String> contributionIds);
 
     List<ContributionMemberDetail> findAllByMemberId(String memberId);
+
+    List<ContributionMemberDetail> findAllByMemberIdIn(Collection<String> memberIds);
 
     void deleteAllByContributionId(String contributionId);
 }
