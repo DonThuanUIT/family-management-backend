@@ -81,8 +81,10 @@ class BranchJoinRequestE2EIntegrationTest {
 
     @BeforeEach
     void setUpMasterData() {
+        // 0. Ensure clan_name for CLAN_DEFAULT
         entityManager.createNativeQuery(
-                "UPDATE clans SET clan_name = 'Dòng Họ Mẫu Mặc Định' WHERE clan_id = '" + CLAN_ID + "'"
+                "INSERT INTO clans (clan_id, clan_name) VALUES ('" + CLAN_ID + "', 'Dòng Họ Mẫu Mặc Định') " +
+                "ON CONFLICT (clan_id) DO UPDATE SET clan_name = 'Dòng Họ Mẫu Mặc Định'"
         ).executeUpdate();
 
         // 1. Seed root branch for CLAN_DEFAULT

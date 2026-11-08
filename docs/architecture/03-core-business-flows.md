@@ -189,6 +189,8 @@ sequenceDiagram
     end
 ```
 
+> **Đã hiện thực (US-18 + US-19):** ngoài luồng nộp đơn – phê duyệt ở trên, hệ thống còn có luồng liên kết vị trí trực tiếp: Trưởng tộc/Trưởng chi tạo sẵn hồ sơ ảo và phát hành `PositionLinkCode` dùng một lần (US-18). Người nhận mở link, đăng ký kèm mã (`POST /api/v1/position-links/{inviteCode}/claim`) và được liên kết vào đúng hồ sơ/chi/nhánh với `account_status = 'Active'` ngay, không cần bước xác minh (US-19). Luồng đơn gia nhập có phê duyệt vẫn giữ nguyên cho mã mời chung (US-17).
+
 ---
 
 ## 6. Luồng 6: Quản Lý Vòng Đời Sự Kiện & Phân Quyền Theo Ngữ Cảnh (US-21)

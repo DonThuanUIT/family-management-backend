@@ -8,6 +8,7 @@ import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.identity.api.InvitationService;
 import com.familyfund.identity.api.dto.CreateGeneralInviteRequest;
 import com.familyfund.identity.api.dto.InviteCodeResponse;
+import com.familyfund.identity.api.dto.UpdateInvitationRequest;
 import com.familyfund.identity.internal.entity.InvitationCode;
 import com.familyfund.identity.internal.entity.InviteType;
 import com.familyfund.identity.internal.repository.InvitationCodeRepository;
@@ -97,18 +98,103 @@ public class InvitationServiceImpl implements InvitationService {
     @Override
     @Transactional
     public void deactivateInviteCode(String inviteCode, String currentAccountId) {
-        if (inviteCode == null || inviteCode.isBlank()) {
-            throw new BadRequestException("Mã mời không được để trống");
-        }
-
-        String clanId = TenantContext.getClanId();
-        InvitationCode invitation = invitationCodeRepository
-                .findByClanIdAndInviteCode(clanId, inviteCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", inviteCode));
-
+        InvitationCode invitation = loadClanInvite(inviteCode);
         invitation.setIsActive(false);
         invitationCodeRepository.save(invitation);
-        log.info("Đã vô hiệu hóa mã mời: code={}, clanId={}, bởi accountId={}", inviteCode, clanId, currentAccountId);
+        log.info("Đã vô hiệu hóa mã mời: code={}, clanId={}, bởi accountId={}",
+                invitation.getInviteCode(), invitation.getClanId(), currentAccountId);
+    }
+
+    @Override
+    @Transactional
+    public InviteCodeResponse updateInviteCode(String inviteCode, UpdateInvitationRequest request,
+                                               String currentAccountId) {
+        if (request == null) {
+            throw new BadRequestException("Dữ liệu cập nhật mã mời không được để trống");
+        }
+        boolean touchesExpiry = request.getExpiresAt() != null || request.getValidityDays() != null;
+        if (request.getIsActive() == null && !touchesExpiry && request.getMaxUses() == null) {
+            throw new BadRequestException(
+                    "Cần cung cấp ít nhất một trường cần cập nhật: isActive, expiresAt/validityDays hoặc maxUses");
+        }
+
+        InvitationCode invitation = loadClanInvite(inviteCode);
+
+        if (request.getMaxUses() != null) {
+            int used = invitation.getUsedCount() != null ? invitation.getUsedCount() : 0;
+            if (request.getMaxUses() < used) {
+                throw new BadRequestException(
+                        "Số lượt sử dụng tối đa không được nhỏ hơn số lượt đã dùng hiện tại (" + used + ")");
+            }
+            invitation.setMaxUses(request.getMaxUses());
+        }
+        if (request.getExpiresAt() != null) {
+            invitation.setExpiresAt(request.getExpiresAt());
+        } else if (request.getValidityDays() != null) {
+            invitation.setExpiresAt(Instant.now().plus(request.getValidityDays(), ChronoUnit.DAYS));
+        }
+        if (request.getIsActive() != null) {
+            invitation.setIsActive(request.getIsActive());
+        }
+
+        InvitationCode saved = invitationCodeRepository.save(invitation);
+        log.info("Đã cập nhật mã mời: code={}, clanId={}, isActive={}, maxUses={}, expiresAt={}, bởi accountId={}",
+                saved.getInviteCode(), saved.getClanId(), saved.getIsActive(), saved.getMaxUses(),
+                saved.getExpiresAt(), currentAccountId);
+
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public InviteCodeResponse regenerateInviteCode(String inviteCode, UpdateInvitationRequest request,
+                                                   String currentAccountId) {
+        InvitationCode current = loadClanInvite(inviteCode);
+
+        if (current.getInviteType() == InviteType.PositionLinkCode) {
+            throw new BadRequestException(
+                    "Không thể tái tạo mã liên kết vị trí (target_member_id là UNIQUE); "
+                            + "hãy tạo hồ sơ ảo mới để cấp mã liên kết khác");
+        }
+
+        int maxUses = request != null && request.getMaxUses() != null
+                ? request.getMaxUses()
+                : (current.getMaxUses() != null ? current.getMaxUses() : DEFAULT_MAX_USES);
+        int used = current.getUsedCount() != null ? current.getUsedCount() : 0;
+        if (maxUses < used) {
+            throw new BadRequestException(
+                    "Số lượt sử dụng tối đa không được nhỏ hơn số lượt đã dùng hiện tại (" + used + ")");
+        }
+        Instant expiresAt = resolveRegeneratedExpiry(current, request);
+
+        String newInviteCode = generateUniqueInviteCode();
+
+        // 1. Thu hồi mã cũ (giữ bản ghi để bảo toàn audit trail)
+        current.setIsActive(false);
+        invitationCodeRepository.save(current);
+
+        // 2. Mã mới kế thừa loại mã, phạm vi nhánh và hạn mức; used_count được đặt lại
+        InvitationCode replacement = InvitationCode.builder()
+                .inviteCode(newInviteCode)
+                .clanId(current.getClanId())
+                .inviteType(current.getInviteType())
+                .shareableUrl(inviteCodeGenerator.buildShareableUrl(newInviteCode))
+                .targetBranchId(current.getTargetBranchId())
+                .targetMemberId(null)
+                .maxUses(maxUses)
+                .usedCount(0)
+                .expiresAt(expiresAt)
+                .isActive(true)
+                .createdByAccountId(currentAccountId != null && !currentAccountId.isBlank()
+                        ? currentAccountId
+                        : current.getCreatedByAccountId())
+                .build();
+
+        InvitationCode saved = invitationCodeRepository.save(replacement);
+        log.info("Đã tái tạo mã mời: cũ={}, mới={}, clanId={}, maxUses={}, expiresAt={}, bởi accountId={}",
+                current.getInviteCode(), newInviteCode, saved.getClanId(), maxUses, expiresAt, currentAccountId);
+
+        return toResponse(saved);
     }
 
     @Override
@@ -123,33 +209,45 @@ public class InvitationServiceImpl implements InvitationService {
 
     @Override
     public InviteCodeResponse getInviteByCode(String inviteCode) {
-        InvitationCode invitation = validateAndGetActiveInvite(inviteCode);
+        InvitationCode invitation = InviteCodeGuard.requireUsableForOnboarding(invitationCodeRepository, inviteCode);
         return toResponse(invitation);
     }
 
     @Override
     public OnboardingBranchTreeNode getOnboardingBranchTree(String inviteCode) {
-        InvitationCode invitation = validateAndGetActiveInvite(inviteCode);
+        InvitationCode invitation = InviteCodeGuard.requireUsableForOnboarding(invitationCodeRepository, inviteCode);
         return genealogyQueryService.getOnboardingBranchTree(invitation.getClanId(), invitation.getTargetBranchId());
     }
 
-    private InvitationCode validateAndGetActiveInvite(String inviteCode) {
+    /**
+     * Looks the code up inside the caller's clan so a code belonging to another clan is indistinguishable from a
+     * missing one (IDOR guard).
+     */
+    private InvitationCode loadClanInvite(String inviteCode) {
         if (inviteCode == null || inviteCode.isBlank()) {
             throw new BadRequestException("Mã mời không được để trống");
         }
+        String clanId = TenantContext.getClanId();
+        String trimmed = inviteCode.trim();
+        return invitationCodeRepository.findByClanIdAndInviteCode(clanId, trimmed)
+                .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", trimmed));
+    }
 
-        InvitationCode invitation = invitationCodeRepository.findByInviteCodeAndIsActiveTrue(inviteCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Mã mời", "inviteCode", inviteCode));
-
-        if (invitation.getExpiresAt() != null && invitation.getExpiresAt().isBefore(Instant.now())) {
-            throw new BadRequestException("Mã mời đã hết hạn sử dụng");
+    /**
+     * Expiry of the replacement code: caller override first, then the remaining validity of the old code, then the
+     * default window — so regenerating never yields a code that is already expired.
+     */
+    private Instant resolveRegeneratedExpiry(InvitationCode current, UpdateInvitationRequest request) {
+        if (request != null && request.getExpiresAt() != null) {
+            return request.getExpiresAt();
         }
-
-        if (invitation.getMaxUses() != null && invitation.getUsedCount() != null && invitation.getUsedCount() >= invitation.getMaxUses()) {
-            throw new BadRequestException("Mã mời đã hết lượt sử dụng");
+        if (request != null && request.getValidityDays() != null) {
+            return Instant.now().plus(request.getValidityDays(), ChronoUnit.DAYS);
         }
-
-        return invitation;
+        if (current.getExpiresAt() != null && current.getExpiresAt().isAfter(Instant.now())) {
+            return current.getExpiresAt();
+        }
+        return Instant.now().plus(DEFAULT_VALIDITY_DAYS, ChronoUnit.DAYS);
     }
 
     private InviteCodeResponse toResponse(InvitationCode entity) {
@@ -158,7 +256,8 @@ public class InvitationServiceImpl implements InvitationService {
             genealogyQueryService.getClanName(entity.getClanId()).ifPresent(response::setClanName);
         }
         if (entity.getClanId() != null && entity.getTargetBranchId() != null) {
-            genealogyQueryService.getBranchName(entity.getClanId(), entity.getTargetBranchId()).ifPresent(response::setTargetBranchName);
+            genealogyQueryService.getBranchName(entity.getClanId(), entity.getTargetBranchId())
+                    .ifPresent(response::setTargetBranchName);
         }
         return response;
     }

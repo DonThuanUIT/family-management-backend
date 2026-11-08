@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InviteCodeGeneratorTest {
 
-    private final InviteCodeGenerator generator = new InviteCodeGenerator("http://localhost:3000/join");
+    private final InviteCodeGenerator generator = new InviteCodeGenerator(
+            "http://localhost:3000/join", "http://localhost:3000/position-link");
 
     @Test
     @DisplayName("Generated code must have length of 8 and contain only characters from ALPHABET")
@@ -54,10 +55,12 @@ class InviteCodeGeneratorTest {
     @Test
     @DisplayName("Building shareable URL should handle base URL with trailing slash cleanly")
     void buildShareableUrl_ShouldHandleTrailingSlash() {
-        InviteCodeGenerator slashGenerator = new InviteCodeGenerator("https://familyfund.app/invite/");
+        InviteCodeGenerator slashGenerator = new InviteCodeGenerator(
+                "https://familyfund.app/invite/", "https://familyfund.app/position-link/");
         String url = slashGenerator.buildShareableUrl("ABCD2345");
 
         assertEquals("https://familyfund.app/invite?code=ABCD2345", url);
+        assertEquals("https://familyfund.app/position-link?code=ABCD2345", slashGenerator.buildPositionLinkUrl("ABCD2345"));
     }
 
     @Test
@@ -65,6 +68,26 @@ class InviteCodeGeneratorTest {
     void buildShareableUrl_ShouldThrowOnBlankCode() {
         assertThrows(IllegalArgumentException.class, () -> generator.buildShareableUrl(null));
         assertThrows(IllegalArgumentException.class, () -> generator.buildShareableUrl("   "));
+        assertThrows(IllegalArgumentException.class, () -> generator.buildPositionLinkUrl(null));
+        assertThrows(IllegalArgumentException.class, () -> generator.buildPositionLinkUrl("   "));
+    }
+
+    @Test
+    @DisplayName("Position link URL is built from its own base URL, never from the general invite base URL (US-18)")
+    void buildPositionLinkUrl_ShouldUsePositionLinkBaseUrl() {
+        assertEquals("http://localhost:3000/position-link?code=8K9P2X7N",
+                generator.buildPositionLinkUrl("8K9P2X7N"));
+        assertEquals("http://localhost:3000/join", generator.getBaseUrl());
+        assertEquals("http://localhost:3000/position-link", generator.getPositionLinkBaseUrl());
+    }
+
+    @Test
+    @DisplayName("A blank configured base URL falls back to the documented default")
+    void blankBaseUrls_ShouldFallBackToDefaults() {
+        InviteCodeGenerator fallbackGenerator = new InviteCodeGenerator("  ", null);
+
+        assertEquals(InviteCodeGenerator.DEFAULT_BASE_URL, fallbackGenerator.getBaseUrl());
+        assertEquals(InviteCodeGenerator.DEFAULT_POSITION_LINK_BASE_URL, fallbackGenerator.getPositionLinkBaseUrl());
     }
 }
 

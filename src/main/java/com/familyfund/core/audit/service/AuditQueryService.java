@@ -1,0 +1,22 @@
+package com.familyfund.core.audit.service;
+
+import com.familyfund.core.audit.dto.AuditLogPageResponse;
+import com.familyfund.core.audit.dto.SystemAuditLogResponse;
+
+import java.util.List;
+
+public interface AuditQueryService {
+
+    AuditLogPageResponse getAuditLogs(
+            int page,
+            int size,
+            String actorId,
+            List<String> actionTypes,
+            List<String> entityTypes,
+            String entityId,
+            String from,
+            String to
+    );
+
+    SystemAuditLogResponse getAuditLogDetail(String auditId);
+}

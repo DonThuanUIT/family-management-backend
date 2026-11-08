@@ -306,6 +306,203 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseError'
 
+  /branches/{branchId}/virtual-members:
+    post:
+      summary: Tạo hồ sơ ảo (vị trí lá) và mã liên kết vị trí dùng một lần (US-18)
+      description: |
+        Trưởng tộc / Trưởng chi tạo một **hồ sơ ảo** (`members.is_placeholder = true`) cho vị trí lá trên cây
+        phả hệ **chưa có tài khoản** (`user_accounts.member_id` để trống), đồng thời phát hành một
+        **PositionLinkCode dùng một lần** (`invitation_codes.invite_type = 'PositionLinkCode'`,
+        `max_uses = 1`, `target_member_id` = hồ sơ vừa tạo) để người nhận vị trí tự liên kết tài khoản sau này.
+
+        Quy tắc nghiệp vụ:
+        - `branchId` **chỉ** lấy từ đường dẫn, không truyền lại trong body.
+        - `memberId`, `isPlaceholder`, `inviteCode`, `maxUses`, `usedCount` do server quyết định, không nhận từ client.
+        - Hồ sơ ảo dùng chung mọi bất biến của US-03: chi/nhánh phải thuộc dòng họ hiện hành, `generation`
+          không nhỏ hơn `generation_level` của chi/nhánh, chống trùng hồ sơ trong toàn dòng họ.
+        - Mã liên kết hết hạn sau `validityDays` ngày (mặc định 7) hoặc đúng `expiresAt` nếu client truyền vào.
+        - `invitation_codes.target_member_id` là `UNIQUE`: mỗi vị trí chỉ có tối đa một mã liên kết.
+        - Hồ sơ ảo và mã liên kết được ghi trong **một transaction**: lỗi ở bất kỳ bước nào cũng không để lại dữ liệu.
+      tags:
+        - Clan & Family Tree
+        - Invitations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          description: Mã chi/nhánh nhận hồ sơ ảo (`family_branches.branch_id`, VARCHAR(20))
+          schema:
+            type: string
+            maxLength: 20
+            example: BR_CHI_2
+        - name: X-Clan-Id
+          in: header
+          required: false
+          description: Mã dòng họ hiện hành (multi-tenant). Bỏ trống sẽ dùng `CLAN_DEFAULT`.
+          schema:
+            type: string
+            example: CLAN_DEFAULT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVirtualMemberRequest'
+      responses:
+        '201':
+          description: Tạo hồ sơ ảo và mã liên kết vị trí thành công (`Location` trỏ tới `/api/v1/invitations/{inviteCode}`)
+          headers:
+            Location:
+              description: Đường dẫn tài nguyên của mã liên kết vị trí vừa tạo.
+              schema:
+                type: string
+                example: /api/v1/invitations/8K9P2X7N
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVirtualMember'
+        '400':
+          description: Payload sai ràng buộc schema, `branchId` sai định dạng, thế hệ thấp hơn cấp của chi/nhánh, hoặc `expiresAt` không ở tương lai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '401':
+          description: Chưa xác thực (không có hoặc token không hợp lệ)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Không có quyền (chỉ `ROLE_CLAN_HEAD`, `ROLE_BRANCH_HEAD`, `ROLE_ADMIN`; Trưởng chi chỉ được tạo trong chi mình quản lý)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Dòng họ hoặc chi/nhánh không tồn tại trong dòng họ hiện hành
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '409':
+          description: Hồ sơ trùng với thành viên đã có trong dòng họ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
+  /position-links/{inviteCode}:
+    get:
+      summary: Xem trước vị trí phả hệ của mã liên kết vị trí (US-19)
+      description: |-
+        Endpoint **công khai** dùng cho trang đích mà người nhận mở từ link chia sẻ
+        (`app.invitation.position-link-base-url?code=...`). Trả về dòng họ, chi/nhánh và hồ sơ mà mã đang trỏ tới
+        để người nhận xác nhận đúng vị trí của mình trước khi đăng ký.
+
+        Chỉ những mã còn dùng được mới xem trước được: mã không tồn tại hoặc không phải `PositionLinkCode` ⇒ `404`;
+        mã đã dùng, đã bị vô hiệu hoá hoặc hết hạn ⇒ `400`.
+      tags:
+        - Invitations
+        - Clan & Family Tree
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          description: Mã liên kết vị trí (8 ký tự Base32 CSPRNG)
+          schema:
+            type: string
+            maxLength: 30
+            example: 8K9P2X7N
+      responses:
+        '200':
+          description: Thông tin vị trí mà mã liên kết đang trỏ tới
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePositionLinkPreview'
+        '400':
+          description: Mã rỗng/quá dài, đã dùng, đã bị vô hiệu hoá hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Mã không tồn tại hoặc không phải là `PositionLinkCode`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
+  /position-links/{inviteCode}/claim:
+    post:
+      summary: Nhập PositionLinkCode khi đăng ký để tự động gia nhập đúng chi/nhánh (US-19)
+      description: |-
+        Người nhận vị trí **đăng ký tài khoản ngay tại trang của mã liên kết**: gửi số điện thoại + mật khẩu kèm mã,
+        hệ thống liên kết tài khoản với hồ sơ ảo mà mã trỏ tới và **kích hoạt tài khoản ngay**, không cần
+        bất kỳ bước xác minh/phê duyệt nào (khác với luồng đơn gia nhập US-17).
+
+        Quy tắc nghiệp vụ:
+        - Mã đúng chính là bằng chứng sở hữu vị trí: `members.is_placeholder` chuyển `true` sang `false`, mọi thuộc
+          tính khác của hồ sơ (họ tên, đời, chi/nhánh, sự kiện/đóng góp đã ghi trên `member_id`) được giữ nguyên.
+        - Số điện thoại **chưa tồn tại** thì tạo `user_accounts` mới với `account_status = 'Active'` và gán `ROLE_MEMBER`.
+        - Số điện thoại **đã có** (ví dụ tài khoản `PendingApproval` từ US-17) thì mật khẩu phải khớp, tài khoản được
+          kích hoạt (`PendingApproval` sang `Active`) và liên kết với vị trí; không tạo thêm tài khoản.
+        - Mã dùng một lần: sau khi thành công `used_count = 1` và `is_active = false`.
+        - Hồ sơ ảo chưa từng có bảng ghi `user_accounts` nên mỗi vị trí chỉ thuộc về đúng một tài khoản.
+        - Toàn bộ trao đổi nằm trong **một transaction**: lỗi ở bất kỳ bước nào cũng không tiêu mã, không tạo tài khoản.
+      tags:
+        - Invitations
+        - Authentication
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          description: Mã liên kết vị trí nhận được từ trưởng tộc / trưởng chi
+          schema:
+            type: string
+            maxLength: 30
+            example: 8K9P2X7N
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimPositionRequest'
+      responses:
+        '200':
+          description: Tài khoản đã được liên kết với vị trí và kích hoạt (`Active`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseClaimPosition'
+        '400':
+          description: Payload sai ràng buộc, mã đã dùng/hết hạn/vô hiệu hoá, hoặc sai mật khẩu của số điện thoại đã đăng ký
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Tài khoản đang ở trạng thái `Suspended` hoặc `Deactivated`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Mã không tồn tại hoặc không phải là `PositionLinkCode`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '409':
+          description: Vị trí đã được nhận, số điện thoại đã liên kết hồ sơ khác, hoặc email đã được đăng ký
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
   /events:
     get:
       summary: Danh sách sự kiện của dòng họ
@@ -890,6 +1087,10 @@ paths:
   /invitations/{inviteCode}:
     get:
       summary: Xem chi tiết thông tin mã mời (Public cho trang đón tiếp US-17)
+      description: |
+        Kiểm tra mã trước khi cho người dùng đi tiếp. Ba tình huống từ chối có `code` khác nhau để client
+        hiển thị đúng thông báo: mã bị thu hồi (`INVITE_CODE_REVOKED`), mã hết hạn (`INVITE_CODE_EXPIRED`),
+        mã hết lượt dùng (`INVITE_CODE_EXHAUSTED`). Mã không tồn tại trả `404` như trước.
       tags:
         - Invitations & Onboarding
       parameters:
@@ -902,8 +1103,54 @@ paths:
       responses:
         '200':
           description: Thông tin mã mời
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: |-
+            Mã không còn dùng được. `code` cho biết lý do:
+            - `INVITE_CODE_REVOKED`: mã đã bị thu hồi / vô hiệu hoá
+            - `INVITE_CODE_EXPIRED`: mã đã hết hạn
+            - `INVITE_CODE_EXHAUSTED`: mã đã hết lượt sử dụng
         '404':
-          description: Mã mời không tồn tại hoặc đã bị vô hiệu hóa
+          description: Mã mời không tồn tại
+    patch:
+      summary: Cập nhật hạn dùng / số lượt / trạng thái của mã mời (Trưởng tộc hoặc Admin)
+      description: |
+        Chỉ áp dụng các trường có trong payload. `maxUses` không được nhỏ hơn `usedCount` hiện tại.
+        `isActive = true` dùng để kích hoạt lại một mã đã bị thu hồi; `validityDays` tính lại hạn từ thời điểm gọi
+        khi không truyền `expiresAt`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 8K9P2X7N
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvitationRequest'
+      responses:
+        '200':
+          description: Cập nhật thành công, trả về mã mời sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: Payload rỗng, `expiresAt` không ở tương lai, hoặc `maxUses` nhỏ hơn số lượt đã dùng
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Mã mời không tồn tại trong dòng họ hiện hành
 
   /invitations/{inviteCode}/deactivate:
     patch:
@@ -923,6 +1170,165 @@ paths:
           description: Vô hiệu hóa thành công
         '403':
           description: Không có quyền thực hiện
+
+  /invitations/{inviteCode}/regenerate:
+    post:
+      summary: Tái tạo mã mời mới thay cho mã cũ (Trưởng tộc hoặc Admin)
+      description: |
+        Thu hồi mã cũ (`is_active = false`, bản ghi vẫn giữ để tra cứu) và phát hành mã mới kế thừa loại mã,
+        nhánh mục tiêu, `maxUses` của mã cũ với `used_count` đặt lại bằng 0. Hạn dùng của mã mới: `expiresAt` >
+        `validityDays` (nếu truyền) > phần hạn còn lại của mã cũ > 30 ngày mặc định.
+        Mã liên kết vị trí (`PositionLinkCode`) không tái tạo được vì `target_member_id` là UNIQUE — hãy tạo
+        hồ sơ ảo mới.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 8K9P2X7N
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvitationRequest'
+      responses:
+        '201':
+          description: Mã mới được tạo, header `Location` trỏ tới `/api/v1/invitations/{newCode}`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteCode'
+        '400':
+          description: Mã cũ là PositionLinkCode, hoặc `maxUses` nhỏ hơn số lượt đã dùng
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Mã mời không tồn tại trong dòng họ hiện hành
+
+  /join-requests:
+    get:
+      summary: Danh sách yêu cầu gia nhập theo trạng thái & phạm vi nhánh (US-17)
+      description: |
+        `ROLE_CLAN_HEAD` và `ROLE_ADMIN` xem toàn dòng họ; `ROLE_BRANCH_HEAD` chỉ thấy yêu cầu thuộc các nhánh
+        mình quản lý (nhánh mình đại diện + nhánh con cháu). Truyền `branchId` ngoài phạm vi quản lý ⇒ `400`.
+        Mặc định `status = Pending`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Approved, Rejected]
+            default: Pending
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: BR_CHI_2
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Danh sách yêu cầu gia nhập phân trang
+        '400':
+          description: "`branchId` nằm ngoài phạm vi nhánh mà người duyệt quản lý"
+        '403':
+          description: Không có quyền duyệt yêu cầu
+
+  /join-requests/{requestId}/approve:
+    post:
+      summary: Phê duyệt yêu cầu gia nhập, có thể chỉnh lại vị trí trước khi duyệt (US-17)
+      description: |
+        Trong một transaction: tạo `members` (và `family_branches` con nếu `proposalType = NewChildBranch`),
+        gắn `user_accounts.member_id`, kích hoạt `account_status = Active`, cấp `ROLE_MEMBER`, tăng
+        `invitation_codes.used_count`, cập nhật yêu cầu sang `Approved`, rồi phát domain event để thông báo
+        kết quả cho người xin gia nhập.
+
+        Body là tuỳ chọn: không gửi body thì dùng đúng vị trí ứng viên đề xuất. Nếu gửi `targetBranchId`, hệ thống
+        kiểm tra nhánh tồn tại trong dòng họ (`404`) và người duyệt có quyền trên nhánh đó (`400`), sau đó lưu lại
+        nhánh đã chỉnh vào yêu cầu. `proposedNewBranchName` chỉ dùng được với `NewChildBranch`.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: REQ12345678901234
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveJoinRequest'
+      responses:
+        '200':
+          description: Đã phê duyệt, trả về yêu cầu sau khi duyệt (kèm nhánh thực tế)
+        '400':
+          description: Yêu cầu đã được xử lý, người duyệt không có quyền trên nhánh, hoặc payload sai
+        '404':
+          description: Yêu cầu hoặc nhánh chỉnh lại không tồn tại trong dòng họ hiện hành
+
+  /join-requests/{requestId}/reject:
+    post:
+      summary: Từ chối yêu cầu gia nhập kèm lý do (US-17)
+      description: |
+        Lưu `rejection_reason`, chuyển yêu cầu sang `Rejected`, vô hiệu hoá tài khoản tạm (`Deactivated`) và phát
+        domain event để gửi thông báo kết quả (kèm lý do) cho người xin gia nhập.
+      tags:
+        - Invitations & Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: REQ12345678901234
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejectionReason]
+              properties:
+                rejectionReason:
+                  type: string
+                  maxLength: 500
+                  example: Thông tin gia phả đề xuất không khớp với phả hệ thực tế
+      responses:
+        '200':
+          description: Đã từ chối, trả về yêu cầu kèm lý do
+        '400':
+          description: Lý do trống/ quá 500 ký tự, hoặc yêu cầu đã được xử lý
+        '404':
+          description: Yêu cầu không tồn tại trong dòng họ hiện hành
 
   /contributions/cash:
     post:
@@ -1313,6 +1719,145 @@ paths:
         '404':
           description: Tài sản không tồn tại
 
+  /roles/assign:
+    post:
+      summary: Chỉ định vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
+      description: |
+        Chỉ Trưởng tộc (ROLE_CLAN_HEAD) hoặc Admin (ROLE_ADMIN) có quyền thực hiện.
+        Với Trưởng nhánh (ROLE_BRANCH_HEAD): gắn representative_id vào family_branches và gắn vào account_roles (bắt buộc thành viên đã có tài khoản Active).
+        Với nhân sự sự kiện (HeadOfOrganizer, OrganizerMember, EventTreasurer): cập nhật bảng event_personnel.
+        Tự động phát thông báo bất đồng bộ và ghi vào audit_logs.
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - memberId
+                - roleCode
+                - scopeType
+                - scopeId
+              properties:
+                memberId:
+                  type: string
+                  example: MEM20261016A1B2C3
+                roleCode:
+                  type: string
+                  enum: [ROLE_BRANCH_HEAD, HeadOfOrganizer, OrganizerMember, EventTreasurer]
+                  example: ROLE_BRANCH_HEAD
+                scopeType:
+                  type: string
+                  enum: [BRANCH, EVENT]
+                  example: BRANCH
+                scopeId:
+                  type: string
+                  example: BR_CHI_1
+                description:
+                  type: string
+                  example: Bổ nhiệm Trưởng chi nhánh
+      responses:
+        '200':
+          description: Chỉ định vai trò thành công
+        '400':
+          description: Dữ liệu không hợp lệ hoặc thành viên chưa có tài khoản Active
+        '403':
+          description: Không có quyền truy cập
+        '404':
+          description: Không tìm thấy thành viên, chi nhánh hoặc sự kiện
+
+  /roles/revoke:
+    post:
+      summary: Thu hồi vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
+      description: |
+        Chỉ Trưởng tộc hoặc Admin có quyền thực hiện.
+        Thu hồi Trưởng nhánh sẽ gỡ representative_id và gỡ ROLE_BRANCH_HEAD khỏi account_roles (nếu không còn nhánh nào khác).
+        Thu hồi nhân sự sự kiện sẽ xóa bản ghi khỏi event_personnel.
+        Tự động ghi audit_logs và phát thông báo.
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - memberId
+                - roleCode
+                - scopeType
+                - scopeId
+              properties:
+                memberId:
+                  type: string
+                  example: MEM20261016A1B2C3
+                roleCode:
+                  type: string
+                  enum: [ROLE_BRANCH_HEAD, HeadOfOrganizer, OrganizerMember, EventTreasurer]
+                  example: ROLE_BRANCH_HEAD
+                scopeType:
+                  type: string
+                  enum: [BRANCH, EVENT]
+                  example: BRANCH
+                scopeId:
+                  type: string
+                  example: BR_CHI_1
+                reason:
+                  type: string
+                  example: Thay đổi nhân sự
+      responses:
+        '200':
+          description: Thu hồi vai trò thành công
+        '400':
+          description: Dữ liệu không hợp lệ
+        '403':
+          description: Không có quyền truy cập
+
+  /roles/audit-logs:
+    get:
+      summary: Tra cứu nhật ký kiểm toán phân quyền (US-03)
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [BRANCH, EVENT]
+        - name: scopeId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách nhật ký kiểm toán
+
+  /roles/overview:
+    get:
+      summary: Lấy dữ liệu tổng hợp phân quyền dòng họ (US-03)
+      tags:
+        - Role Management (Dual-RBAC)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tổng quan phân quyền nhánh và thành viên
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1324,6 +1869,79 @@ components:
         Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
 
   schemas:
+    UpdateInvitationRequest:
+      type: object
+      description: |
+        Payload cập nhật / tái tạo mã mời. Mọi trường đều tuỳ chọn nhưng phải có ít nhất một trường khi cập nhật.
+      properties:
+        isActive:
+          type: boolean
+          description: Bật/tắt hiệu lực của mã (false = thu hồi nhưng vẫn giữ bản ghi).
+        expiresAt:
+          type: string
+          format: date-time
+          description: Mốc hết hạn tuyệt đối, phải ở tương lai.
+        validityDays:
+          type: integer
+          minimum: 1
+          description: Số ngày hiệu lực tính từ lúc gọi, dùng khi không truyền `expiresAt`.
+        maxUses:
+          type: integer
+          minimum: 1
+          description: Số lượt sử dụng tối đa; không được nhỏ hơn `usedCount` hiện tại.
+
+    ApproveJoinRequest:
+      type: object
+      description: |
+        Nội dung tuỳ chọn khi phê duyệt, cho phép người duyệt chỉnh lại vị trí trước khi tạo hồ sơ.
+      properties:
+        targetBranchId:
+          type: string
+          maxLength: 20
+          description: |
+            Nhánh thực tế gán hồ sơ (ExistingBranchLeaf) hoặc nhánh cha của chi nhánh mới (NewChildBranch).
+            Bỏ trống để dùng vị trí ứng viên đề xuất.
+          example: BR_CHI_2
+        proposedNewBranchName:
+          type: string
+          maxLength: 100
+          description: Tên chi nhánh mới nếu muốn đổi, chỉ hợp lệ với `NewChildBranch`.
+          example: Chi 3 - Nhánh Ất
+
+    ApiResponseInviteCode:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            inviteCode:
+              type: string
+            clanId:
+              type: string
+            inviteType:
+              type: string
+              enum: [GeneralClanInvite, PositionLinkCode]
+            shareableUrl:
+              type: string
+            targetBranchId:
+              type: string
+            maxUses:
+              type: integer
+            usedCount:
+              type: integer
+            expiresAt:
+              type: string
+              format: date-time
+            isActive:
+              type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
     CreateMemberRequest:
       type: object
       description: |
@@ -1415,6 +2033,129 @@ components:
           format: date-time
           example: "2026-10-23T15:00:00Z"
 
+    CreateVirtualMemberRequest:
+      type: object
+      description: |
+        Payload tạo hồ sơ ảo + mã liên kết vị trí (US-18). `branchId` KHÔNG nằm trong body (lấy từ path variable).
+        `memberId`, `isPlaceholder`, `inviteCode`, `maxUses`, `usedCount`, `createdAt` do server quyết định.
+      required:
+        - fullName
+        - gender
+        - generation
+      properties:
+        fullName:
+          type: string
+          maxLength: 100
+          description: "`members.full_name` VARCHAR(100) NOT NULL"
+          example: Nguyễn Văn An
+        dateOfBirth:
+          type: string
+          format: date
+          description: "`members.date_of_birth` DATE, không được ở tương lai"
+          example: "1990-05-20"
+        gender:
+          type: string
+          enum: [Male, Female, Other]
+          description: "`members.gender` CHECK (Male|Female|Other)"
+          example: Male
+        generation:
+          type: integer
+          minimum: 1
+          description: "`members.generation` INT NOT NULL CHECK >= 1; không nhỏ hơn `generation_level` của chi/nhánh"
+          example: 3
+        status:
+          type: string
+          enum: [Living, Deceased]
+          default: Living
+          description: "`members.status` VARCHAR(20) NOT NULL DEFAULT 'Living'; bỏ trống thì mặc định Living"
+          example: Living
+        deathDateLunar:
+          type: string
+          maxLength: 50
+          description: "`members.death_date_lunar` VARCHAR(50)"
+          example: "15/08 Âm lịch"
+        expiresAt:
+          type: string
+          format: date-time
+          description: "`invitation_codes.expires_at`; phải ở tương lai. Nếu bỏ trống thì dùng `validityDays`."
+          example: "2026-11-30T00:00:00Z"
+        validityDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: Số ngày hiệu lực của mã liên kết khi không truyền `expiresAt`. Mặc định 7 ngày.
+          example: 7
+
+    PositionLinkCode:
+      type: object
+      description: |
+        Mã liên kết vị trí dùng một lần (`invitation_codes` với `invite_type = 'PositionLinkCode'`).
+        Bản ghi luôn có `max_uses = 1`, `used_count = 0` khi vừa tạo, và `target_member_id` trỏ tới hồ sơ ảo.
+      properties:
+        inviteCode:
+          type: string
+          maxLength: 30
+          description: "`invitation_codes.invite_code` PRIMARY KEY (8 ký tự Base32 CSPRNG)"
+          example: 8K9P2X7N
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        clanName:
+          type: string
+          example: Dòng Họ Nguyễn
+        inviteType:
+          type: string
+          enum: [GeneralClanInvite, PositionLinkCode]
+          example: PositionLinkCode
+        shareableUrl:
+          type: string
+          description: Link chia sẻ để người nhận vị trí mở và liên kết tài khoản (`app.invitation.position-link-base-url`).
+          example: "http://localhost:3000/position-link?code=8K9P2X7N"
+        targetBranchId:
+          type: string
+          example: BR_CHI_2
+        targetBranchName:
+          type: string
+          example: Chi 2 - Nhánh Giáp
+        targetMemberId:
+          type: string
+          description: "`invitation_codes.target_member_id` UNIQUE - trỏ tới hồ sơ ảo vừa tạo."
+          example: MEMK4F8ZQ1M7XB3QP
+        maxUses:
+          type: integer
+          description: Luôn `1` với PositionLinkCode.
+          example: 1
+        usedCount:
+          type: integer
+          description: Số lần đã dùng; `1` nghĩa là mã đã bị dùng hết.
+          example: 0
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-11-07T09:00:00Z"
+        isActive:
+          type: boolean
+          example: true
+        createdByAccountId:
+          type: string
+          example: ACC_TRUONG_TOC
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-31T09:00:00Z"
+
+    VirtualMemberPosition:
+      type: object
+      description: |
+        Kết quả của US-18: hồ sơ ảo (vị trí lá, `isPlaceholder = true`, chưa có tài khoản) và mã liên kết
+        vị trí dùng một lần được phát hành cho chính vị trí đó.
+      properties:
+        member:
+          $ref: '#/components/schemas/MemberResponse'
+        positionLinkCode:
+          $ref: '#/components/schemas/PositionLinkCode'
+
     ApiResponseMember:
       type: object
       properties:
@@ -1426,6 +2167,170 @@ components:
           example: Member created successfully
         data:
           $ref: '#/components/schemas/MemberResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseVirtualMember:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Tạo hồ sơ ảo và mã liên kết vị trí thành công
+        data:
+          $ref: '#/components/schemas/VirtualMemberPosition'
+        timestamp:
+          type: string
+          format: date-time
+
+    ClaimPositionRequest:
+      type: object
+      description: |-
+        Payload đăng ký kèm mã liên kết vị trí (`POST /position-links/{inviteCode}/claim`, US-19).
+        Cặp `phoneNumber` + `password` là bằng chứng danh tính của người nhận vị trí; hồ sơ phả hệ (họ tên, đời,
+        chi/nhánh) **không** truyền lại vì đã tồn tại trên vị trí ảo do US-18 tạo.
+      required: [phoneNumber, password]
+      properties:
+        phoneNumber:
+          type: string
+          pattern: '^(0|\+84)[0-9]{9,10}$'
+          description: "`user_accounts.phone_number` VARCHAR(15) NOT NULL UNIQUE - cũng là `loginIdentifier` của /auth/login"
+          example: 0912345678
+        password:
+          type: string
+          minLength: 6
+          maxLength: 50
+          description: "Mật khẩu (lưu dạng BCrypt trong `user_accounts.password_hash`)"
+          example: secret123
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          nullable: true
+          description: "`user_accounts.email` VARCHAR(100) UNIQUE - tuỳ chọn, chỉ dùng khi tạo tài khoản mới"
+          example: ut@example.com
+
+    ClaimPositionResponse:
+      type: object
+      description: |-
+        Kết quả của US-19: tài khoản đã được liên kết với vị trí ảo và kích hoạt (`Active`), vị trí đã thôi là
+        placeholder. Người dùng đăng nhập được ngay bằng số điện thoại + mật khẩu vừa dùng.
+      properties:
+        accountId:
+          type: string
+          example: ACC_7F3D9A0B1C2E
+        phoneNumber:
+          type: string
+          example: 0912345678
+        email:
+          type: string
+          nullable: true
+          example: ut@example.com
+        accountStatus:
+          type: string
+          enum: [Active]
+          description: Luôn `Active` sau khi liên kết thành công (mã đúng thay cho bước phê duyệt).
+          example: Active
+        roles:
+          type: array
+          items:
+            type: string
+          example: [ROLE_MEMBER]
+        memberId:
+          type: string
+          description: "`members.member_id` của vị trí vừa nhận"
+          example: MEMK4F8ZQ1M7XB3QP
+        fullName:
+          type: string
+          description: Họ tên đã ghi trên vị trí ảo (không nhập lại khi đăng ký)
+          example: Nguyễn Văn Út
+        generation:
+          type: integer
+          example: 4
+        branchId:
+          type: string
+          description: "`members.branch_id` - chi/nhánh mà tài khoản được nối vào"
+          example: BR_CHI_2
+        branchName:
+          type: string
+          example: Chi 2 - Nhánh Giáp
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        clanName:
+          type: string
+          example: Dòng Họ Nguyễn
+        inviteCode:
+          type: string
+          description: Mã đã dùng (không thể dùng lại)
+          example: 8K9P2X7N
+        linkedAt:
+          type: string
+          format: date-time
+          example: "2026-11-01T09:00:00Z"
+
+    PositionLinkPreviewResponse:
+      type: object
+      description: |-
+        Kết quả xem trước của US-19: dòng họ, chi/nhánh và hồ sơ mà mã liên kết vị trí đang trỏ tới. Chỉ trả về
+        khi mã còn dùng được (chưa dùng, chưa bị vô hiệu hoá, chưa hết hạn).
+      properties:
+        inviteCode:
+          type: string
+          example: 8K9P2X7N
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        clanName:
+          type: string
+          example: Dòng Họ Nguyễn
+        branchId:
+          type: string
+          example: BR_CHI_2
+        branchName:
+          type: string
+          example: Chi 2 - Nhánh Giáp
+        memberId:
+          type: string
+          example: MEMK4F8ZQ1M7XB3QP
+        fullName:
+          type: string
+          example: Nguyễn Văn Út
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-11-07T09:00:00Z"
+
+    ApiResponsePositionLinkPreview:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Lấy thông tin vị trí liên kết thành công
+        data:
+          $ref: '#/components/schemas/PositionLinkPreviewResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseClaimPosition:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Liên kết tài khoản với vị trí phả hệ thành công
+        data:
+          $ref: '#/components/schemas/ClaimPositionResponse'
         timestamp:
           type: string
           format: date-time
@@ -1451,8 +2356,6 @@ components:
           format: date-time
 
 
-
-openapi: 3.0
     ApiResponseClanAssetSummary:
       type: object
       properties:
@@ -1466,9 +2369,32 @@ openapi: 3.0
           $ref: '#/components/schemas/ClanAssetSummaryResponse'
 
     RegisterAttendeesRequest:
-openapi: 3.0.3
-info:
-  titl
+      type: object
+      properties:
+        representativeMemberId:
+          type: string
+          example: MEM_01
+        totalAttendees:
+          type: integer
+          example: 3
+        vegetarianMeals:
+          type: integer
+          example: 1
+        savoryMeals:
+          type: integer
+          example: 2
+        dietaryRequirements:
+          type: string
+          example: Dị ứng đậu phộng
+        transportationNotes:
+          type: string
+          example: Đi xe riêng
+        attendingMemberIds:
+          type: array
+          items:
+            type: string
+          example: ["MEM_01", "MEM_02", "MEM_03"]
+
     ApiResponseRegistration:
       type: object
       properties:
@@ -1498,3 +2424,118 @@ info:
           type: string
           format: date-time
 
+    SystemAuditLogResponse:
+      type: object
+      properties:
+        auditId:
+          type: string
+          example: AUD_01HXYZ9876
+        clanId:
+          type: string
+          example: CLAN_DEFAULT
+        actorAccountId:
+          type: string
+          example: ACC_01
+        actorFullName:
+          type: string
+          example: Nguyễn Văn Trưởng
+        actionType:
+          type: string
+          enum: [ASSIGN, REVOKE, APPROVE, REJECT, CREATE, UPDATE, DELETE, STATUS_CHANGE, ASSIGN_PERSONNEL]
+          example: UPDATE
+        entityType:
+          type: string
+          enum: [ROLE, JOIN_REQUEST, BRANCH, MEMBER, EVENT, EVENT_PERSONNEL]
+          example: BRANCH
+        entityId:
+          type: string
+          example: BR_01
+        roleCode:
+          type: string
+          example: ROLE_BRANCH_HEAD
+        roleDisplayName:
+          type: string
+          example: Trưởng Chi / Nhánh
+        scopeType:
+          type: string
+          example: BRANCH
+        scopeId:
+          type: string
+          example: BR_01
+        scopeName:
+          type: string
+          example: Nhánh Trưởng
+        targetMemberId:
+          type: string
+          example: MEM_01
+        targetMemberName:
+          type: string
+          example: Nguyễn Văn A
+        targetAccountId:
+          type: string
+          example: ACC_02
+        description:
+          type: string
+          example: Cập nhật thông tin chi nhánh
+        oldValue:
+          type: object
+          description: Dữ liệu snapshot trước khi thực hiện thao tác
+        newValue:
+          type: object
+          description: Dữ liệu snapshot sau khi thực hiện thao tác
+        ipAddress:
+          type: string
+          example: 192.168.1.100
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemAuditLogResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 3
+
+    ApiResponseAuditLogPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Tra cứu nhật ký kiểm toán thành công
+        data:
+          $ref: '#/components/schemas/AuditLogPageResponse'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseSystemAuditLog:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Lấy chi tiết bản ghi kiểm toán thành công
+        data:
+          $ref: '#/components/schemas/SystemAuditLogResponse'
+        timestamp:
+          type: string
+          format: date-time

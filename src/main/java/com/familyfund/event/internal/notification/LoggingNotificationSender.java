@@ -24,4 +24,10 @@ public class LoggingNotificationSender implements NotificationSender {
         log.info("[ThongBao TaskAssigned] Phân công công việc [{}] sự kiện [{}] dòng họ [{}] cho {} người nhận {} | Tiêu đề: \"{}\" | Nội dung: \"{}\"",
                 taskId, eventId, clanId, recipientMemberIds.size(), recipientMemberIds, title, content);
     }
+
+    @Override
+    public void sendRoleChangedNotification(String clanId, String targetMemberId, String targetAccountId, String roleCode, String actionType, String title, String content) {
+        log.info("[ThongBao RoleChanged] Thông báo phân quyền: clanId=[{}], memberId=[{}], accountId=[{}], role=[{}], action=[{}] | Tiêu đề: \"{}\" | Nội dung: \"{}\"",
+                clanId, targetMemberId, targetAccountId, roleCode, actionType, title, content);
+    }
 }

@@ -29,6 +29,12 @@ public class ApiResponse<T> {
 
     private Object errors;
 
+    /**
+     * Stable, machine-readable error identifier (e.g. {@code INVITE_CODE_EXPIRED}).
+     * Only present on the error responses that need it, so existing clients are unaffected.
+     */
+    private String code;
+
     @Builder.Default
     private Instant timestamp = Instant.now();
 
@@ -57,5 +63,21 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> error(String message) {
         return error(message, null);
     }
-}
 
+    /**
+     * Error response carrying an explicit machine-readable code.
+     */
+    public static <T> ApiResponse<T> error(String code, String message, Object errors) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .code(code)
+                .message(message)
+                .errors(errors)
+                .timestamp(Instant.now())
+                .build();
+    }
+
+    public static <T> ApiResponse<T> errorWithCode(String code, String message) {
+        return error(code, message, null);
+    }
+}

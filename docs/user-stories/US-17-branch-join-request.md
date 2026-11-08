@@ -44,6 +44,14 @@ Tài liệu này đặc tả toàn diện thiết kế kiến trúc, mô hình d
    * Cập nhật `branch_join_requests.approval_status = 'Rejected'`.
    * Chuyển trạng thái `user_accounts.account_status = 'Deactivated'` để bảo toàn tính toàn vẹn dữ liệu kiểm toán và ngăn ngừa spam.
 7. **AC-07 (Bảo toàn trạng thái - State Immutability):** Đơn đã ở trạng thái `Approved` hoặc `Rejected` thì không được phép thay đổi trạng thái lần thứ hai.
+8. **AC-08 (Điều chỉnh vị trí trước khi duyệt):** Khi phê duyệt, Trưởng tộc/Trưởng chi được phép gửi kèm `targetBranchId` (và `proposedNewBranchName` với `NewChildBranch`) để chỉnh lại vị trí ứng viên đề xuất.
+   * Nhánh chỉnh lại phải tồn tại trong `clan_id` hiện hành (nếu không ⇒ `404`).
+   * Người duyệt phải có quyền trên **nhánh sau khi chỉnh** (nếu không ⇒ `400`).
+   * Vị trí đã chỉnh được lưu lại vào `branch_join_requests.target_branch_id` để bản ghi duyệt khớp với hồ sơ được tạo.
+   * Không gửi body ⇒ duyệt theo đúng vị trí ứng viên đề xuất (tương thích ngược).
+9. **AC-09 (Thông báo kết quả cho người xin gia nhập):** Sau khi duyệt hoặc từ chối, hệ thống phát `JoinRequestReviewedDomainEvent` và một listener bất đồng bộ (`@Async @EventListener`) gửi thông báo kết quả tới số điện thoại của ứng viên: nội dung nêu nhánh được nhận + mã hồ sơ (khi duyệt) hoặc lý do từ chối (khi từ chối).
+   * Gửi thông báo là best-effort: lỗi gửi không làm rollback quyết định duyệt/từ chối.
+   * Hiện thực hiện tại dùng adapter ghi log (`LoggingJoinRequestNotificationSender`); thay bằng SMS/email chỉ cần thêm một bean `JoinRequestNotificationSender`.
 
 ---
 
@@ -62,7 +70,8 @@ Hệ thống tuân thủ nghiêm ngặt mô hình **Modular Monolith** sử dụ
 │             ▼                                               ▼                               │
 │  BranchJoinRequestController (Public API)       BranchJoinRequestController (Secured API)   │
 │  • GET  /api/v1/invitations/{code}/tree         • GET  /api/v1/join-requests                │
-│  • POST /api/v1/invitations/{code}/join         • POST /api/v1/join-requests/{id}/approve   │
+│  • POST /api/v1/invitations/{code}/join         • GET  /api/v1/join-requests               │
+│             │                                   • POST /api/v1/join-requests/{id}/approve   │
 │             │                                   • POST /api/v1/join-requests/{id}/reject    │
 │             ▼                                               │                               │
 │  BranchJoinRequestServiceImpl ──────────────────────────────┘                               │
@@ -243,6 +252,11 @@ sequenceDiagram
 ---
 
 ### 4.2. Luồng Phê Duyệt Đề Xuất Gia Nhập (`POST /api/v1/join-requests/{requestId}/approve`)
+
+> **Body tuỳ chọn (mới):** `{"targetBranchId": "BR_CHI_2", "proposedNewBranchName": "Chi 3"}`.
+> Nếu có `targetBranchId`, service kiểm tra nhánh tồn tại trong dòng họ và quyền của người duyệt trên nhánh đó, lưu lại vào yêu cầu rồi mới tạo hồ sơ trong nhánh đã chỉnh. `proposedNewBranchName` chỉ hợp lệ với `NewChildBranch`. Không gửi body thì hành vi giữ nguyên như trước.
+>
+> Sau khi commit, `JoinRequestReviewedDomainEvent` được phát và listener bất đồng bộ gửi thông báo kết quả (kèm lý do nếu bị từ chối) tới số điện thoại của ứng viên — xem AC-09.
 
 ```mermaid
 sequenceDiagram

@@ -20,10 +20,16 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 * **[`TEMPLATE-US.md`](./user-stories/TEMPLATE-US.md)**: **Mẫu chuẩn (Barem)** để các thành viên trong team copy và điền thông tin khi hoàn thành bất kỳ User Story nào.
 * **[`US-01-creator-registration-and-clan-creation.md`](./user-stories/US-01-creator-registration-and-clan-creation.md)**: Đăng ký người khởi tạo, tạo gia phả mới nguyên tử, gán vai trò `ROLE_CLAN_HEAD`.
 * **[`US-03-create-member-profile.md`](./user-stories/US-03-create-member-profile.md)**: Tạo hồ sơ thành viên gia phả, chống trùng, phân quyền theo chi nhánh và khóa hàng chống race condition.
-* **[`US-04-child-branches-and-hierarchy.md`](./user-stories/US-04-child-branches-and-hierarchy.md)**: Quản lý chi phái, phân nhánh & cấu trúc phân cấp gia phả (Root Branch, Child Branch, Reparenting, dựng cây in-memory không N+1, Cycle Prevention).
+* **[`US-04-child-branches-and-hierarchy.md`](./user-stories/US-04-child-branches-and-hierarchy.md)**: Đặc tả kỹ thuật đầy đủ của tính năng Quản lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả (Root Branch, Child Branch, Reparenting, In-memory tree assembly N+1, Cycle Prevention).
+* **[`US-06-event-attendance-registration.md`](./user-stories/US-06-event-attendance-registration.md)**: Đăng ký tham dự sự kiện & thống kê cỗ bàn (đăng ký hộ gia đình, quy trình 2 bước đề xuất sửa/hủy và phê duyệt của Ban tổ chức).
+* **[`US-07-task-and-advance-planning.md`](./user-stories/US-07-task-and-advance-planning.md)**: Khởi tạo hạng mục công việc & phân công nhiệm vụ sự kiện (cá nhân / nhánh gia đình, thông báo bất đồng bộ qua Domain Events).
+* **[`US-09-cash-contribution-and-e-receipt.md`](./user-stories/US-09-cash-contribution-and-e-receipt.md)**: Ghi nhận đóng góp tiền mặt/chuyển khoản, phân bổ công đức & cấp phiếu thu điện tử (`PT-YYYYMMDD-XXXXX`).
+* **[`US-10-in-kind-contribution-and-clan-assets.md`](./user-stories/US-10-in-kind-contribution-and-clan-assets.md)**: Ghi nhận hiện vật cúng tiến, quy đổi giá trị theo định mức/hóa đơn/thỏa thuận & quản lý vòng đời tài sản dòng họ.
 * **[`US-10-jwt-authentication-and-claims.md`](./user-stories/US-10-jwt-authentication-and-claims.md)**: Cấu hình JWT Token, Claims, trích xuất quyền và Middleware gán `ROLE_CLAN_HEAD`.
-* **[`US-16-general-clan-invite.md`](./user-stories/US-16-general-clan-invite.md)**: Tạo mã mời chung dòng họ, kiểm soát bất biến, CSPRNG Base32, sequence diagram và kiểm thử E2E.
+* **[`US-16-general-clan-invite.md`](./user-stories/US-16-general-clan-invite.md)**: Đặc tả kỹ thuật đầy đủ của tính năng tạo mã mời chung dòng họ, kiểm soát bất biến, CSPRNG Base32, sequence diagram và kiểm thử E2E.
 * **[`US-17-branch-join-request.md`](./user-stories/US-17-branch-join-request.md)**: Đăng ký gia nhập dòng họ qua mã mời chung (Onboarding, cây thu gọn, nộp đơn đề xuất vị trí, quy trình phê duyệt cross-module).
+* **[`US-18-create-virtual-member-and-generate-position-link-code.md`](./user-stories/US-18-create-virtual-member-and-generate-position-link-code.md)**: Đặc tả kỹ thuật đầy đủ của tính năng tạo hồ sơ ảo (vị trí lá, chưa có tài khoản) và phát hành mã `PositionLinkCode` dùng một lần, gồm ranh giới `identity → genealogy::api`, bảng ánh xạ schema, sequence diagram, ma trận HTTP `201/400/401/403/404/409` và kịch bản kiểm thử E2E.
+* **[`US-19-enter-position-link-code-and-join-automatically.md`](./user-stories/US-19-enter-position-link-code-and-join-automatically.md)**: Đặc tả kỹ thuật đầy đủ của tính năng nhập `PositionLinkCode` khi đăng ký để tự động liên kết tài khoản (mới hoặc đã có) vào đúng vị trí/chi/nhánh và kích hoạt `Active` không cần phê duyệt, gồm sequence diagram, bảng ánh xạ schema, ma trận HTTP `200/400/403/404/409` và kịch bản kiểm thử E2E.
 * **[`US-21-create-event-and-contextual-rbac.md`](./user-stories/US-21-create-event-and-contextual-rbac.md)**: Khởi tạo sự kiện, máy trạng thái vòng đời sự kiện và phân quyền theo ngữ cảnh (`NhanSuSuKien`).
 * **[`US-22-event-notification-and-reschedule.md`](./user-stories/US-22-event-notification-and-reschedule.md)**: Thông báo sự kiện bất đồng bộ, lắng nghe Domain Events và tự động phát hiện sai khác lịch trình (schedule diff).
 
@@ -32,4 +38,4 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 * **[`modulith-rules.md`](./guidelines/modulith-rules.md)**: **Quy tắc vàng khi code Modular Monolith**: quy tắc phân chia `api` (public contract) vs `internal` (private implementation), cấm rò rỉ Repository, và chạy kiểm thử kiến trúc tự động (`ArchitectureTest`).
 
 ### 4. 📊 Bảng Theo Dõi Dự Án
-* **[`project-status.md`](./project-status.md)**: Dashboard theo dõi tiến độ từng nhiệm vụ (Tasks progress), 275 automated tests đã kiểm chứng thực tế và roadmap tiếp theo.
+* **[`project-status.md`](./project-status.md)**: Dashboard theo dõi tiến độ từng nhiệm vụ (Tasks progress), danh sách automated tests đã kiểm chứng thực tế (kèm số test từng class) và roadmap tiếp theo.
