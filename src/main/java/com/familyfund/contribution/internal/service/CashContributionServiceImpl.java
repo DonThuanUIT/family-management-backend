@@ -283,6 +283,109 @@ public class CashContributionServiceImpl implements CashContributionService {
         return responses;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse> getUnreconciledContributions(String eventId) {
+        String currentClanId = TenantContext.getClanId();
+        if (eventId != null && !eventId.isBlank()) {
+            EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + eventId));
+            if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
+                throw new BusinessRuleException("Event does not belong to the current clan");
+            }
+        }
+
+        List<Object[]> rawList = cashContributionRepository.findUnreconciledBankTransfers(eventId);
+        Map<String, String> eventNameCache = new HashMap<>();
+        Map<String, String> memberNameCache = new HashMap<>();
+        List<com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse> result = new ArrayList<>();
+
+        for (Object[] pair : rawList) {
+            Contribution c = (Contribution) pair[0];
+            CashContribution cc = (CashContribution) pair[1];
+
+            String eventName = eventNameCache.computeIfAbsent(c.getEventId(), id ->
+                    eventQueryService.findEventSummary(id).map(EventSummaryDto::eventName).orElse("Sự kiện " + id));
+
+            String payerName = memberNameCache.computeIfAbsent(c.getPayerMemberId(), id ->
+                    genealogyQueryService.findMemberSummary(id).map(MemberSummaryDto::fullName).orElse("Thành viên " + id));
+
+            result.add(new com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse(
+                    c.getContributionId(),
+                    cc.getReceiptNumber(),
+                    c.getEventId(),
+                    eventName,
+                    c.getPayerMemberId(),
+                    payerName,
+                    cc.getAmount(),
+                    MoneyToWordsConverter.toVietnameseWords(cc.getAmount()),
+                    c.getContributionDate(),
+                    cc.getBankTransactionCode(),
+                    cc.getTransferProofUrl(),
+                    Boolean.TRUE.equals(cc.getIsReconciled())
+            ));
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse reconcileContribution(
+            String contributionId,
+            com.familyfund.contribution.internal.dto.request.ReconcileContributionRequest request) {
+        log.info("Processing bank transfer reconciliation for contribution {}", contributionId);
+
+        Contribution contribution = contributionRepository.findById(contributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Contribution not found with ID: " + contributionId));
+
+        CashContribution cashContribution = cashContributionRepository.findById(contributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cash contribution record not found with ID: " + contributionId));
+
+        String currentClanId = TenantContext.getClanId();
+        EventSummaryDto eventSummary = eventQueryService.findEventSummary(contribution.getEventId())
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + contribution.getEventId()));
+
+        if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
+            throw new BusinessRuleException("Contribution does not belong to the current clan");
+        }
+
+        if (cashContribution.getPaymentMethod() != com.familyfund.contribution.api.dto.PaymentMethod.BankTransfer) {
+            throw new BusinessRuleException("Only contributions made via BankTransfer can be reconciled with bank statements");
+        }
+
+        if (Boolean.TRUE.equals(cashContribution.getIsReconciled())) {
+            throw new BusinessRuleException("Contribution is already reconciled");
+        }
+
+        Optional<CashContribution> existingWithCode = cashContributionRepository.findByBankTransactionCode(request.bankTransactionCode());
+        if (existingWithCode.isPresent() && !existingWithCode.get().getContributionId().equals(contributionId)) {
+            throw new BusinessRuleException("Bank transaction code '" + request.bankTransactionCode() + "' is already matched with contribution " + existingWithCode.get().getContributionId());
+        }
+
+        Instant now = Instant.now();
+        String auditorAccountId = currentUserProvider.currentAccountId().orElse("System");
+
+        cashContribution.setBankTransactionCode(request.bankTransactionCode());
+        cashContribution.setTransferProofUrl(request.transferProofUrl());
+        cashContribution.setIsReconciled(true);
+        cashContribution.setReconciledAt(now);
+        cashContribution.setReconciledBy(auditorAccountId);
+
+        cashContributionRepository.save(cashContribution);
+
+        return new com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse(
+                contributionId,
+                cashContribution.getReceiptNumber(),
+                cashContribution.getBankTransactionCode(),
+                cashContribution.getTransferProofUrl(),
+                true,
+                now,
+                auditorAccountId,
+                "Bank transfer contribution successfully reconciled with bank statement"
+        );
+    }
+
     private String generateUniqueContributionId() {
         for (int i = 0; i < 5; i++) {
             String candidate = contributionIdGenerator.generate();

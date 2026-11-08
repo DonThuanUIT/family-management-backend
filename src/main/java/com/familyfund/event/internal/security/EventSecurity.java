@@ -111,4 +111,8 @@ public class EventSecurity {
                 .toArray(String[]::new);
         return hasContextualRole(eventId, stringRoles);
     }
+
+    public boolean xacThucQuyenTheoNguCanh(String eventId, String... roles) {
+        return hasContextualRole(eventId, roles);
+    }
 }
