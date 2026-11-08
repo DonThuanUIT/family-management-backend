@@ -487,6 +487,34 @@ public class InKindContributionServiceImpl implements InKindContributionService 
         }).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse checkPendingInKindContributions(String eventId) {
+        EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + eventId));
+
+        String currentClanId = TenantContext.getClanId();
+        if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
+            throw new BusinessRuleException("Event does not belong to the current clan");
+        }
+
+        List<InKindContributionDetailResponse> pendingItems = getInKindContributionsByEvent(eventId, InKindProcessingStatus.Pending);
+        int pendingCount = pendingItems.size();
+        boolean hasPending = pendingCount > 0;
+        String warningMessage = hasPending
+                ? String.format("Cảnh báo: Còn %d hiện vật cúng tiến ở trạng thái chờ xử lý (Pending). Vui lòng cập nhật trạng thái (Tiêu hao, Hoàn trả hoặc Nhập kho tài sản) trước khi khóa sổ sự kiện.", pendingCount)
+                : "Tất cả hiện vật cúng tiến trong sự kiện đã được phân loại vòng đời hoàn tất.";
+
+        return new com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse(
+                eventId,
+                eventSummary.eventName(),
+                hasPending,
+                pendingCount,
+                warningMessage,
+                pendingItems
+        );
+    }
+
     private String generateUniqueAssetId() {
         for (int i = 0; i < 5; i++) {
             String candidate = assetIdGenerator.generate();

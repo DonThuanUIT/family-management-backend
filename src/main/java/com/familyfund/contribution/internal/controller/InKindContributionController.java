@@ -3,6 +3,7 @@ package com.familyfund.contribution.internal.controller;
 import com.familyfund.contribution.api.dto.InKindProcessingStatus;
 import com.familyfund.contribution.internal.dto.request.ProcessInKindLifecycleRequest;
 import com.familyfund.contribution.internal.dto.request.RecordInKindContributionRequest;
+import com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse;
 import com.familyfund.contribution.internal.dto.response.InKindContributionDetailResponse;
 import com.familyfund.contribution.internal.dto.response.InKindElectronicReceiptResponse;
 import com.familyfund.contribution.internal.dto.response.ProcessInKindLifecycleResponse;
@@ -18,10 +19,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * REST Controller for in-kind contributions and electronic receipts (US-10, Task #72, #74).
+ * REST Controller for in-kind contributions, electronic receipts, lifecycle processing,
+ * and pre-closure audit checks (US-10, US-51, Task #180).
  */
 @RestController
-@RequestMapping("/api/v1/contributions/in-kind")
+@RequestMapping({"/api/v1/contributions/in-kind", "/api/contributions/in-kind"})
 @RequiredArgsConstructor
 public class InKindContributionController {
 
@@ -31,7 +33,7 @@ public class InKindContributionController {
      * Record an in-kind contribution and issue an electronic receipt (Task #72).
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#request.eventId(), 'EventTreasurer', 'HeadOfOrganizer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#request.eventId(), 'EventTreasurer', 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<InKindElectronicReceiptResponse>> recordInKindContribution(
             @Valid @RequestBody RecordInKindContributionRequest request) {
         InKindElectronicReceiptResponse response = inKindContributionService.recordInKindContribution(request);
@@ -62,10 +64,10 @@ public class InKindContributionController {
     }
 
     /**
-     * Process lifecycle for an in-kind contribution (Task #73).
+     * Update post-event lifecycle status for an in-kind contribution (US-51 Task #180 / US-10 Task #73).
      * Transitions status to Consumed, Returned, or AddedToCommonAssets (registering CLAN_ASSET).
      */
-    @PutMapping("/{contributionId}/lifecycle")
+    @PutMapping({"/{contributionId}/status", "/{contributionId}/lifecycle"})
     @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER')")
     public ResponseEntity<ApiResponse<ProcessInKindLifecycleResponse>> processLifecycle(
             @PathVariable String contributionId,
@@ -78,11 +80,22 @@ public class InKindContributionController {
      * Retrieve in-kind contributions for an event, optionally filtered by processing status.
      */
     @GetMapping("/events/{eventId}")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer', 'EventTreasurer', 'OrganizerMember')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer', 'OrganizerMember')")
     public ResponseEntity<ApiResponse<List<InKindContributionDetailResponse>>> getInKindContributionsByEvent(
             @PathVariable String eventId,
             @RequestParam(required = false) InKindProcessingStatus status) {
         List<InKindContributionDetailResponse> response = inKindContributionService.getInKindContributionsByEvent(eventId, status);
         return ResponseEntity.ok(ApiResponse.success(response, "In-kind contributions retrieved successfully"));
+    }
+
+    /**
+     * Pre-closure audit check verifying all in-kind contributions are processed prior to event closure (US-51 / US-57, Task #180).
+     */
+    @GetMapping("/events/{eventId}/pending-check")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
+    public ResponseEntity<ApiResponse<EventPendingInKindCheckResponse>> checkPendingInKindContributions(
+            @PathVariable String eventId) {
+        EventPendingInKindCheckResponse response = inKindContributionService.checkPendingInKindContributions(eventId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Pending in-kind contributions checked successfully"));
     }
 }
