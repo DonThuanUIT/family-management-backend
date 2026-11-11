@@ -24,6 +24,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-21-create-event-and-contextual-rbac.md`](./US-21-create-event-and-contextual-rbac.md) |
 | **US-22** | **Thành Viên Xem, Cập Nhật Hồ Sơ Cá Nhân & Đổi Mật Khẩu** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành (Backend)** | [`US-22-member-profile-and-password-management.md`](./US-22-member-profile-and-password-management.md) |
 | **US-25** | **Bảo Vệ Thông Tin Cá Nhân Thành Viên (Hybrid Privacy: RBAC + Quyền Tự Quyết)** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành (Backend & Frontend)** | [`US-25-member-personal-data-privacy.md`](./US-25-member-personal-data-privacy.md) |
+| **US-27** | **Ghi Nhận Tình Trạng Sống/Đã Mất, Ngày Mất & Tính Ngày Giỗ Âm Lịch** | `com.familyfund.genealogy` & `identity` | ✅ **Đã hoàn thành (Backend)** | [`US-27-record-deceased-status-and-lunar-death-anniversary.md`](./US-27-record-deceased-status-and-lunar-death-anniversary.md) |
 | **US-35** | **Thông Báo Khi Mở Sự Kiện & Cập Nhật Lịch Trình** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-22-event-notification-and-reschedule.md`](./US-22-event-notification-and-reschedule.md) |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |

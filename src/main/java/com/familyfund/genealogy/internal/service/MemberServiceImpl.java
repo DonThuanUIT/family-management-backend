@@ -8,8 +8,10 @@ import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.event.MemberLifeStatusChangedEvent;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
+import com.familyfund.genealogy.internal.dto.request.UpdateLifeStatusRequest;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
@@ -22,8 +24,11 @@ import com.familyfund.genealogy.internal.repository.MemberRepository;
 import com.familyfund.genealogy.internal.security.MemberPrivacyPolicy;
 import com.familyfund.genealogy.internal.security.PrivacyEvaluationContext;
 import com.familyfund.genealogy.internal.util.MemberIdGenerator;
+import com.familyfund.genealogy.internal.util.VietnameseLunarCalendarConverter;
+import com.familyfund.genealogy.internal.util.VietnameseLunarDate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +59,8 @@ public class MemberServiceImpl implements MemberService {
     private final MemberPrivacySettingRepository privacySettingRepository;
     private final MemberPrivacyPolicy memberPrivacyPolicy;
     private final GenealogyQueryService genealogyQueryService;
+    private final VietnameseLunarCalendarConverter lunarCalendarConverter;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -149,6 +156,69 @@ public class MemberServiceImpl implements MemberService {
                 clean.status()
         );
         return toFilteredResponses(members, clanId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MemberResponse updateLifeStatus(String rawMemberId, UpdateLifeStatusRequest request) {
+        String clanId = TenantContext.getClanId();
+        String memberId = rawMemberId != null ? rawMemberId.trim() : "";
+        if (memberId.isEmpty()) {
+            throw new BadRequestException("Member ID must not be blank");
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId));
+
+        if (!clanId.equals(member.getBranch().getClanId())) {
+            throw new ResourceNotFoundException("Member not found with ID: " + memberId + " in clan: " + clanId);
+        }
+
+        // Kiểm tra phạm vi quyền hạn (Dual-RBAC & Branch Scoping)
+        authorizeBranchScope(clanId, member.getBranch().getBranchId());
+
+        if (request.isDeceased()) {
+            LocalDate deathDate = request.deathDate();
+            if (deathDate == null) {
+                throw new BadRequestException("Ngày mất là bắt buộc khi cập nhật thành viên sang trạng thái 'Đã mất' (Deceased)");
+            }
+            if (deathDate.isAfter(LocalDate.now())) {
+                throw new BadRequestException("Ngày mất không được nằm trong tương lai");
+            }
+            if (member.getDateOfBirth() != null && deathDate.isBefore(member.getDateOfBirth())) {
+                throw new BadRequestException("Ngày mất (" + deathDate + ") không được diễn ra trước ngày sinh (" + member.getDateOfBirth() + ")");
+            }
+
+            // Tự động tính ngày giỗ âm lịch chuẩn Việt Nam
+            VietnameseLunarDate lunar = lunarCalendarConverter.convertSolarToLunar(deathDate);
+            member.setStatus(Member.STATUS_DECEASED);
+            member.setDeathDate(deathDate);
+            member.setDeathDateLunar(lunar != null ? lunar.toShortAnniversaryString() : null);
+            member.setBurialPlace(request.burialPlace() != null && !request.burialPlace().isBlank() ? request.burialPlace().trim() : null);
+            log.info("Member {} marked as Deceased. Solar death date: {}, Lunar anniversary: {}",
+                    memberId, deathDate, member.getDeathDateLunar());
+        } else {
+            // Chuyển về Living (hiệu đính)
+            member.setStatus(Member.STATUS_LIVING);
+            member.setDeathDate(null);
+            member.setDeathDateLunar(null);
+            member.setBurialPlace(null);
+            log.info("Member {} life status reverted to Living", memberId);
+        }
+
+        Member saved = memberRepository.save(member);
+
+        // Bắn Domain Event để module identity xử lý khóa/kích hoạt tài khoản
+        eventPublisher.publishEvent(new MemberLifeStatusChangedEvent(
+                saved.getMemberId(),
+                clanId,
+                saved.getStatus(),
+                saved.getDeathDate(),
+                saved.getDeathDateLunar()
+        ));
+
+        List<MemberResponse> responses = toFilteredResponses(List.of(saved), clanId);
+        return responses.isEmpty() ? memberMapper.toResponse(saved) : responses.get(0);
     }
 
     private PrivacyEvaluationContext buildPrivacyContext(String clanId) {
