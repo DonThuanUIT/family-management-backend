@@ -2,6 +2,9 @@ package com.familyfund;
 
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,12 +18,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DatabaseMigrationTest {
 
     @Autowired
     private DataSource dataSource;
 
     @Test
+    @Order(1)
     @DisplayName("Verify Flyway migration executes successfully")
     void runFlywayMigration() {
         Flyway flyway = Flyway.configure()
@@ -33,22 +38,34 @@ class DatabaseMigrationTest {
 
         flyway.repair();
         MigrateResult result = flyway.migrate();
-        System.out.println("==================================================");
-        System.out.println("FLYWAY MIGRATION SUCCESSFUL!");
-        System.out.println("Initial schema version: " + result.initialSchemaVersion);
-        System.out.println("Target schema version: " + result.targetSchemaVersion);
-        System.out.println("Migrations executed: " + result.migrationsExecuted);
-        System.out.println("==================================================");
+        org.slf4j.LoggerFactory.getLogger(DatabaseMigrationTest.class).info(
+                "FLYWAY MIGRATION RESULT: initial={}, target={}, executed={}, success={}",
+                result.initialSchemaVersion, result.targetSchemaVersion, result.migrationsExecuted, result.success
+        );
         assertTrue(result.success, "Flyway migration should succeed");
     }
 
     @Test
+    @Order(2)
     @DisplayName("Verify database schema integrity and seeded master data")
     void verifyDatabaseSchemaAndMasterData() throws Exception {
         try (var conn = dataSource.getConnection();
              var stmt = conn.createStatement()) {
 
             System.out.println("=== VERIFYING TABLES IN PUBLIC SCHEMA ===");
+            var historyRs = stmt.executeQuery(
+                    "SELECT installed_rank, version, description, script, success FROM flyway_schema_history ORDER BY installed_rank"
+            );
+            System.out.println("=== FLYWAY SCHEMA HISTORY ===");
+            while (historyRs.next()) {
+                System.out.printf("Rank %d: Version %s, Desc: %s, Script: %s, Success: %b%n",
+                        historyRs.getInt("installed_rank"),
+                        historyRs.getString("version"),
+                        historyRs.getString("description"),
+                        historyRs.getString("script"),
+                        historyRs.getBoolean("success"));
+            }
+
             var rs = stmt.executeQuery(
                     "SELECT table_name FROM information_schema.tables " +
                     "WHERE table_schema = 'public' AND table_name != 'flyway_schema_history' " +
@@ -70,7 +87,8 @@ class DatabaseMigrationTest {
                     "invitation_codes",
                     "system_roles",
                     "user_accounts",
-                    "branch_join_requests"
+                    "branch_join_requests",
+                    "member_privacy_settings"
             )), "Core domain tables must be present after migrations");
 
             // Verify clan_id column exists on branch_join_requests (Migration V6)
@@ -79,6 +97,24 @@ class DatabaseMigrationTest {
                     "WHERE table_schema = 'public' AND table_name = 'branch_join_requests' AND column_name = 'clan_id'"
             );
             assertTrue(colRs.next(), "branch_join_requests must have clan_id column from V6 migration");
+
+            // Verify address column exists on user_accounts (Migration V17)
+            var addressColRs = stmt.executeQuery(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema = 'public' AND table_name = 'user_accounts' AND column_name = 'address'"
+            );
+            assertTrue(addressColRs.next(), "user_accounts must have address column from V17 migration");
+
+            // Verify death_date column exists on members (Migration V18)
+            var deathDateColRs = stmt.executeQuery(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema = 'public' AND table_name = 'members' AND column_name = 'death_date'"
+            );
+            assertTrue(deathDateColRs.next(), "members must have death_date column from V18 migration");
+
+            // Verify US-08 progress warning table exists (created by V1)
+            assertTrue(tables.contains("task_progress_alerts"),
+                    "task_progress_alerts table (US-08 progress warnings) must be present");
 
             System.out.println("\n=== VERIFYING SEEDED ROLES IN system_roles ===");
             var rolesRs = stmt.executeQuery("SELECT role_id, role_name, description FROM system_roles ORDER BY role_id");

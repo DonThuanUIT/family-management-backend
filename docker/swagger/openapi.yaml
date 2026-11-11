@@ -235,6 +235,67 @@ paths:
         '200':
           description: Danh sách thành viên
 
+  /members/{memberId}/life-status:
+    put:
+      summary: Cập nhật tình trạng sống / đã mất, ngày mất và tính ngày giỗ âm lịch (US-27)
+      description: |
+        Cho phép Trưởng tộc / Trưởng chi cập nhật tình trạng thành viên (sống hoặc đã mất).
+        Khi cập nhật `Deceased` (Đã mất):
+        - Bắt buộc nhập `deathDate` (Dương lịch).
+        - Hệ thống tự động chuyển đổi sang ngày âm lịch tương ứng và lưu vào `death_date_lunar`.
+        - Tự động phát Domain Event khóa tài khoản đăng nhập (nếu có).
+        - Giữ nguyên 100% vị trí nút trên cây phả hệ và toàn bộ lịch sử đóng góp tài chính.
+      tags:
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          description: Mã thành viên cần cập nhật
+          schema:
+            type: string
+            example: MEM_001
+        - name: X-Clan-Id
+          in: header
+          required: false
+          description: Mã dòng họ hiện hành (multi-tenant)
+          schema:
+            type: string
+            example: CLAN_DEFAULT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLifeStatusRequest'
+      responses:
+        '200':
+          description: Cập nhật tình trạng thành viên thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMember'
+        '400':
+          description: Ngày mất không hợp lệ (nằm trong tương lai hoặc trước ngày sinh)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Không có quyền (chỉ Trưởng tộc hoặc Trưởng chi quản lý chi của thành viên)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Không tìm thấy thành viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
   /branches/{branchId}/members:
     post:
       summary: Tạo hồ sơ thành viên mới trong một chi/nhánh (US-03)
@@ -2147,6 +2208,30 @@ components:
           type: string
           format: date-time
 
+    UpdateLifeStatusRequest:
+      type: object
+      description: |
+        Payload cập nhật tình trạng sinh/tử của thành viên (US-27).
+        Khi chọn `Deceased`, trường `deathDate` là bắt buộc và phải là ngày trong quá khứ hoặc hiện tại.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [Living, Deceased]
+          description: Tình trạng thành viên (Living hoặc Deceased)
+          example: Deceased
+        deathDate:
+          type: string
+          format: date
+          description: Ngày mất Dương lịch (bắt buộc khi status là Deceased, <= ngày hiện tại và >= ngày sinh)
+          example: '2024-03-24'
+        burialPlace:
+          type: string
+          maxLength: 255
+          description: Nơi an táng, phần mộ hoặc nghĩa trang yên nghỉ
+          example: 'Khu lăng mộ tổ họ Nguyễn, xã Đông Kết, Khoái Châu, Hưng Yên'
+
     CreateMemberRequest:
       type: object
       description: |
@@ -2216,10 +2301,21 @@ components:
           type: string
           enum: [Living, Deceased]
           example: Living
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+          description: Ngày mất Dương lịch (US-27)
+          example: "2024-03-24"
         deathDateLunar:
           type: string
           nullable: true
-          example: "15/08 Âm lịch"
+          example: "15/02 Giáp Thìn"
+        burialPlace:
+          type: string
+          nullable: true
+          description: Nơi an táng, phần mộ (US-27)
+          example: "Khu lăng mộ tổ họ Nguyễn"
         branchId:
           type: string
           example: BR_CHILD_1

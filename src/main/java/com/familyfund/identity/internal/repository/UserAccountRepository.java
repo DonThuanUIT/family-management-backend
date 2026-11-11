@@ -16,6 +16,10 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
 
     boolean existsByEmail(String email);
 
+    boolean existsByPhoneNumberAndAccountIdNot(String phoneNumber, String accountId);
+
+    boolean existsByEmailAndAccountIdNot(String email, String accountId);
+
     Optional<UserAccount> findByPhoneNumber(String phoneNumber);
 
     Optional<UserAccount> findByEmail(String email);

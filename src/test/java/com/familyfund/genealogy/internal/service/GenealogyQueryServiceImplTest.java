@@ -277,4 +277,35 @@ class GenealogyQueryServiceImplTest {
         assertThat(genealogyQueryService.getMemberIdsByBranch(CLAN_A, null)).isEmpty();
         assertThat(genealogyQueryService.getMemberIdsByBranch(CLAN_A, "   ")).isEmpty();
     }
+
+    @Test
+    @DisplayName("findMemberProfileDetails returns full demographic when member found")
+    void testFindMemberProfileDetails_Success() {
+        FamilyBranch branch = FamilyBranch.builder()
+                .branchId("BR_001")
+                .clanId(CLAN_A)
+                .branchName("Chi 1 (Đại Tôn)")
+                .build();
+        Member member = Member.builder()
+                .memberId("MEM_001")
+                .fullName("Nguyễn Văn An")
+                .dateOfBirth(java.time.LocalDate.of(1990, 1, 1))
+                .gender("Male")
+                .generation(3)
+                .branch(branch)
+                .build();
+
+        when(memberRepository.findById("MEM_001")).thenReturn(Optional.of(member));
+
+        var result = genealogyQueryService.findMemberProfileDetails("MEM_001");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().fullName()).isEqualTo("Nguyễn Văn An");
+        assertThat(result.get().dateOfBirth()).isEqualTo(java.time.LocalDate.of(1990, 1, 1));
+        assertThat(result.get().gender()).isEqualTo("Male");
+        assertThat(result.get().generation()).isEqualTo(3);
+        assertThat(result.get().clanId()).isEqualTo(CLAN_A);
+        assertThat(result.get().branchId()).isEqualTo("BR_001");
+        assertThat(result.get().branchName()).isEqualTo("Chi 1 (Đại Tôn)");
+    }
 }

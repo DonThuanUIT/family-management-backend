@@ -8,8 +8,9 @@ import java.time.LocalDate;
 /**
  * Read model of table `members`. branchId comes from members.branch_id;
  * branchName and clanId are resolved from the related family_branches row.
+ * Includes privacy metadata and contact fields for US-25.
  */
-@Builder
+@Builder(toBuilder = true)
 public record MemberResponse(
         String memberId,
         String fullName,
@@ -17,10 +18,15 @@ public record MemberResponse(
         String gender,
         Integer generation,
         String status,
+        LocalDate deathDate,
         String deathDateLunar,
+        String burialPlace,
         String branchId,
         String branchName,
         String clanId,
         Boolean isPlaceholder,
-        Instant createdAt
+        Instant createdAt,
+        String phoneNumber,
+        String email,
+        MemberFieldVisibility fieldVisibility
 ) {}

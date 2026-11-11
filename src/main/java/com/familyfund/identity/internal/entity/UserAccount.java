@@ -50,6 +50,9 @@ public class UserAccount {
     @Column(name = "email", length = 100, unique = true)
     private String email;
 
+    @Column(name = "address", length = 255)
+    private String address;
+
     @Column(name = "password_hash", length = 255, nullable = false)
     private String passwordHash;
 

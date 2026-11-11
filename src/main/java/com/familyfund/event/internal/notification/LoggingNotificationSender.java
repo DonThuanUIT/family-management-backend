@@ -1,5 +1,6 @@
 package com.familyfund.event.internal.notification;
 
+import com.familyfund.event.api.dto.TaskAlertLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,13 @@ public class LoggingNotificationSender implements NotificationSender {
     public void sendTaskAssignedNotification(String clanId, String eventId, String taskId, String title, String content, List<String> recipientMemberIds) {
         log.info("[ThongBao TaskAssigned] Phân công công việc [{}] sự kiện [{}] dòng họ [{}] cho {} người nhận {} | Tiêu đề: \"{}\" | Nội dung: \"{}\"",
                 taskId, eventId, clanId, recipientMemberIds.size(), recipientMemberIds, title, content);
+    }
+
+    @Override
+    public void sendTaskProgressWarning(String clanId, String eventId, String taskId, TaskAlertLevel alertLevel,
+                                        String title, String content, String recipientMemberId, String recipientAccountId) {
+        log.info("[ThongBao ProgressWarning] Cảnh báo tiến độ [{}] công việc [{}] sự kiện [{}] dòng họ [{}] tới thành viên [{}] (tài khoản [{}]) | Tiêu đề: \"{}\" | Nội dung: \"{}\"",
+                alertLevel, taskId, eventId, clanId, recipientMemberId, recipientAccountId, title, content);
     }
 
     @Override

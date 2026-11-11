@@ -2,6 +2,7 @@ package com.familyfund.genealogy.api;
 
 import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
+import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 
 import java.math.BigDecimal;
@@ -131,4 +132,12 @@ public interface GenealogyQueryService {
             String maSuKien,
             Map<String, BigDecimal> directBranchContributions
     );
+
+    /**
+     * Finds full demographic profile details of a member (US-22).
+     *
+     * @param memberId ID of the member
+     * @return Optional containing demographic details if found
+     */
+    Optional<MemberProfileDetailsDto> findMemberProfileDetails(String memberId);
 }

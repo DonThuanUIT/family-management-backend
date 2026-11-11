@@ -13,6 +13,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-04** | **Quản Lý Chi Phái, Phân Nhánh & Cấu Trúc Phân Cấp Gia Phả** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành** | [`US-04-child-branches-and-hierarchy.md`](./US-04-child-branches-and-hierarchy.md) |
 | **US-06** | **Đăng Ký Tham Dự Sự Kiện & Thống Kê Cỗ Bàn** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-06-event-attendance-registration.md`](./US-06-event-attendance-registration.md) |
 | **US-07** | **Khởi Tạo Hạng Mục Công Việc & Phân Công Nhiệm Vụ Sự Kiện** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-07-task-and-advance-planning.md`](./US-07-task-and-advance-planning.md) |
+| **US-08** | **Cảnh Báo Tiến Độ Công Việc Tự Động (Background Worker 24h)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-08-task-deadline-progress-warning.md`](./US-08-task-deadline-progress-warning.md) |
 | **US-09** | **Ghi Nhận Đóng Góp Tiền Mặt/Chuyển Khoản & Cấp Phiếu Thu Điện Tử** | `com.familyfund.contribution` | ✅ **Đã hoàn thành (Backend)** | [`US-09-cash-contribution-and-e-receipt.md`](./US-09-cash-contribution-and-e-receipt.md) |
 | **US-10** | **Ghi Nhận Hiện Vật Cúng Tiến, Quy Đổi Giá Trị & Quản Lý Vòng Đời Tài Sản Dòng Họ (Backlog #46)** | `com.familyfund.contribution` | ✅ **Đã hoàn thành (Backend)** | [`US-10-in-kind-contribution-and-clan-assets.md`](./US-10-in-kind-contribution-and-clan-assets.md) |
 | **US-10 (Auth)** | **Cấu Hình JWT Token, Claims & Middleware Gán Quyền ROLE_CLAN_HEAD** | `com.familyfund.core` & `identity` | ✅ **Đã hoàn thành** | [`US-10-jwt-authentication-and-claims.md`](./US-10-jwt-authentication-and-claims.md) |
@@ -21,8 +22,10 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-18** | **Tạo Hồ Sơ Ảo (Vị Trí Lá) & Phát Hành Mã Liên Kết Vị Trí Dùng Một Lần** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-18-create-virtual-member-and-generate-position-link-code.md`](./US-18-create-virtual-member-and-generate-position-link-code.md) |
 | **US-19** | **Nhập Mã Liên Kết Vị Trí Khi Đăng Ký & Tự Động Gia Nhập Đúng Chi/Nhánh** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-19-enter-position-link-code-and-join-automatically.md`](./US-19-enter-position-link-code-and-join-automatically.md) |
 | **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-21-create-event-and-contextual-rbac.md`](./US-21-create-event-and-contextual-rbac.md) |
-| **US-22** | **Thông Báo Khi Mở Sự Kiện & Cập Nhật Lịch Trình** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-22-event-notification-and-reschedule.md`](./US-22-event-notification-and-reschedule.md) |
-| **US-25** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-22** | **Thành Viên Xem, Cập Nhật Hồ Sơ Cá Nhân & Đổi Mật Khẩu** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành (Backend)** | [`US-22-member-profile-and-password-management.md`](./US-22-member-profile-and-password-management.md) |
+| **US-25** | **Bảo Vệ Thông Tin Cá Nhân Thành Viên (Hybrid Privacy: RBAC + Quyền Tự Quyết)** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành (Backend & Frontend)** | [`US-25-member-personal-data-privacy.md`](./US-25-member-personal-data-privacy.md) |
+| **US-27** | **Ghi Nhận Tình Trạng Sống/Đã Mất, Ngày Mất & Tính Ngày Giỗ Âm Lịch** | `com.familyfund.genealogy` & `identity` | ✅ **Đã hoàn thành (Backend)** | [`US-27-record-deceased-status-and-lunar-death-anniversary.md`](./US-27-record-deceased-status-and-lunar-death-anniversary.md) |
+| **US-35** | **Thông Báo Khi Mở Sự Kiện & Cập Nhật Lịch Trình** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-22-event-notification-and-reschedule.md`](./US-22-event-notification-and-reschedule.md) |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |
 
@@ -37,7 +40,7 @@ Khi bạn hoàn thành việc phát triển một User Story mới hoặc cần 
    ```text
    US-<Mã-Số>-<slug-tính-năng>.md
    ```
-   *Ví dụ: `US-17-branch-join-request.md`, `US-25-event-advance-settlement.md`*
+   *Ví dụ: `US-17-branch-join-request.md`, `US-25-member-personal-data-privacy.md`*
 
 2. **Điền đầy đủ các mục trong template**:
    - Tiêu chí chấp nhận (Acceptance Criteria - AC).

@@ -6,6 +6,7 @@ import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
+import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
@@ -340,6 +341,24 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
 
         // Gọi trực tiếp giải thuật đệ quy tinhTongDongGopDeQuy(maSuKien) trên thực thể FamilyBranch (NhanhGiaDinh)
         return domainRoot.tinhTongDongGopDeQuy(maSuKien);
+    }
+
+    @Override
+    public Optional<MemberProfileDetailsDto> findMemberProfileDetails(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return Optional.empty();
+        }
+        return memberRepository.findById(memberId.trim())
+                .map(member -> new MemberProfileDetailsDto(
+                        member.getMemberId(),
+                        member.getFullName(),
+                        member.getDateOfBirth(),
+                        member.getGender(),
+                        member.getGeneration(),
+                        member.getBranch() != null ? member.getBranch().getClanId() : null,
+                        member.getBranch() != null ? member.getBranch().getBranchId() : null,
+                        member.getBranch() != null ? member.getBranch().getBranchName() : null
+                ));
     }
 
     private FamilyBranch assembleDomainSubtree(

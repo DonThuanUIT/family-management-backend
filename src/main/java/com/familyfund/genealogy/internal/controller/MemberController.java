@@ -4,6 +4,7 @@ import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.genealogy.internal.dto.request.AssignMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
+import com.familyfund.genealogy.internal.dto.request.UpdateLifeStatusRequest;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.service.GenealogyService;
 import com.familyfund.genealogy.internal.service.MemberService;
@@ -83,5 +84,21 @@ public class MemberController {
             @Valid @RequestBody AssignMemberRequest request) {
         genealogyService.assignMemberToBranch(memberId, request.branchId());
         return ResponseEntity.ok(ApiResponse.success(null, "Member assigned to family branch successfully"));
+    }
+
+    /**
+     * Cập nhật tình trạng sống / đã mất, ngày mất và tính ngày giỗ âm lịch (US-27).
+     *
+     * @param memberId ID của thành viên
+     * @param request  payload tình trạng sống/đã mất
+     * @return hồ sơ thành viên sau khi cập nhật
+     */
+    @PutMapping("/api/v1/members/{memberId}/life-status")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<MemberResponse>> updateLifeStatus(
+            @PathVariable String memberId,
+            @Valid @RequestBody UpdateLifeStatusRequest request) {
+        MemberResponse response = memberService.updateLifeStatus(memberId, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật tình trạng thành viên thành công"));
     }
 }
