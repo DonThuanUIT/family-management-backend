@@ -1,9 +1,13 @@
 package com.familyfund.genealogy.api;
 
+import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
+import com.familyfund.genealogy.api.dto.BranchSummaryDto;
 import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -85,22 +89,49 @@ public interface GenealogyQueryService {
     /**
      * Finds branch summary details by branch ID and clan ID.
      */
-    java.util.Optional<com.familyfund.genealogy.api.dto.BranchSummaryDto> findBranchByIdAndClanId(String branchId, String clanId);
+    Optional<BranchSummaryDto> findBranchByIdAndClanId(String branchId, String clanId);
 
     /**
      * Retrieves all branches of a clan with their current representative details.
      */
-    java.util.List<com.familyfund.genealogy.api.dto.BranchSummaryDto> findAllBranchesByClanId(String clanId);
+    List<BranchSummaryDto> findAllBranchesByClanId(String clanId);
 
     /**
      * Retrieves all living members belonging to a clan.
      */
-    java.util.List<com.familyfund.genealogy.api.dto.MemberSummaryDto> findAllAliveMembersByClanId(String clanId);
+    List<MemberSummaryDto> findAllAliveMembersByClanId(String clanId);
 
     /**
      * Checks if a member is currently assigned as representative of any branch in the clan.
      */
     boolean isMemberRepresentativeOfAnyBranch(String memberId, String clanId);
+
+    /**
+     * Retrieves the hierarchical branch subtree rooted at {@code rootBranchId} within {@code clanId}
+     * using PostgreSQL Recursive CTE (US-11).
+     *
+     * @param clanId       ID of the clan
+     * @param rootBranchId ID of the root branch of the subtree
+     * @return Optional containing the hierarchical subtree node if the branch exists
+     */
+    Optional<BranchHierarchyNodeDto> findBranchSubtree(String clanId, String rootBranchId);
+
+    /**
+     * Executes the recursive contribution calculation {@code FamilyBranch.tinhTongDongGopDeQuy(maSuKien)}
+     * on the {@code FamilyBranch} (`NhanhGiaDinh`) hierarchy loaded via PostgreSQL Recursive CTE (US-11).
+     *
+     * @param clanId                    ID of the clan
+     * @param rootBranchId              ID of the branch to calculate recursive contributions for
+     * @param maSuKien                  Event ID (or null for all events)
+     * @param directBranchContributions Map of {@code branchId -> directContributionAmount} from CONTRIBUTION_MEMBER_DETAIL
+     * @return Total recursive contribution amount of the branch and all its descendant branches
+     */
+    BigDecimal tinhTongDongGopDeQuy(
+            String clanId,
+            String rootBranchId,
+            String maSuKien,
+            Map<String, BigDecimal> directBranchContributions
+    );
 
     /**
      * Finds full demographic profile details of a member (US-22).

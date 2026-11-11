@@ -392,9 +392,16 @@ graph TD
     InKind -->|Hướng xử lý: AddedToCommonAssets| ClanAsset["CLAN_ASSET (Danh mục tài sản chung)"]
 ```
 
-### Thuật toán Tính Tổng Đóng Góp Theo Nhánh Phả Hệ (`TinhTongDongGop`):
-- Khi một hộ gia đình cúng tiến, người đại diện có thể đăng ký chia đều hoặc ghi nhận cho từng cá nhân trong gia đình qua bảng `contribution_member_details`.
-- Khi tính tổng công đức của một Chi nhánh, hệ thống dùng truy vấn đệ quy CTE (Common Table Expression) duyệt toàn bộ nhánh con cháu và cộng dồn `recorded_amount` của tất cả thành viên thuộc nhánh đó.
+### Thuật toán Tính Tổng Đóng Góp Theo Nhánh Phả Hệ (`TinhTongDongGopDeQuy` - US-11):
+- Khi một hộ gia đình cúng tiến, người đại diện có thể đăng ký chia đều hoặc ghi nhận cho từng cá nhân trong gia đình qua bảng `contribution_member_details` (hỗ trợ cả đóng góp Tiền mặt `US-09` và Hiện vật quy đổi `US-10`).
+- **PostgreSQL Recursive CTE:** Tầng CSDL dùng truy vấn `WITH RECURSIVE branch_subtree AS (...)` trích xuất cây nhánh con từ nhánh đang xét trong phạm vi `clan_id` và gom nhóm (`GROUP BY`) tổng đóng góp trực tiếp của từng nhánh.
+- **Loại trừ hiện vật hoàn trả:** Tự động loại trừ các hiện vật cúng tiến cho mượn đã hoàn trả gia chủ (`processing_status = 'Returned'`).
+- **Đệ quy trên thực thể Domain `FamilyBranch` (`NhanhGiaDinh`):** Tầng Service phối hợp cùng `GenealogyQueryService` gọi trực tiếp `rootBranch.tinhTongDongGopDeQuy(maSuKien)` để tổng hợp số liệu từ lá lên gốc (Bottom-Up Traversal), bảo đảm:
+  $$\text{Tổng đóng góp đệ quy} = \text{Đóng góp trực tiếp của nhánh} + \sum \text{Tổng đóng góp đệ quy từ các nhánh con}$$
+- **Endpoints REST API:**
+  - `GET /api/v1/contributions/branches/{branchId}/recursive-total?eventId={maSuKien}&year={year}`: Trả về tổng tiền `BigDecimal`.
+  - `GET /api/v1/contributions/branches/{branchId}/recursive-summary?eventId={maSuKien}&year={year}`: Trả về báo cáo phân rã chi tiết (trực tiếp vs nhánh con, tiền mặt vs hiện vật, số lượng thành viên, và danh sách cây đệ quy `childBranches`).
+  - Hỗ trợ đồng thời các URL alias `/api/v1/branches/{branchId}/contributions/...`.
 
 ---
 

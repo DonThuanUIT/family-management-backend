@@ -1780,6 +1780,115 @@ paths:
         '404':
           description: Tài sản không tồn tại
 
+  /contributions/branches/{branchId}/recursive-total:
+    get:
+      summary: Tính tổng mức đóng góp đệ quy của nhánh gia phả (US-11)
+      description: |
+        Cộng dồn toàn bộ đóng góp từ CONTRIBUTION_MEMBER_DETAIL của nhánh đang xét và tất cả các nhánh con bên dưới.
+        Sử dụng kết hợp PostgreSQL Recursive CTE và phương thức đệ quy trên thực thể FamilyBranch (NhanhGiaDinh).
+        Tự động loại trừ các hiện vật cho mượn đã hoàn trả gia chủ (processing_status = 'Returned').
+      tags:
+        - Contributions & Fund
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "BR_ROOT"
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: maSuKien
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Tính tổng đóng góp đệ quy thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Branch recursive contribution total calculated successfully
+                  data:
+                    type: number
+                    format: decimal
+                    example: 35000000.00
+
+  /contributions/branches/{branchId}/recursive-summary:
+    get:
+      summary: Báo cáo phân rã chi tiết mức đóng góp đệ quy của nhánh gia phả (US-11)
+      description: |
+        Xem chi tiết mức đóng góp của nhánh bất kỳ kèm cấu trúc cây nhánh con, hiển thị tách bạch:
+        Đóng góp trực tiếp của nhánh vs. Tổng cộng từ các nhánh con, phân tách Tiền mặt vs. Hiện vật quy đổi.
+      tags:
+        - Contributions & Fund
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "BR_ROOT"
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: maSuKien
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Tra cứu báo cáo đệ quy chi tiết thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Branch recursive contribution summary retrieved successfully
+                  data:
+                    $ref: '#/components/schemas/BranchRecursiveContributionResponse'
+
   /roles/assign:
     post:
       summary: Chỉ định vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
@@ -1930,6 +2039,102 @@ components:
         Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
 
   schemas:
+    BranchRecursiveContributionResponse:
+      type: object
+      description: Báo cáo phân rã đóng góp đệ quy của nhánh gia phả (US-11)
+      properties:
+        branchId:
+          type: string
+          example: "BR_ROOT"
+        branchName:
+          type: string
+          example: "Đại Tôn Nguyễn Tộc"
+        generationLevel:
+          type: integer
+          example: 1
+        parentBranchId:
+          type: string
+          nullable: true
+          example: null
+        representativeId:
+          type: string
+          nullable: true
+          example: "MEM_TRUONG_TOC"
+        representativeName:
+          type: string
+          nullable: true
+          example: "Nguyễn Trọng Hoàng"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        eventName:
+          type: string
+          nullable: true
+          example: "Đại Lễ Giỗ Tổ Thủy Tộc Xuân Bính Ngọ 2026"
+        year:
+          type: integer
+          nullable: true
+          example: 2026
+        directMemberCount:
+          type: integer
+          example: 4
+        totalRecursiveMemberCount:
+          type: integer
+          example: 18
+        directContributingMemberCount:
+          type: integer
+          example: 1
+        totalRecursiveContributingMemberCount:
+          type: integer
+          example: 5
+        directContributionCount:
+          type: integer
+          example: 1
+        directCashAmount:
+          type: number
+          format: decimal
+          example: 5000000.00
+        directInKindAmount:
+          type: number
+          format: decimal
+          example: 0.00
+        directTotalAmount:
+          type: number
+          format: decimal
+          example: 5000000.00
+        descendantsCashAmount:
+          type: number
+          format: decimal
+          example: 9000000.00
+        descendantsInKindAmount:
+          type: number
+          format: decimal
+          example: 21000000.00
+        descendantsTotalAmount:
+          type: number
+          format: decimal
+          example: 30000000.00
+        totalRecursiveCashAmount:
+          type: number
+          format: decimal
+          example: 14000000.00
+        totalRecursiveInKindAmount:
+          type: number
+          format: decimal
+          example: 21000000.00
+        totalRecursiveAmount:
+          type: number
+          format: decimal
+          example: 35000000.00
+        totalRecursiveAmountInWords:
+          type: string
+          example: "Ba mươi lăm triệu đồng chẵn"
+        childBranches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchRecursiveContributionResponse'
+
     UpdateInvitationRequest:
       type: object
       description: |
