@@ -7,15 +7,20 @@ import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
+import com.familyfund.genealogy.internal.entity.MemberPrivacySetting;
 import com.familyfund.genealogy.internal.mapper.MemberMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
+import com.familyfund.genealogy.internal.repository.MemberPrivacySettingRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.security.MemberPrivacyPolicy;
+import com.familyfund.genealogy.internal.security.PrivacyEvaluationContext;
 import com.familyfund.genealogy.internal.util.MemberIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +29,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -41,6 +51,9 @@ public class MemberServiceImpl implements MemberService {
     private final MemberMapper memberMapper;
     private final MemberIdGenerator memberIdGenerator;
     private final CurrentUserProvider currentUserProvider;
+    private final MemberPrivacySettingRepository privacySettingRepository;
+    private final MemberPrivacyPolicy memberPrivacyPolicy;
+    private final GenealogyQueryService genealogyQueryService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -95,7 +108,9 @@ public class MemberServiceImpl implements MemberService {
         // saveAndFlush surfaces PK/FK/CHECK violations inside this transaction instead of at commit
         Member saved = memberRepository.saveAndFlush(member);
         log.info("Created placeholder member: clan={}, branch={}, memberId={}", clanId, branchId, saved.getMemberId());
-        return memberMapper.toResponse(saved);
+        MemberResponse raw = memberMapper.toResponse(saved);
+        PrivacyEvaluationContext ctx = buildPrivacyContext(clanId);
+        return memberPrivacyPolicy.applyPrivacy(raw, null, ctx);
     }
 
     @Override
@@ -106,20 +121,16 @@ public class MemberServiceImpl implements MemberService {
         if (!branchRepository.existsByClanIdAndBranchId(clanId, branchId)) {
             throw new ResourceNotFoundException("Branch not found with ID: " + branchId + " in clan: " + clanId);
         }
-        return memberRepository.findByBranch_ClanIdAndBranch_BranchId(clanId, branchId)
-                .stream()
-                .map(memberMapper::toResponse)
-                .toList();
+        List<Member> members = memberRepository.findByBranch_ClanIdAndBranch_BranchId(clanId, branchId);
+        return toFilteredResponses(members, clanId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MemberResponse> getMembersByClan() {
         String clanId = TenantContext.getClanId();
-        return memberRepository.findByBranch_ClanId(clanId)
-                .stream()
-                .map(memberMapper::toResponse)
-                .toList();
+        List<Member> members = memberRepository.findByBranch_ClanId(clanId);
+        return toFilteredResponses(members, clanId);
     }
 
     @Override
@@ -128,7 +139,7 @@ public class MemberServiceImpl implements MemberService {
         String clanId = TenantContext.getClanId();
         MemberSearchCriteria clean = criteria != null ? criteria : MemberSearchCriteria.of(null, null, null, null, null, null);
 
-        return memberRepository.searchMembers(
+        List<Member> members = memberRepository.searchMembers(
                 clanId,
                 clean.keyword(),
                 clean.memberId(),
@@ -136,8 +147,46 @@ public class MemberServiceImpl implements MemberService {
                 clean.generation(),
                 clean.branchId(),
                 clean.status()
-        ).stream()
-                .map(memberMapper::toResponse)
+        );
+        return toFilteredResponses(members, clanId);
+    }
+
+    private PrivacyEvaluationContext buildPrivacyContext(String clanId) {
+        String callerMemberId = currentUserProvider.currentMemberId().orElse(null);
+        boolean isClanHead = currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD);
+
+        Set<String> managedBranchIds = Collections.emptySet();
+        if (callerMemberId != null && !isClanHead) {
+            managedBranchIds = new HashSet<>(genealogyQueryService.getBranchIdsManagedByMember(clanId, callerMemberId));
+        }
+
+        return PrivacyEvaluationContext.builder()
+                .callerMemberId(callerMemberId)
+                .isClanHead(isClanHead)
+                .managedBranchIds(managedBranchIds)
+                .isAuthorizedOrganizer(false)
+                .build();
+    }
+
+    private List<MemberResponse> toFilteredResponses(List<Member> members, String clanId) {
+        if (members == null || members.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        PrivacyEvaluationContext ctx = buildPrivacyContext(clanId);
+
+        List<String> memberIds = members.stream().map(Member::getMemberId).toList();
+        Map<String, MemberPrivacySetting> settingsByMemberId = privacySettingRepository
+                .findByMemberIdIn(memberIds)
+                .stream()
+                .collect(Collectors.toMap(MemberPrivacySetting::getMemberId, s -> s));
+
+        return members.stream()
+                .map(m -> {
+                    MemberResponse raw = memberMapper.toResponse(m);
+                    MemberPrivacySetting setting = settingsByMemberId.get(m.getMemberId());
+                    return memberPrivacyPolicy.applyPrivacy(raw, setting, ctx);
+                })
                 .toList();
     }
 
