@@ -80,6 +80,10 @@ class DatabaseMigrationTest {
             );
             assertTrue(colRs.next(), "branch_join_requests must have clan_id column from V6 migration");
 
+            // Verify US-08 progress warning table exists (created by V1)
+            assertTrue(tables.contains("task_progress_alerts"),
+                    "task_progress_alerts table (US-08 progress warnings) must be present");
+
             System.out.println("\n=== VERIFYING SEEDED ROLES IN system_roles ===");
             var rolesRs = stmt.executeQuery("SELECT role_id, role_name, description FROM system_roles ORDER BY role_id");
             Set<String> roles = new HashSet<>();
