@@ -166,6 +166,7 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
   - Đặt Entity, Controller, Repository và Service Implementation trong `<module>.internal`.
   - Luôn chạy `.\gradlew.bat test` hoặc `.\gradlew.bat build` để đảm bảo `ArchitectureTest` và toàn bộ test suite vượt qua trước khi push code lên GitHub.
 - **Kế hoạch triển khai tiếp theo**:
-  - **US-25**: Cấp phát tạm ứng & quyết toán hóa đơn sự kiện (`advance_vouchers`, `expense_settlement_vouchers`).
+  - **US-25 (theo Excel, sheet User Story, hàng 9)**: Bảo vệ thông tin cá nhân thành viên theo mô hình Hybrid Privacy (RBAC + Quyền tự quyết/Owner Consent). Đã hoàn tất cả Backend (Flyway V16, MemberPrivacyPolicy, API lọc DTO không N+1) và Frontend (Flutter Clean Architecture, Material 3, Riverpod Provider, live preview, sidebar indicators). ✅ **Đã hoàn thành (Backend & Frontend)**. Xem đặc tả kỹ thuật chi tiết tại [`US-25-member-personal-data-privacy.md`](./user-stories/US-25-member-personal-data-privacy.md).
+  - **Tạm ứng & quyết toán (mã cũ US-25, chờ đối soát)**: Backlog tài chính (`advance_vouchers`, `expense_settlement_vouchers`); không phải US-25 theo Excel hiện tại.
   - **US-26**: Ghi nhận giao dịch vào sổ cái bất biến (`immutable_ledgers`, NFR-01 Audit Trail).
   - **US-30**: Tiếp nhận đóng góp quỹ đa hình tiền mặt & hiện vật (`contributions`).

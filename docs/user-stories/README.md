@@ -4,6 +4,8 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 
 ---
 
+> **Đối chiếu Excel ngày 10/11/2026:** US-25 chính thức là **Bảo vệ thông tin cá nhân thành viên** (sheet `User Story`, hàng 9). Xem [kế hoạch US-25](./US-25-member-personal-data-privacy.md). Dòng US-25 về tài chính trong bảng dưới là mã cũ đang chờ đối soát; không dùng làm phạm vi triển khai US-25 theo Excel. Những mã khác chưa được đối soát toàn bộ.
+
 ## 📌 Danh Sách User Stories
 
 | Mã US | Tên Tính Năng | Bounded Context | Trạng Thái | File Đặc Tả Kỹ Thuật |
@@ -23,7 +25,8 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-19** | **Nhập Mã Liên Kết Vị Trí Khi Đăng Ký & Tự Động Gia Nhập Đúng Chi/Nhánh** | `com.familyfund.identity` & `genealogy` | ✅ **Đã hoàn thành** | [`US-19-enter-position-link-code-and-join-automatically.md`](./US-19-enter-position-link-code-and-join-automatically.md) |
 | **US-21** | **Khởi Tạo Sự Kiện & Phân Quyền Động (Contextual RBAC)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-21-create-event-and-contextual-rbac.md`](./US-21-create-event-and-contextual-rbac.md) |
 | **US-22** | **Thông Báo Khi Mở Sự Kiện & Cập Nhật Lịch Trình** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-22-event-notification-and-reschedule.md`](./US-22-event-notification-and-reschedule.md) |
-| **US-25** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-25** | **Bảo Vệ Thông Tin Cá Nhân Thành Viên (Hybrid Privacy: RBAC + Quyền Tự Quyết)** | `com.familyfund.genealogy` | ✅ **Đã hoàn thành (Backend & Frontend)** | [`US-25-member-personal-data-privacy.md`](./US-25-member-personal-data-privacy.md) |
+| **Mã cũ US-25 — chờ đối soát** | **Cấp Phát Tạm Ứng & Quyết Toán Hóa Đơn Sự Kiện** | `com.familyfund.finance` | 📝 *Backlog; chưa xác nhận mã theo Excel* | *Chưa khởi tạo* |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |
 
