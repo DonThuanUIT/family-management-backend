@@ -21,8 +21,6 @@ Nguồn chuẩn: [`UserStory_HeThongQuanLySuKienVaQuyDaiGiaDinh.xlsx`](../../../
     2. Chính chủ đã bật cấu hình cho phép chia sẻ công khai trong dòng họ (*Owner Consent*), HOẶC
     3. Người xem là Trưởng tộc, Trưởng nhánh (trong phạm vi nhánh quản lý), hoặc Ban tổ chức sự kiện khi cần.
 
-*Ghi chú mã User Story:* Mã US-25 chuẩn theo Excel đại diện cho tính năng bảo vệ thông tin cá nhân. Mã US-25 cũ liên quan đến tạm ứng/quyết toán tài chính là mã cũ chờ đối soát.
-
 ---
 
 ## 2. Mô hình phân quyền kết hợp (Hybrid Privacy Matrix)
