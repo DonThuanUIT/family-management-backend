@@ -33,6 +33,7 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 * **[`US-19-enter-position-link-code-and-join-automatically.md`](./user-stories/US-19-enter-position-link-code-and-join-automatically.md)**: Đặc tả kỹ thuật đầy đủ của tính năng nhập `PositionLinkCode` khi đăng ký để tự động liên kết tài khoản (mới hoặc đã có) vào đúng vị trí/chi/nhánh và kích hoạt `Active` không cần phê duyệt, gồm sequence diagram, bảng ánh xạ schema, ma trận HTTP `200/400/403/404/409` và kịch bản kiểm thử E2E.
 * **[`US-21-create-event-and-contextual-rbac.md`](./user-stories/US-21-create-event-and-contextual-rbac.md)**: Khởi tạo sự kiện, máy trạng thái vòng đời sự kiện và phân quyền theo ngữ cảnh (`NhanSuSuKien`).
 * **[`US-22-event-notification-and-reschedule.md`](./user-stories/US-22-event-notification-and-reschedule.md)**: Thông báo sự kiện bất đồng bộ, lắng nghe Domain Events và tự động phát hiện sai khác lịch trình (schedule diff).
+* **[`US-25-member-personal-data-privacy.md`](./user-stories/US-25-member-personal-data-privacy.md)**: Bảo vệ thông tin cá nhân thành viên theo mô hình Hybrid Privacy (Privacy by Default, Owner Consent và RBAC phạm vi Trưởng tộc/Trưởng nhánh).
 
 ### 3. 🛠 Quy Chuẩn & Hướng Dẫn Phát Triển ([`docs/guidelines/`](./guidelines/))
 * **[`development-guide.md`](./guidelines/development-guide.md)**: Hướng dẫn thiết lập môi trường cho dev mới (JDK 25, cấu hình `.env` cho Neon Cloud, Docker Compose cho Swagger/Adminer, lệnh biên dịch Gradle, chạy test suite 275 tests, chạy backend).
