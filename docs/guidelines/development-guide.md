@@ -18,15 +18,26 @@ Tài liệu này cung cấp hướng dẫn từng bước để thiết lập m�
 
 ## 2. Thiết Lập Môi Trường Cục Bộ (Step-by-Step Setup)
 
-### Bước 1: Cấu hình biến môi trường CSDL (.env)
-Sao chép `.env.example` thành `.env` (nếu chưa có) và cập nhật thông tin kết nối tới Neon Serverless PostgreSQL:
+### Bước 1: Cấu hình biến môi trường CSDL & Supabase (.env)
+Sao chép `.env.example` thành `.env` (nếu chưa có) và cập nhật đầy đủ thông tin kết nối tới Neon Serverless PostgreSQL, công cụ Docker và Supabase Storage:
 
 ```env
+# Neon Serverless PostgreSQL Configuration
 SPRING_DATASOURCE_URL=jdbc:postgresql://ep-your-project-id.region.aws.neon.tech/neondb?sslmode=require
 DB_USER=neondb_owner
 DB_PASSWORD=your_neon_password
+
+# Docker Tools (Adminer & Swagger UI)
 ADMINER_PORT=8088
 SWAGGER_PORT=8082
+
+# Supabase Private Storage Configuration (Server-only secret key)
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+APP_STORAGE_BUCKET=member-media
+APP_STORAGE_QUOTA_BYTES=524288000
+APP_STORAGE_MAX_ATTACHMENTS=20
+APP_STORAGE_CLEANUP_ENABLED=true
 ```
 
 ### Bước 2: Khởi động công cụ phụ trợ qua Docker

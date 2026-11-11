@@ -1,6 +1,10 @@
 spring:
   application:
     name: familyfund-api
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   autoconfigure:
     exclude:
       - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
@@ -38,6 +42,14 @@ server:
   port: 8080
 
 app:
+  storage:
+    supabase-url: ${SUPABASE_URL:}
+    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    bucket: ${APP_STORAGE_BUCKET:member-media}
+    quota-bytes: ${APP_STORAGE_QUOTA_BYTES:524288000}
+    max-attachments: ${APP_STORAGE_MAX_ATTACHMENTS:20}
+    timeout-seconds: 60
+    cleanup-enabled: ${APP_STORAGE_CLEANUP_ENABLED:true}
   invitation:
     base-url: ${APP_INVITE_BASE_URL:http://localhost:3000/join}
     # US-18: redemption link of a one-time PositionLinkCode

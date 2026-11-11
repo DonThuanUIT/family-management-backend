@@ -12,6 +12,8 @@ import java.util.List;
  */
 public interface MemberService {
 
+    MemberResponse getMember(String memberId);
+
     /**
      * Creates a placeholder member profile (is_placeholder = true) in a branch of the current clan.
      *
