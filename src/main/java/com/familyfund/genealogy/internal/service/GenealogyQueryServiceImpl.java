@@ -4,6 +4,7 @@ import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
+import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
@@ -266,6 +267,24 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
             return false;
         }
         return !familyBranchRepository.findByClanIdAndRepresentative_MemberId(clanId.trim(), memberId.trim()).isEmpty();
+    }
+
+    @Override
+    public Optional<MemberProfileDetailsDto> findMemberProfileDetails(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return Optional.empty();
+        }
+        return memberRepository.findById(memberId.trim())
+                .map(member -> new MemberProfileDetailsDto(
+                        member.getMemberId(),
+                        member.getFullName(),
+                        member.getDateOfBirth(),
+                        member.getGender(),
+                        member.getGeneration(),
+                        member.getBranch() != null ? member.getBranch().getClanId() : null,
+                        member.getBranch() != null ? member.getBranch().getBranchId() : null,
+                        member.getBranch() != null ? member.getBranch().getBranchName() : null
+                ));
     }
 
     private BranchSummaryDto toBranchSummaryDto(FamilyBranch branch) {

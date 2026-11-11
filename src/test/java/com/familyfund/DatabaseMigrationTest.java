@@ -98,6 +98,13 @@ class DatabaseMigrationTest {
             );
             assertTrue(colRs.next(), "branch_join_requests must have clan_id column from V6 migration");
 
+            // Verify address column exists on user_accounts (Migration V17)
+            var addressColRs = stmt.executeQuery(
+                    "SELECT column_name FROM information_schema.columns " +
+                    "WHERE table_schema = 'public' AND table_name = 'user_accounts' AND column_name = 'address'"
+            );
+            assertTrue(addressColRs.next(), "user_accounts must have address column from V17 migration");
+
             // Verify US-08 progress warning table exists (created by V1)
             assertTrue(tables.contains("task_progress_alerts"),
                     "task_progress_alerts table (US-08 progress warnings) must be present");

@@ -166,6 +166,7 @@ Tài liệu này theo dõi tiến độ kỹ thuật, các hạng mục đã ho�
   - Đặt Entity, Controller, Repository và Service Implementation trong `<module>.internal`.
   - Luôn chạy `.\gradlew.bat test` hoặc `.\gradlew.bat build` để đảm bảo `ArchitectureTest` và toàn bộ test suite vượt qua trước khi push code lên GitHub.
 - **Kế hoạch triển khai tiếp theo**:
+  - **US-22**: Thành viên tự xem, cập nhật hồ sơ cá nhân (SĐT, email, địa chỉ) và đổi mật khẩu; chặn sửa thông tin phả hệ cố định (họ tên, ngày sinh, đời thứ). Đã hoàn tất Backend (Flyway V17, ProfileController, ProfileService, test suites 100% pass). ✅ **Đã hoàn thành (Backend)**. Xem đặc tả kỹ thuật chi tiết tại [`US-22-member-profile-and-password-management.md`](./user-stories/US-22-member-profile-and-password-management.md).
   - **US-25**: Bảo vệ thông tin cá nhân thành viên theo mô hình Hybrid Privacy (RBAC + Quyền tự quyết/Owner Consent). Đã hoàn tất cả Backend (Flyway V16, MemberPrivacyPolicy, API lọc DTO không N+1) và Frontend (Flutter Clean Architecture, Material 3, Riverpod Provider, live preview, sidebar indicators). ✅ **Đã hoàn thành (Backend & Frontend)**. Xem đặc tả kỹ thuật chi tiết tại [`US-25-member-personal-data-privacy.md`](./user-stories/US-25-member-personal-data-privacy.md).
   - **US-26**: Ghi nhận giao dịch vào sổ cái bất biến (`immutable_ledgers`, NFR-01 Audit Trail).
   - **US-30**: Tiếp nhận đóng góp quỹ đa hình tiền mặt & hiện vật (`contributions`).
