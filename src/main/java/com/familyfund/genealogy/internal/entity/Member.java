@@ -22,6 +22,7 @@ import java.time.LocalDate;
 public class Member {
 
     public static final String STATUS_LIVING = "Living";
+    public static final String STATUS_DECEASED = "Deceased";
 
     // member_id VARCHAR(20) PRIMARY KEY
     @Id
@@ -49,9 +50,17 @@ public class Member {
     @Builder.Default
     private String status = STATUS_LIVING;
 
+    // death_date DATE
+    @Column(name = "death_date")
+    private LocalDate deathDate;
+
     // death_date_lunar VARCHAR(50)
     @Column(name = "death_date_lunar", length = 50)
     private String deathDateLunar;
+
+    // burial_place VARCHAR(255)
+    @Column(name = "burial_place", length = 255)
+    private String burialPlace;
 
     // branch_id VARCHAR(20) NOT NULL REFERENCES family_branches(branch_id) ON DELETE RESTRICT
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
