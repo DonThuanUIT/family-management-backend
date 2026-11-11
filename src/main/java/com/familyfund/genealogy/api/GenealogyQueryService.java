@@ -1,5 +1,6 @@
 package com.familyfund.genealogy.api;
 
+import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 
 import java.util.List;
@@ -100,4 +101,12 @@ public interface GenealogyQueryService {
      * Checks if a member is currently assigned as representative of any branch in the clan.
      */
     boolean isMemberRepresentativeOfAnyBranch(String memberId, String clanId);
+
+    /**
+     * Finds full demographic profile details of a member (US-22).
+     *
+     * @param memberId ID of the member
+     * @return Optional containing demographic details if found
+     */
+    Optional<MemberProfileDetailsDto> findMemberProfileDetails(String memberId);
 }
