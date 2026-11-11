@@ -27,4 +27,15 @@ public interface ContributionQueryService {
      * @return total contributed amount, or zero if none
      */
     BigDecimal getTotalContributedByMember(String memberId);
+
+    /**
+     * Calculates the recursive total contribution of a family branch and all its descendant branches
+     * for a given event (or all events if {@code maSuKien} is null) using Recursive CTE and
+     * {@code FamilyBranch.tinhTongDongGopDeQuy(maSuKien)} (US-11).
+     *
+     * @param branchId ID of the family branch
+     * @param maSuKien Event ID filter (optional, may be null)
+     * @return total recursive contribution amount
+     */
+    BigDecimal tinhTongDongGopDeQuy(String branchId, String maSuKien);
 }
