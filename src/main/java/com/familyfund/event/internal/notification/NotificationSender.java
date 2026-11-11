@@ -1,5 +1,7 @@
 package com.familyfund.event.internal.notification;
 
+import com.familyfund.event.api.dto.TaskAlertLevel;
+
 import java.util.List;
 
 /**
@@ -28,6 +30,24 @@ public interface NotificationSender {
      * @param recipientMemberIds list of recipient member IDs
      */
     void sendTaskAssignedNotification(String clanId, String eventId, String taskId, String title, String content, List<String> recipientMemberIds);
+
+    /**
+     * Sends a progress warning for an unfinished task that is about to reach its deadline (US-08).
+     * Invoked by the background deadline scanner, so {@code recipientMemberId} is the task's
+     * {@code assigned_member_id} and {@code recipientAccountId} the linked user account used as
+     * delivery channel.
+     *
+     * @param clanId            the tenant clan ID
+     * @param eventId           the event ID
+     * @param taskId            the task ID
+     * @param alertLevel        alert level persisted in `task_progress_alerts`
+     * @param title             title of the warning notification
+     * @param content           detailed warning content (deadline, remaining time, assignee)
+     * @param recipientMemberId member ID of the assignee (task's assigned_member_id)
+     * @param recipientAccountId user account ID of the assignee
+     */
+    void sendTaskProgressWarning(String clanId, String eventId, String taskId, TaskAlertLevel alertLevel,
+                                 String title, String content, String recipientMemberId, String recipientAccountId);
 
     /**
      * Sends a direct notification to a member regarding role assignment or revocation (US-03).
