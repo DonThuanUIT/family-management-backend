@@ -53,6 +53,10 @@ public class FamilyRegistration {
     @Column(name = "transportation_notes", length = 255)
     private String transportationNotes;
 
+    @Column(name = "shuttle_seats", nullable = false)
+    @Builder.Default
+    private Integer shuttleSeats = 0;
+
     @Column(name = "registration_date")
     @Builder.Default
     private Instant registrationDate = Instant.now();
