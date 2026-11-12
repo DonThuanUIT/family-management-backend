@@ -31,6 +31,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.aspectj:aspectjweaver:1.9.25.1")
+    // US-32: parse PDFs before accepting private family documents.
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
     // JWT (io.jsonwebtoken)

@@ -77,6 +77,10 @@ public class Member {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
+    // US-32 owns writes through its transactional media repository.
+    @Column(name = "avatar_url", insertable = false, updatable = false)
+    private String avatarUrl;
+
     @PrePersist
     public void prePersist() {
         // Mirror DB defaults so explicit NULLs from the builder never override them

@@ -63,6 +63,15 @@ public class MemberServiceImpl implements MemberService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    @Transactional(readOnly = true)
+    public MemberResponse getMember(String memberId) {
+        String clanId = TenantContext.getClanId();
+        Member member = memberRepository.findByBranch_ClanIdAndMemberId(clanId, memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thành viên"));
+        return toFilteredResponses(List.of(member), clanId).getFirst();
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public MemberResponse createMember(String rawBranchId, CreateMemberRequest request) {
         String clanId = TenantContext.getClanId();

@@ -129,7 +129,7 @@ Xem toàn bộ cây thư viện phụ thuộc và kiểm tra phiên bản:
 
 ```text
 family-management-backend/
-├── .env                       # Biến môi trường kết nối Neon Cloud & Docker
+├── .env                       # Biến môi trường kết nối Neon Cloud, Supabase & Docker
 ├── .env.example               # Mẫu cấu hình biến môi trường
 ├── docker-compose.yml         # Khởi tạo Swagger UI (:8082) & Adminer (:8088)
 ├── docker/

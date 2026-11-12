@@ -11,6 +11,7 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 Để hiểu rõ hệ thống từ kiến trúc tổng thể, cơ sở dữ liệu, quy chuẩn code đến chi tiết từng tính năng nghiệp vụ, vui lòng theo dõi tài liệu theo cấu trúc dưới đây:
 
 ### 1. 🏛 Kiến Trúc & Thiết Kế Nền Tảng ([`docs/architecture/`](./architecture/))
+* **[`04-deployment-diagrams.md`](./architecture/04-deployment-diagrams.md)**: Cơ sở lý thuyết UML Deployment Diagram; sơ đồ triển khai phát triển, production đề xuất và phân bổ artifact cho Flutter, Spring Boot, Neon PostgreSQL và Supabase Storage.
 * **[`01-system-architecture.md`](./architecture/01-system-architecture.md)**: Tổng quan kiến trúc Modular Monolith, Bounded Contexts, Tech stack (Java 25, Spring Boot 4.1.1, Spring Modulith 2.1.1, Spring AI 2.0.1), cơ chế Multi-tenancy (`TenantFilter` & `TenantContext`), hạ tầng Docker Compose & Neon Serverless PostgreSQL, giải pháp xử lý phụ thuộc vòng.
 * **[`02-database-schema.md`](./architecture/02-database-schema.md)**: Đặc tả chi tiết 23 bảng CSDL PostgreSQL chuẩn hóa 3NF, quan hệ khóa ngoại, chiến lược Indexing, và kịch bản Flyway Migrations (V1 $\rightarrow$ V7).
 * **[`03-core-business-flows.md`](./architecture/03-core-business-flows.md)**: Các luồng nghiệp vụ cốt lõi xuyên module (Đăng ký người khởi tạo US-01, Hồ sơ thành viên US-03, Quản lý chi phái US-04, Xác thực JWT US-10, Tạo mã mời chung US-16, Luồng gia nhập Onboarding US-17, Vòng đời sự kiện & Contextual RBAC US-21, Thông báo sự kiện US-22, Tạm ứng $\rightarrow$ Quyết toán, Sổ cái bất biến NFR-01).

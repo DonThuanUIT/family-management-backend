@@ -28,5 +28,6 @@ public record MemberResponse(
         Instant createdAt,
         String phoneNumber,
         String email,
-        MemberFieldVisibility fieldVisibility
+        MemberFieldVisibility fieldVisibility,
+        String avatarUrl
 ) {}
