@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -66,5 +67,53 @@ public interface EventTaskRepository extends JpaRepository<EventTask, String> {
             @Param("now") Instant now,
             @Param("threshold") Instant threshold,
             @Param("completedStatus") TaskStatus completedStatus);
-}
 
+    /**
+     * Projection chứa số liệu ngân sách dự kiến công việc (`advance_budget`),
+     * tổng tạm ứng (`advance_amount`) và tổng thực chi (`actual_expense_amount`)
+     * của từng hạng mục công việc thuộc sự kiện (US-37).
+     */
+    interface TaskBudgetAggregateProjection {
+        String getTaskId();
+        String getTaskName();
+        String getTaskStatus();
+        String getAssignedMemberId();
+        String getAssignedBranchId();
+        BigDecimal getAdvanceBudget();
+        Integer getAdvanceVoucherCount();
+        BigDecimal getTotalAdvanceAmount();
+        Integer getSettlementVoucherCount();
+        BigDecimal getTotalActualExpenseAmount();
+        BigDecimal getVerifiedActualExpenseAmount();
+        Integer getNeedsExplanationCount();
+    }
+
+    /**
+     * Gom nhóm ngân sách công việc, tổng tạm ứng (`advance_vouchers`) và tổng thực chi (`expense_settlement_vouchers`)
+     * theo từng hạng mục công việc (`task_id`) của sự kiện để ngăn ngừa lỗi cộng trùng `advance_budget` (US-37).
+     */
+    @Query(value = """
+            SELECT
+                et.task_id AS taskId,
+                et.task_name AS taskName,
+                et.status AS taskStatus,
+                et.assigned_member_id AS assignedMemberId,
+                et.assigned_branch_id AS assignedBranchId,
+                COALESCE(et.advance_budget, 0) AS advanceBudget,
+                CAST(COUNT(DISTINCT av.advance_voucher_id) AS integer) AS advanceVoucherCount,
+                COALESCE(SUM(av.advance_amount), 0) AS totalAdvanceAmount,
+                CAST(COUNT(DISTINCT esv.settlement_voucher_id) AS integer) AS settlementVoucherCount,
+                COALESCE(SUM(esv.actual_expense_amount), 0) AS totalActualExpenseAmount,
+                COALESCE(SUM(CASE WHEN esv.status IN ('Valid', 'Settled') THEN esv.actual_expense_amount ELSE 0 END), 0) AS verifiedActualExpenseAmount,
+                CAST(COUNT(DISTINCT CASE WHEN esv.status = 'NeedsExplanation' THEN esv.settlement_voucher_id END) AS integer) AS needsExplanationCount
+            FROM event_tasks et
+            LEFT JOIN advance_vouchers av
+                ON av.task_id = et.task_id
+            LEFT JOIN expense_settlement_vouchers esv
+                ON esv.advance_voucher_id = av.advance_voucher_id
+            WHERE et.event_id = :eventId
+            GROUP BY et.task_id, et.task_name, et.status, et.assigned_member_id, et.assigned_branch_id, et.advance_budget, et.deadline
+            ORDER BY et.deadline ASC, et.task_id ASC
+            """, nativeQuery = true)
+    List<TaskBudgetAggregateProjection> aggregateTaskBudgetsByEventId(@Param("eventId") String eventId);
+}
