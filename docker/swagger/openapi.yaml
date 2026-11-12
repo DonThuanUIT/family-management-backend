@@ -758,6 +758,46 @@ paths:
         '200':
           description: Danh sách thông báo sự kiện
 
+  /events/{eventId}/budget-summary:
+    get:
+      summary: Tổng hợp ngân sách sự kiện và cảnh báo vượt dự toán (US-37)
+      description: |
+        Tổng hợp và so sánh `estimated_budget` của sự kiện với:
+        - Tổng `advance_budget` của tất cả hạng mục công việc (`event_tasks`)
+        - Tổng `advance_amount` của tất cả phiếu tạm ứng (`advance_vouchers`)
+        - Tổng `actual_expense_amount` của tất cả phiếu quyết toán (`expense_settlement_vouchers`)
+        
+        Bật cờ cảnh báo `isOverBudget = true` ngay khi tổng tạm ứng (`totalAdvanceAmount`) hoặc tổng thực chi (`totalActualExpenseAmount`) vượt `estimatedBudget`. Hỗ trợ alias `GET /api/v1/events/{eventId}/budget`.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_2026_01
+      responses:
+        '200':
+          description: Báo cáo tổng hợp ngân sách sự kiện và trạng thái cảnh báo vượt dự toán
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    nullable: true
+                  data:
+                    $ref: '#/components/schemas/EventBudgetSummaryResponse'
+        '403':
+          description: Sự kiện thuộc dòng họ khác (chặn cô lập đa dòng họ)
+        '404':
+          description: Không tìm thấy sự kiện
+
   /events/{eventId}/registrations:
     post:
       summary: Đăng ký tham gia sự kiện (US-06)
@@ -2465,6 +2505,161 @@ components:
         Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
 
   schemas:
+    EventBudgetSummaryResponse:
+      type: object
+      description: Báo cáo tổng hợp và cảnh báo vượt ngân sách sự kiện (US-37)
+      properties:
+        eventId:
+          type: string
+          example: "EVT_2026_01"
+        eventName:
+          type: string
+          example: "Giỗ Tổ Xuân 2026"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventStatus:
+          type: string
+          example: "Ongoing"
+        estimatedBudget:
+          type: number
+          format: double
+          example: 50000000.00
+        totalTaskAdvanceBudget:
+          type: number
+          format: double
+          example: 45000000.00
+        totalAdvanceAmount:
+          type: number
+          format: double
+          example: 52000000.00
+        totalActualExpenseAmount:
+          type: number
+          format: double
+          example: 48000000.00
+        verifiedActualExpenseAmount:
+          type: number
+          format: double
+          example: 30000000.00
+        remainingBudgetByAdvance:
+          type: number
+          format: double
+          example: -2000000.00
+        remainingBudgetByActualExpense:
+          type: number
+          format: double
+          example: 2000000.00
+        overrunAmount:
+          type: number
+          format: double
+          example: 2000000.00
+        advanceUtilizationPercent:
+          type: number
+          format: double
+          example: 104.00
+        actualExpenseUtilizationPercent:
+          type: number
+          format: double
+          example: 96.00
+        isOverBudget:
+          type: boolean
+          description: True ngay khi totalAdvanceAmount > estimatedBudget HOẶC totalActualExpenseAmount > estimatedBudget
+          example: true
+        isAdvanceOverEstimated:
+          type: boolean
+          example: true
+        isActualExpenseOverEstimated:
+          type: boolean
+          example: false
+        isTaskBudgetOverEstimated:
+          type: boolean
+          example: false
+        hasTaskOverBudget:
+          type: boolean
+          example: true
+        warningLevel:
+          type: string
+          enum: [NORMAL, TASK_PLAN_EXCEEDED, TASK_OVERRUN, OVER_BUDGET]
+          example: "OVER_BUDGET"
+        warningMessages:
+          type: array
+          items:
+            type: string
+        totalTasksCount:
+          type: integer
+          example: 3
+        totalAdvanceVouchersCount:
+          type: integer
+          example: 4
+        totalSettlementVouchersCount:
+          type: integer
+          example: 2
+        taskBreakdowns:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskBudgetBreakdownResponse'
+
+    TaskBudgetBreakdownResponse:
+      type: object
+      description: Chi tiết ngân sách, tạm ứng và thực chi theo từng hạng mục công việc (US-37)
+      properties:
+        taskId:
+          type: string
+          example: "TSK_001"
+        taskName:
+          type: string
+          example: "Đặt mâm cỗ mặn & chay"
+        status:
+          type: string
+          example: "InProgress"
+        assignedBranchId:
+          type: string
+          nullable: true
+          example: "BR_ROOT"
+        assignedMemberId:
+          type: string
+          nullable: true
+          example: "MEM_001"
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        advanceBudget:
+          type: number
+          format: double
+          example: 30000000.00
+        totalAdvanceAmount:
+          type: number
+          format: double
+          example: 35000000.00
+        totalActualExpenseAmount:
+          type: number
+          format: double
+          example: 32000000.00
+        verifiedActualExpenseAmount:
+          type: number
+          format: double
+          example: 30000000.00
+        advanceVouchersCount:
+          type: integer
+          example: 2
+        settlementVouchersCount:
+          type: integer
+          example: 1
+        isTaskAdvanceOverBudget:
+          type: boolean
+          example: true
+        isTaskActualOverBudget:
+          type: boolean
+          example: true
+        isTaskOverBudget:
+          type: boolean
+          example: true
+        taskOverrunAmount:
+          type: number
+          format: double
+          example: 5000000.00
+
     BranchRecursiveContributionResponse:
       type: object
       description: Báo cáo phân rã đóng góp đệ quy của nhánh gia phả (US-11)
