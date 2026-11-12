@@ -17,6 +17,7 @@ import com.familyfund.event.internal.dto.request.RegisterAttendeesRequest;
 import com.familyfund.event.internal.dto.request.RequestCancelRegistrationRequest;
 import com.familyfund.event.internal.dto.request.RequestModifyRegistrationRequest;
 import com.familyfund.event.internal.dto.request.ReviewRegistrationRequest;
+import com.familyfund.event.internal.dto.request.UpdateRegistrationRequest;
 import com.familyfund.event.internal.dto.response.RegistrationMemberDetailResponse;
 import com.familyfund.event.internal.dto.response.RegistrationResponse;
 import com.familyfund.event.internal.dto.response.RegistrationSummaryResponse;
@@ -458,6 +459,84 @@ public class RegistrationServiceImpl implements RegistrationService {
                 registrationId, request.approved(), reviewerAccountId);
 
         return enrichRegistration(saved);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationResponse updateRegistration(String registrationId, UpdateRegistrationRequest request) {
+        FamilyRegistration registration = loadAndAuthorizeOpenRegistration(registrationId);
+
+        int totalAttendees = request.totalAttendees();
+        int vegMeals = request.vegetarianMeals() != null ? request.vegetarianMeals() : 0;
+        int savMeals = request.savoryMeals() != null ? request.savoryMeals() : 0;
+        if (vegMeals + savMeals > totalAttendees) {
+            throw new BusinessRuleException(String.format(
+                    "Tổng số suất ăn đăng ký (%d) không được vượt quá tổng số người tham dự (%d)",
+                    vegMeals + savMeals, totalAttendees));
+        }
+
+        registration.setTotalAttendees(totalAttendees);
+        registration.setVegetarianMeals(vegMeals);
+        registration.setSavoryMeals(savMeals);
+        registration.setDietaryRequirements(trimToNull(request.dietaryRequirements()));
+        registration.setTransportationNotes(trimToNull(request.transportationNotes()));
+        registration.setStatus(RegistrationStatus.Confirmed);
+        registration.setUpdatedAt(Instant.now());
+
+        FamilyRegistration saved = familyRegistrationRepository.save(registration);
+        log.info("Registration {} directly updated before close (US-41)", registrationId);
+        return enrichRegistration(saved);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationResponse cancelRegistration(String registrationId) {
+        FamilyRegistration registration = loadAndAuthorizeOpenRegistration(registrationId);
+
+        registration.setStatus(RegistrationStatus.Cancelled);
+        registration.setUpdatedAt(Instant.now());
+
+        FamilyRegistration saved = familyRegistrationRepository.save(registration);
+        log.info("Registration {} directly cancelled before close (US-41)", registrationId);
+        return enrichRegistration(saved);
+    }
+
+    private FamilyRegistration loadAndAuthorizeOpenRegistration(String registrationId) {
+        String clanId = TenantContext.getClanId();
+        FamilyRegistration registration = familyRegistrationRepository
+                .findByRegistrationIdAndEvent_ClanId(registrationId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lượt đăng ký: " + registrationId));
+
+        Event event = eventRepository.findByEventIdAndClanId(registration.getEventId(), clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + registration.getEventId()));
+
+        String callerMemberId = currentUserProvider.currentMemberId().orElse(null);
+        if (!canModifyRegistration(registration, callerMemberId, event.getEventId())) {
+            throw new AccessDeniedException("Bạn không có quyền chỉnh sửa hoặc hủy lượt đăng ký này");
+        }
+
+        if (event.getStatus() == EventStatus.RegistrationClosed) {
+            throw new BusinessRuleException(
+                    "Danh sách tham dự đã được Ban tổ chức chốt. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
+        }
+        if (event.getStatus() != EventStatus.RegistrationOpen) {
+            throw new BusinessRuleException(String.format(
+                    "Sự kiện '%s' hiện không ở trạng thái mở đăng ký (trạng thái: %s). Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.",
+                    event.getEventName(), event.getStatus()));
+        }
+
+        if (registration.getStatus() == RegistrationStatus.Cancelled) {
+            throw new BusinessRuleException("Lượt đăng ký này đã bị hủy trước đó");
+        }
+        return registration;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isPrivilegedOrganizer(String eventId, String callerMemberId) {
