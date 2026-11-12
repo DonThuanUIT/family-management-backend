@@ -16,6 +16,9 @@ public interface MemberRepository extends JpaRepository<Member, String> {
     // Global uniqueness guard for MemberIdGenerator: members.member_id is a clan-agnostic PRIMARY KEY
     boolean existsByMemberId(String memberId);
 
+    @Query("SELECT m.memberId FROM Member m WHERE m.memberId IN :memberIds")
+    List<String> findExistingMemberIds(@Param("memberIds") java.util.Collection<String> memberIds);
+
     // Multi-tenant scoped queries
     Optional<Member> findByBranch_ClanIdAndMemberId(String clanId, String memberId);
 

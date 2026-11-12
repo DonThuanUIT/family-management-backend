@@ -33,6 +33,9 @@ dependencies {
     implementation("org.aspectj:aspectjweaver:1.9.25.1")
     // US-32: parse PDFs before accepting private family documents.
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
+    // US-31: parse and generate Excel (.xlsx) and CSV files for bulk member import.
+    implementation("org.apache.poi:poi-ooxml:5.4.0")
+    implementation("org.apache.commons:commons-csv:1.13.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
     // JWT (io.jsonwebtoken)
