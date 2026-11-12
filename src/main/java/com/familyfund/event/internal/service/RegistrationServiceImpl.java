@@ -18,6 +18,9 @@ import com.familyfund.event.internal.dto.request.RequestCancelRegistrationReques
 import com.familyfund.event.internal.dto.request.RequestModifyRegistrationRequest;
 import com.familyfund.event.internal.dto.request.ReviewRegistrationRequest;
 import com.familyfund.event.internal.dto.request.UpdateRegistrationRequest;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse.BranchOption;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse.HouseholdLogisticsItem;
 import com.familyfund.event.internal.dto.response.RegistrationMemberDetailResponse;
 import com.familyfund.event.internal.dto.response.RegistrationResponse;
 import com.familyfund.event.internal.dto.response.RegistrationSummaryResponse;
@@ -32,6 +35,7 @@ import com.familyfund.event.internal.repository.RegistrationAggregateProjection;
 import com.familyfund.event.internal.repository.RegistrationMemberDetailRepository;
 import com.familyfund.event.internal.util.RegistrationIdGenerator;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.dto.BranchSummaryDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -157,6 +161,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
 
         // 8. Build and persist FamilyRegistration entity
+        String trimmedTransport = request.transportationNotes() != null ? request.transportationNotes().trim() : null;
+        int shuttleSeats = ShuttleSeatParser.resolveSeats(null, trimmedTransport, totalAttendees);
         FamilyRegistration registration = FamilyRegistration.builder()
                 .registrationId(registrationId)
                 .eventId(eventId)
@@ -165,7 +171,8 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .vegetarianMeals(vegMeals)
                 .savoryMeals(savMeals)
                 .dietaryRequirements(request.dietaryRequirements() != null ? request.dietaryRequirements().trim() : null)
-                .transportationNotes(request.transportationNotes() != null ? request.transportationNotes().trim() : null)
+                .transportationNotes(trimmedTransport)
+                .shuttleSeats(shuttleSeats)
                 .registrationDate(Instant.now())
                 .status(RegistrationStatus.Confirmed)
                 .build();
@@ -205,6 +212,106 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         RegistrationAggregateProjection projection = familyRegistrationRepository.getAggregateSummary(eventId, clanId);
         return registrationMapper.toSummaryResponse(eventId, projection);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventLogisticsSummaryResponse getEventLogisticsSummary(String eventId, String branchId) {
+        String clanId = TenantContext.getClanId();
+        Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + eventId));
+
+        String normalizedBranchId = (branchId != null && !branchId.isBlank()) ? branchId.trim() : null;
+
+        List<BranchSummaryDto> clanBranches = genealogyQueryService.findAllBranchesByClanId(clanId);
+        Map<String, String> branchNameById = new LinkedHashMap<>();
+        for (BranchSummaryDto branch : clanBranches) {
+            branchNameById.put(branch.branchId(), branch.branchName());
+        }
+
+        String selectedBranchName = null;
+        if (normalizedBranchId != null) {
+            selectedBranchName = branchNameById.get(normalizedBranchId);
+            if (selectedBranchName == null) {
+                BranchSummaryDto branch = genealogyQueryService.findBranchByIdAndClanId(normalizedBranchId, clanId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi/nhánh với mã: " + normalizedBranchId));
+                selectedBranchName = branch.branchName();
+                branchNameById.put(branch.branchId(), branch.branchName());
+            }
+        }
+
+        List<FamilyRegistration> allRegistrations =
+                familyRegistrationRepository.findAllByEvent_EventIdAndEvent_ClanIdOrderByRegistrationDateDesc(eventId, clanId);
+
+        Map<String, MemberSummaryDto> memberCache = new HashMap<>();
+        List<HouseholdLogisticsItem> items = new ArrayList<>();
+        long totalRegistrations = 0;
+        long totalAttendees = 0;
+        long totalSavoryMeals = 0;
+        long totalVegetarianMeals = 0;
+        long totalShuttleSeats = 0;
+
+        for (FamilyRegistration reg : allRegistrations) {
+            if (reg.getStatus() == RegistrationStatus.Cancelled) {
+                continue;
+            }
+            String repId = reg.getRepresentativeMemberId();
+            MemberSummaryDto repSummary = memberCache.computeIfAbsent(
+                    repId,
+                    id -> genealogyQueryService.findMemberSummary(id).orElse(null)
+            );
+            String repBranchId = repSummary != null ? repSummary.branchId() : null;
+            if (normalizedBranchId != null && !normalizedBranchId.equals(repBranchId)) {
+                continue;
+            }
+
+            String repName = repSummary != null ? repSummary.fullName() : repId;
+            String repBranchName = repBranchId != null ? branchNameById.getOrDefault(repBranchId, repBranchId) : "";
+            int attendees = reg.getTotalAttendees() != null ? reg.getTotalAttendees() : 0;
+            int savory = reg.getSavoryMeals() != null ? reg.getSavoryMeals() : 0;
+            int veg = reg.getVegetarianMeals() != null ? reg.getVegetarianMeals() : 0;
+            int seats = ShuttleSeatParser.resolveSeats(reg.getShuttleSeats(), reg.getTransportationNotes(), attendees);
+
+            totalRegistrations++;
+            totalAttendees += attendees;
+            totalSavoryMeals += savory;
+            totalVegetarianMeals += veg;
+            totalShuttleSeats += seats;
+
+            items.add(new HouseholdLogisticsItem(
+                    reg.getRegistrationId(),
+                    repId,
+                    repName,
+                    repBranchId,
+                    repBranchName,
+                    attendees,
+                    savory,
+                    veg,
+                    seats,
+                    reg.getDietaryRequirements(),
+                    reg.getTransportationNotes(),
+                    reg.getStatus(),
+                    reg.getRegistrationDate()
+            ));
+        }
+
+        List<BranchOption> availableBranches = branchNameById.entrySet().stream()
+                .map(entry -> new BranchOption(entry.getKey(), entry.getValue()))
+                .toList();
+
+        return new EventLogisticsSummaryResponse(
+                event.getEventId(),
+                event.getEventName(),
+                normalizedBranchId,
+                selectedBranchName,
+                totalRegistrations,
+                totalAttendees,
+                totalSavoryMeals,
+                totalVegetarianMeals,
+                totalShuttleSeats,
+                availableBranches,
+                items
+        );
     }
 
     @Override
@@ -480,6 +587,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         registration.setSavoryMeals(savMeals);
         registration.setDietaryRequirements(trimToNull(request.dietaryRequirements()));
         registration.setTransportationNotes(trimToNull(request.transportationNotes()));
+        registration.setShuttleSeats(ShuttleSeatParser.resolveSeats(
+                null,
+                registration.getTransportationNotes(),
+                registration.getTotalAttendees()
+        ));
         registration.setStatus(RegistrationStatus.Confirmed);
         registration.setUpdatedAt(Instant.now());
 
