@@ -60,6 +60,12 @@ public class Event {
     @Column(name = "closed_at")
     private Instant closedAt;
 
+    @Column(name = "registration_deadline")
+    private Instant registrationDeadline;
+
+    @Column(name = "max_capacity")
+    private Integer maxCapacity;
+
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<EventPersonnel> personnel = new ArrayList<>();

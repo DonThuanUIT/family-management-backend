@@ -78,13 +78,15 @@ public class EventServiceImpl implements EventService {
                 .location(request.location().trim())
                 .estimatedBudget(estimatedBudget)
                 .description(request.description() != null ? request.description().trim() : null)
+                .registrationDeadline(request.registrationDeadline())
+                .maxCapacity(request.maxCapacity())
                 .status(EventStatus.Draft)
                 .createdBy(createdByAccountId)
                 .build();
 
         Event saved = eventRepository.saveAndFlush(event);
         log.info("Created event {} ({}) for clan {} by user {}", eventId, saved.getEventName(), clanId, createdByAccountId);
-        return eventMapper.toResponse(saved);
+        return toEnrichedEventResponse(saved);
     }
 
     @Override
@@ -147,10 +149,12 @@ public class EventServiceImpl implements EventService {
         event.setLocation(request.location().trim());
         event.setEstimatedBudget(estimatedBudget);
         event.setDescription(request.description() != null ? request.description().trim() : null);
+        event.setRegistrationDeadline(request.registrationDeadline());
+        event.setMaxCapacity(request.maxCapacity());
 
         Event updated = eventRepository.saveAndFlush(event);
         log.info("Event {} updated by clan {}", eventId, clanId);
-        return eventMapper.toResponse(updated);
+        return toEnrichedEventResponse(updated);
     }
 
     @Override
@@ -197,7 +201,7 @@ public class EventServiceImpl implements EventService {
         event.setStatus(targetStatus);
         Event updated = eventRepository.saveAndFlush(event);
         log.info("Event {} status updated: {} -> {}", eventId, currentStatus, targetStatus);
-        return eventMapper.toResponse(updated);
+        return toEnrichedEventResponse(updated);
     }
 
     @Override
@@ -299,7 +303,8 @@ public class EventServiceImpl implements EventService {
                 })
                 .toList();
 
-        return eventMapper.toDetailResponse(event, personnelResponses);
+        int currentAttendees = (int) eventRepository.sumActiveAttendeesByEventIdAndClanId(eventId, clanId);
+        return eventMapper.toDetailResponse(event, personnelResponses, currentAttendees);
     }
 
     @Override
@@ -307,7 +312,15 @@ public class EventServiceImpl implements EventService {
     public List<EventResponse> listEvents() {
         String clanId = TenantContext.getClanId();
         List<Event> events = eventRepository.findAllByClanIdOrderByEventDatetimeDesc(clanId);
-        return eventMapper.toResponseList(events);
+        return events.stream()
+                .map(this::toEnrichedEventResponse)
+                .toList();
+    }
+
+    private EventResponse toEnrichedEventResponse(Event event) {
+        int currentAttendees = (int) eventRepository.sumActiveAttendeesByEventIdAndClanId(
+                event.getEventId(), event.getClanId());
+        return eventMapper.toResponse(event, currentAttendees);
     }
 
     @Override

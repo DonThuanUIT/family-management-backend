@@ -86,6 +86,12 @@ public class RegistrationServiceImpl implements RegistrationService {
                     event.getEventName(), event.getStatus()));
         }
 
+        // 2b. US-43: Enforce registration deadline if configured
+        if (event.getRegistrationDeadline() != null && Instant.now().isAfter(event.getRegistrationDeadline())) {
+            throw new BusinessRuleException(
+                    "Đã hết hạn đăng ký tham dự sự kiện. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
+        }
+
         // 3. Resolve representative member ID based on caller roles
         String callerMemberId = currentUserProvider.currentMemberId().orElse(null);
         boolean isPrivileged = isPrivilegedOrganizer(eventId, callerMemberId);
@@ -110,6 +116,17 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         // 5. Invariant: Total meals must not exceed total attendees
         int totalAttendees = request.totalAttendees();
+
+        // 5b. US-43: Enforce max capacity if configured
+        if (event.getMaxCapacity() != null) {
+            long currentAttendees = eventRepository.sumActiveAttendeesByEventIdAndClanId(eventId, clanId);
+            if (currentAttendees + totalAttendees > event.getMaxCapacity()) {
+                long remaining = Math.max(0, event.getMaxCapacity() - currentAttendees);
+                throw new BusinessRuleException(String.format(
+                        "Sự kiện đã đạt giới hạn sức chứa tối đa (%d/%d người, còn lại %d chỗ).",
+                        currentAttendees, event.getMaxCapacity(), remaining));
+            }
+        }
         int vegMeals = request.vegetarianMeals() != null ? request.vegetarianMeals() : 0;
         int savMeals = request.savoryMeals() != null ? request.savoryMeals() : 0;
         if (vegMeals + savMeals > totalAttendees) {
@@ -582,6 +599,22 @@ public class RegistrationServiceImpl implements RegistrationService {
                     vegMeals + savMeals, totalAttendees));
         }
 
+        // US-43: Enforce max capacity on direct update if configured
+        Event event = eventRepository.findByEventIdAndClanId(registration.getEventId(), TenantContext.getClanId())
+                .orElse(null);
+        if (event != null && event.getMaxCapacity() != null) {
+            long currentAttendees = eventRepository.sumActiveAttendeesByEventIdAndClanId(
+                    event.getEventId(), event.getClanId());
+            int oldAttendees = registration.getTotalAttendees() != null ? registration.getTotalAttendees() : 0;
+            long projectedTotal = currentAttendees - oldAttendees + totalAttendees;
+            if (projectedTotal > event.getMaxCapacity()) {
+                long remainingForIncrease = Math.max(0, event.getMaxCapacity() - (currentAttendees - oldAttendees));
+                throw new BusinessRuleException(String.format(
+                        "Số lượng cập nhật vượt quá sức chứa tối đa của sự kiện (tối đa %d chỗ, hộ của bạn có thể đăng ký tối đa %d người).",
+                        event.getMaxCapacity(), remainingForIncrease));
+            }
+        }
+
         registration.setTotalAttendees(totalAttendees);
         registration.setVegetarianMeals(vegMeals);
         registration.setSavoryMeals(savMeals);
@@ -635,6 +668,11 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new BusinessRuleException(String.format(
                     "Sự kiện '%s' hiện không ở trạng thái mở đăng ký (trạng thái: %s). Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.",
                     event.getEventName(), event.getStatus()));
+        }
+
+        if (event.getRegistrationDeadline() != null && Instant.now().isAfter(event.getRegistrationDeadline())) {
+            throw new BusinessRuleException(
+                    "Đã hết hạn đăng ký tham dự sự kiện. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
         }
 
         if (registration.getStatus() == RegistrationStatus.Cancelled) {
