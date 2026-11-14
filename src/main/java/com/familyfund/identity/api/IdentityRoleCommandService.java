@@ -3,6 +3,7 @@ package com.familyfund.identity.api;
 import com.familyfund.identity.api.dto.AccountSummaryDto;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,6 +28,18 @@ public interface IdentityRoleCommandService {
      * @return map of memberId to AccountSummaryDto
      */
     Map<String, AccountSummaryDto> findAccountsByMemberIds(Collection<String> memberIds);
+
+    /**
+     * Resolves every active account of a clan, i.e. the accounts of all living members of the clan's branches.
+     *
+     * <p>Used to fan a clan-wide notification (for example "an event opened for registration") out to each
+     * recipient's personal inbox, because the inbox table is per-account (US-39). Members without a linked
+     * account are skipped — a placeholder member has nothing to deliver to yet.</p>
+     *
+     * @param clanId ID of the tenant clan
+     * @return active account summaries; empty when the clan has no member with an active account
+     */
+    List<AccountSummaryDto> findActiveAccountsByClan(String clanId);
 
     /**
      * Validates that the member exists, belongs to the specified clan,

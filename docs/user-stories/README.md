@@ -34,6 +34,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-47** | **Leo Thang Cảnh Báo Công Việc Quá Hạn 12 Giờ (Overdue Escalation → Trưởng chi)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-47-task-overdue-12h-escalation.md`](./US-47-task-overdue-12h-escalation.md) |
+| **US-39** | **NotificationService Đa Nhóm (Events/Tasks/Finance), Push FCM & API Đánh Dấu Đã Đọc** | `com.familyfund.notification` | ✅ **Đã hoàn thành (Backend)** | [`US-39-notification-service-fcm-and-read-state.md`](./US-39-notification-service-fcm-and-read-state.md) |
 
 ---
 

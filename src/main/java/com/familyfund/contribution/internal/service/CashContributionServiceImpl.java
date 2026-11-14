@@ -23,6 +23,10 @@ import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
+import com.familyfund.identity.api.IdentityRoleCommandService;
+import com.familyfund.notification.api.NotificationCategory;
+import com.familyfund.notification.api.NotificationCommand;
+import com.familyfund.notification.api.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +49,8 @@ public class CashContributionServiceImpl implements CashContributionService {
     private final GenealogyQueryService genealogyQueryService;
     private final EventQueryService eventQueryService;
     private final CurrentUserProvider currentUserProvider;
+    private final IdentityRoleCommandService identityRoleCommandService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -172,6 +178,9 @@ public class CashContributionServiceImpl implements CashContributionService {
 
         log.info("Successfully recorded cash contribution {} with receipt {}", contributionId, receiptNumber);
 
+        // 8.5 US-39: put the electronic receipt into the payer's Finance inbox (no-op when the member has no account).
+        notifyPayerOfRecordedContribution(currentClanId, eventSummary, request, contributionId, receiptNumber, now);
+
         // 9. Return Electronic Receipt
         String amountInWords = MoneyToWordsConverter.toVietnameseWords(request.amount());
 
@@ -189,6 +198,39 @@ public class CashContributionServiceImpl implements CashContributionService {
                 now,
                 allocationResponses
         );
+    }
+
+    /**
+     * US-39: writes the electronic receipt into the payer's personal inbox under the {@code Finance} category.
+     *
+     * <p>Best effort on purpose: a notification problem must never fail the receipt that was just persisted, and a
+     * payer member without a linked account (placeholder or unregistered) simply has no inbox to write to.</p>
+     */
+    private void notifyPayerOfRecordedContribution(String clanId,
+                                                   EventSummaryDto eventSummary,
+                                                   RecordCashContributionRequest request,
+                                                   String contributionId,
+                                                   String receiptNumber,
+                                                   Instant recordedAt) {
+        String targetClanId = (clanId != null && !clanId.isBlank()) ? clanId.trim() : eventSummary.clanId();
+        if (targetClanId == null || targetClanId.isBlank()) {
+            return;
+        }
+        try {
+            identityRoleCommandService.findAccountByMemberId(request.payerMemberId()).ifPresent(account ->
+                    notificationService.notify(NotificationCommand.builder()
+                            .clanId(targetClanId)
+                            .recipientAccountId(account.accountId())
+                            .category(NotificationCategory.Finance)
+                            .title("Đã ghi nhận đóng góp " + request.amount().toPlainString() + "đ")
+                            .content("Biên nhận " + receiptNumber + " cho sự kiện '" + eventSummary.eventName()
+                                    + "' đã được ghi nhận lúc " + recordedAt + ".")
+                            .referenceType("CONTRIBUTION")
+                            .referenceId(contributionId)
+                            .build()));
+        } catch (RuntimeException ex) {
+            log.warn("US-39: cannot create the Finance notification for contribution {}: {}", contributionId, ex.getMessage());
+        }
     }
 
     @Override
