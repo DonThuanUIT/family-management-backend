@@ -45,4 +45,25 @@ class TaskDeadlineSchedulerTest {
 
         verify(taskProgressAlertService).scanAndWarnUpcomingDeadlines();
     }
+
+    @Test
+    @DisplayName("Delegates each escalation pass to the overdue scan")
+    void delegatesEscalationPass() {
+        when(taskProgressAlertService.scanAndEscalateOverdueTasks()).thenReturn(2);
+
+        scheduler.scanOverdueTaskDeadlines();
+
+        verify(taskProgressAlertService).scanAndEscalateOverdueTasks();
+    }
+
+    @Test
+    @DisplayName("Swallows escalation failures so the scheduled task keeps running on later passes")
+    void swallowsEscalationFailures() {
+        when(taskProgressAlertService.scanAndEscalateOverdueTasks())
+                .thenThrow(new IllegalStateException("database unreachable"));
+
+        assertDoesNotThrow(() -> scheduler.scanOverdueTaskDeadlines());
+
+        verify(taskProgressAlertService).scanAndEscalateOverdueTasks();
+    }
 }

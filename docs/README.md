@@ -35,6 +35,8 @@ Dự án được xây dựng theo kiến trúc **Modular Monolith** trên nền
 * **[`US-21-create-event-and-contextual-rbac.md`](./user-stories/US-21-create-event-and-contextual-rbac.md)**: Khởi tạo sự kiện, máy trạng thái vòng đời sự kiện và phân quyền theo ngữ cảnh (`NhanSuSuKien`).
 * **[`US-22-member-profile-and-password-management.md`](./user-stories/US-22-member-profile-and-password-management.md)**: Thành viên tự xem và cập nhật thông tin liên lạc cá nhân (SĐT, email, địa chỉ), bảo vệ thông tin phả hệ cố định và tự đổi mật khẩu.
 * **[`US-25-member-personal-data-privacy.md`](./user-stories/US-25-member-personal-data-privacy.md)**: Bảo vệ thông tin cá nhân thành viên theo mô hình Hybrid Privacy (Privacy by Default, Owner Consent và RBAC phạm vi Trưởng tộc/Trưởng nhánh).
+* **[`US-22-event-notification-and-reschedule.md`](./user-stories/US-22-event-notification-and-reschedule.md)**: Thông báo sự kiện bất đồng bộ, lắng nghe Domain Events và tự động phát hiện sai khác lịch trình (schedule diff).
+* **[`US-47-task-overdue-12h-escalation.md`](./user-stories/US-47-task-overdue-12h-escalation.md)**: Leo thang cảnh báo công việc quá hạn ≥ 12 giờ: background worker quét xuyên dòng họ, xác định Trưởng chi (`representative_id`) của nhánh phụ trách, ghi vết `OverdueAlert12H` một lần duy nhất và gửi thông báo nêu công việc, người phụ trách, số giờ quá hạn.
 
 ### 3. 🛠 Quy Chuẩn & Hướng Dẫn Phát Triển ([`docs/guidelines/`](./guidelines/))
 * **[`development-guide.md`](./guidelines/development-guide.md)**: Hướng dẫn thiết lập môi trường cho dev mới (JDK 25, cấu hình `.env` cho Neon Cloud, Docker Compose cho Swagger/Adminer, lệnh biên dịch Gradle, chạy test suite 275 tests, chạy backend).

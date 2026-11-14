@@ -32,19 +32,25 @@ public interface NotificationSender {
     void sendTaskAssignedNotification(String clanId, String eventId, String taskId, String title, String content, List<String> recipientMemberIds);
 
     /**
-     * Sends a progress warning for an unfinished task that is about to reach its deadline (US-08).
-     * Invoked by the background deadline scanner, so {@code recipientMemberId} is the task's
-     * {@code assigned_member_id} and {@code recipientAccountId} the linked user account used as
-     * delivery channel.
+     * Sends a progress warning for an unfinished task, invoked by the background deadline worker.
+     *
+     * <p>Two passes use this port:</p>
+     * <ul>
+     *   <li>{@code Reminder24H} (US-08): {@code recipientMemberId} is the task's {@code assigned_member_id}
+     *       (the person who has to finish the work);</li>
+     *   <li>{@code OverdueAlert12H} (US-47): {@code recipientMemberId} is the representative of the branch
+     *       responsible for the task, i.e. the manager being escalated to — the content names the
+     *       assignee and how many hours the task is late.</li>
+     * </ul>
      *
      * @param clanId            the tenant clan ID
      * @param eventId           the event ID
      * @param taskId            the task ID
      * @param alertLevel        alert level persisted in `task_progress_alerts`
      * @param title             title of the warning notification
-     * @param content           detailed warning content (deadline, remaining time, assignee)
-     * @param recipientMemberId member ID of the assignee (task's assigned_member_id)
-     * @param recipientAccountId user account ID of the assignee
+     * @param content           detailed warning content (deadline, remaining/overdue time, assignee)
+     * @param recipientMemberId member ID of the recipient (assignee for 24h, branch representative for 12h overdue)
+     * @param recipientAccountId user account ID of the recipient
      */
     void sendTaskProgressWarning(String clanId, String eventId, String taskId, TaskAlertLevel alertLevel,
                                  String title, String content, String recipientMemberId, String recipientAccountId);
