@@ -150,7 +150,8 @@ family-management-backend/
 │   │   ├── US-04-child-branches-and-hierarchy.md # Đặc tả US-04 Quản lý chi phái phả hệ
 │   │   ├── US-16-general-clan-invite.md          # Đặc tả US-16 Mã mời chung dòng họ
 │   │   ├── US-18-create-virtual-member-and-generate-position-link-code.md # Đặc tả US-18 Hồ sơ ảo & mã liên kết vị trí
-│   │   └── US-19-enter-position-link-code-and-join-automatically.md # Đặc tả US-19 Nhập mã liên kết khi đăng ký & tự động gia nhập
+│   │   ├── US-19-enter-position-link-code-and-join-automatically.md # Đặc tả US-19 Nhập mã liên kết khi đăng ký & tự động gia nhập
+│   │   └── US-47-task-overdue-12h-escalation.md # Đặc tả US-47 Leo thang cảnh báo công việc quá hạn 12h
 │   └── guidelines/            # Quy chuẩn phát triển & coding conventions
 │       ├── development-guide.md
 │       └── modulith-rules.md

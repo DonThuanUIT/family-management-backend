@@ -33,6 +33,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-32** | **Đính Kèm Ảnh Chân Dung, Tiểu Sử Và Tư Liệu Gia Sử Vào Hồ Sơ Thành Viên** | `com.familyfund.genealogy` & `core.storage` | **Backend đã kiểm chứng Supabase thật; đã bỏ local; chờ frontend** | [`US-32-member-portrait-biography-and-family-documents.md`](./US-32-member-portrait-biography-and-family-documents.md) |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-47** | **Leo Thang Cảnh Báo Công Việc Quá Hạn 12 Giờ (Overdue Escalation → Trưởng chi)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-47-task-overdue-12h-escalation.md`](./US-47-task-overdue-12h-escalation.md) |
 
 ---
 

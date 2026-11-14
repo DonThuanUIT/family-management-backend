@@ -25,6 +25,7 @@ public class TaskProgressAlertServiceImpl implements TaskProgressAlertService {
 
     private final EventTaskRepository eventTaskRepository;
     private final TaskProgressWarningIssuer warningIssuer;
+    private final TaskOverdueEscalationIssuer overdueEscalationIssuer;
 
     @Override
     public int scanAndWarnUpcomingDeadlines() {
@@ -55,6 +56,39 @@ public class TaskProgressAlertServiceImpl implements TaskProgressAlertService {
         }
 
         log.info("US-08 deadline scan: issued {} progress warning(s)", issued);
+        return issued;
+    }
+
+    @Override
+    public int scanAndEscalateOverdueTasks() {
+        Instant now = Instant.now();
+        Instant overdueBefore = now.minus(TaskOverdueEscalationIssuer.ESCALATION_DELAY);
+
+        List<EventTask> candidates = eventTaskRepository.findUnfinishedTasksOverdueBefore(
+                overdueBefore, TaskStatus.Completed);
+
+        if (candidates.isEmpty()) {
+            log.debug("US-47 escalation scan: no unfinished task overdue by more than {}h",
+                    TaskOverdueEscalationIssuer.ESCALATION_DELAY.toHours());
+            return 0;
+        }
+
+        log.info("US-47 escalation scan: {} unfinished task(s) overdue by more than {}h",
+                candidates.size(), TaskOverdueEscalationIssuer.ESCALATION_DELAY.toHours());
+
+        int issued = 0;
+        for (EventTask task : candidates) {
+            try {
+                if (overdueEscalationIssuer.issueOverdueEscalation(task.getTaskId(), now)) {
+                    issued++;
+                }
+            } catch (RuntimeException ex) {
+                // Isolate failures: the remaining overdue tasks of this pass must still be escalated.
+                log.error("US-47 escalation scan: failed to escalate overdue task [{}]", task.getTaskId(), ex);
+            }
+        }
+
+        log.info("US-47 escalation scan: issued {} overdue escalation(s)", issued);
         return issued;
     }
 }

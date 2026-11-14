@@ -64,3 +64,7 @@ app:
         enabled: ${APP_TASK_DEADLINE_WARNING_ENABLED:true}
         interval-ms: ${APP_TASK_DEADLINE_WARNING_INTERVAL_MS:900000}
         initial-delay-ms: ${APP_TASK_DEADLINE_WARNING_INITIAL_DELAY_MS:60000}
+      deadline-overdue:
+        # US-08 escalation: scanning unfinished tasks overdue by 12h or more (alert to the branch representative)
+        interval-ms: ${APP_TASK_DEADLINE_OVERDUE_INTERVAL_MS:900000}
+        initial-delay-ms: ${APP_TASK_DEADLINE_OVERDUE_INITIAL_DELAY_MS:120000}
