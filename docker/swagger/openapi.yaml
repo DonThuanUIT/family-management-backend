@@ -2494,6 +2494,180 @@ paths:
             enum: ["attachment", "inline"]
             default: "attachment"
 
+
+  /notifications:
+    get:
+      summary: Hộp thư thông báo của người dùng đang đăng nhập (US-39)
+      description: |
+        Trả về thông báo của **chính người gọi**, mới nhất trước. Danh tính lấy từ JWT — không có tham số
+        accountId, nên không thể đọc hộp thư của tài khoản khác. size bị chặn tối đa 100.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Lọc theo nhóm thông báo; giá trị lạ trả 400.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+        - name: isRead
+          in: query
+          required: false
+          description: "false = chỉ thông báo chưa đọc, true = chỉ đã đọc, bỏ trống = tất cả."
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Trang thông báo của người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPageEnvelope"
+        '400':
+          description: Tham số không hợp lệ (ví dụ category=Bogus)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/unread-count:
+    get:
+      summary: Số thông báo chưa đọc của người gọi, tổng và theo nhóm (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Badge chưa đọc
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationUnreadCountEnvelope"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/{notificationId}/read:
+    patch:
+      summary: Đánh dấu một thông báo là đã đọc (is_read = true) (US-39)
+      description: |
+        Idempotent: gọi lại trên thông báo đã đọc giữ nguyên read_at. Thông báo của tài khoản khác trả 404
+        (không phải 403) để không thể dò id.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Thông báo sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEnvelope"
+        '404':
+          description: Không tìm thấy thông báo thuộc về người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+
+  /notifications/read-all:
+    patch:
+      summary: Đánh dấu tất cả thông báo chưa đọc của người gọi (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Chỉ đánh dấu trong một nhóm; bỏ trống = cả ba nhóm.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+      responses:
+        '200':
+          description: Số thông báo đã cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationMarkAllEnvelope"
+
+  /notifications/device-tokens:
+    post:
+      summary: Đăng ký thiết bị nhận push notification (FCM registration token) (US-39)
+      description: |
+        fcm_token là UNIQUE: đăng ký lại một token đã tồn tại sẽ chuyển quyền sở hữu sang tài khoản đang
+        đăng nhập (thiết bị dùng chung / đăng nhập lại) thay vì tạo bản ghi trùng.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationDeviceTokenRequest"
+      responses:
+        '201':
+          description: Đã đăng ký thiết bị
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationDeviceTokenEnvelope"
+        '400':
+          description: Token rỗng/quá 255 ký tự hoặc platform ngoài Android/IOS/Web
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+    delete:
+      summary: Huỷ đăng ký thiết bị (gọi khi logout) (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fcmToken
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Token đã bị vô hiệu hoá (is_active = false)
+        '400':
+          description: Thiếu fcmToken
+
 components:
   securitySchemes:
     BearerAuth:
@@ -3671,3 +3845,193 @@ components:
                   format: "int64"
                 totalPages:
                   type: "integer"
+
+    NotificationCategory:
+      type: string
+      description: Ba nhóm thông báo của hộp thư (US-39), trùng ràng buộc CHECK của bảng notifications.
+      enum: ["Event", "Task", "Finance"]
+
+    Notification:
+      type: object
+      description: Một thông báo trong hộp thư cá nhân (US-39)
+      properties:
+        notificationId:
+          type: string
+          maxLength: 20
+          example: "NTC00K3F2A9Z8Y7"
+        clanId:
+          type: string
+          maxLength: 20
+          example: "CLAN_DEFAULT"
+        category:
+          $ref: "#/components/schemas/NotificationCategory"
+        title:
+          type: string
+          maxLength: 200
+          example: "Bạn được giao việc: Chuẩn bị mâm cỗ"
+        content:
+          type: string
+          example: "Sự kiện Giỗ tổ: công việc Chuẩn bị mâm cỗ, hạn chót 20/04/2026 10:00."
+        referenceType:
+          type: string
+          maxLength: 30
+          nullable: true
+          example: "TASK"
+        referenceId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "TSK00K3F2A9Z8Y7"
+        isRead:
+          type: boolean
+          example: false
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    NotificationPageData:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+
+    NotificationPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Lấy danh sách thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationPageData"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Đã đánh dấu thông báo là đã đọc"
+        data:
+          $ref: "#/components/schemas/Notification"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationUnreadCount:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 4
+        byCategory:
+          type: object
+          properties:
+            event:
+              type: integer
+              format: int64
+            task:
+              type: integer
+              format: int64
+            finance:
+              type: integer
+              format: int64
+
+    NotificationUnreadCountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/NotificationUnreadCount"
+
+    NotificationMarkAllEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đã đánh dấu tất cả thông báo là đã đọc"
+        data:
+          type: object
+          properties:
+            markedCount:
+              type: integer
+              example: 9
+
+    NotificationDeviceTokenRequest:
+      type: object
+      required: ["fcmToken"]
+      properties:
+        fcmToken:
+          type: string
+          maxLength: 255
+          example: "fcm-demo-token-001"
+        platform:
+          type: string
+          enum: ["Android", "IOS", "Web"]
+          default: "Android"
+
+    NotificationDeviceTokenResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          maxLength: 20
+          example: "DVT00K3F2A9Z8Y7"
+        platform:
+          type: string
+          example: "Android"
+
+    NotificationDeviceTokenEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đăng ký thiết bị nhận thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationDeviceTokenResponse"
+
+    NotificationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          nullable: true

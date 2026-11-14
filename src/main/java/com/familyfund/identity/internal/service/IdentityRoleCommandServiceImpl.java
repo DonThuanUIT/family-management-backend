@@ -63,6 +63,25 @@ public class IdentityRoleCommandServiceImpl implements IdentityRoleCommandServic
 
     @Override
     @Transactional(readOnly = true)
+    public List<AccountSummaryDto> findActiveAccountsByClan(String clanId) {
+        if (clanId == null || clanId.isBlank()) {
+            return List.of();
+        }
+        List<String> memberIds = genealogyQueryService.findAllAliveMembersByClanId(clanId.trim()).stream()
+                .map(MemberSummaryDto::memberId)
+                .filter(memberId -> memberId != null && !memberId.isBlank())
+                .toList();
+        if (memberIds.isEmpty()) {
+            return List.of();
+        }
+        return userAccountRepository.findByMemberIdIn(memberIds).stream()
+                .filter(account -> account.getAccountStatus() == AccountStatus.Active)
+                .map(this::toAccountSummaryDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public AccountSummaryDto requireActiveAccountByMemberId(String memberId, String clanId) {
         if (memberId == null || memberId.isBlank()) {
             throw new BadRequestException("Mã thành viên không được để trống");

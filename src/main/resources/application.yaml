@@ -68,3 +68,15 @@ app:
         # US-08 escalation: scanning unfinished tasks overdue by 12h or more (alert to the branch representative)
         interval-ms: ${APP_TASK_DEADLINE_OVERDUE_INTERVAL_MS:900000}
         initial-delay-ms: ${APP_TASK_DEADLINE_OVERDUE_INITIAL_DELAY_MS:120000}
+  notification:
+    # US-39: personal inbox (3 categories) + push delivery
+    inbox:
+      # Mirror event/task domain events into the inbox of every concerned account
+      enabled: ${APP_NOTIFICATION_INBOX_ENABLED:true}
+    push:
+      # log = no Firebase project needed (payload is written to the application log); fcm = Firebase Cloud Messaging HTTP v1
+      provider: ${APP_NOTIFICATION_PUSH_PROVIDER:log}
+      project-id: ${APP_NOTIFICATION_FCM_PROJECT_ID:}
+      service-account-path: ${APP_NOTIFICATION_FCM_SERVICE_ACCOUNT_PATH:}
+      token-uri: ${APP_NOTIFICATION_FCM_TOKEN_URI:https://oauth2.googleapis.com/token}
+      base-url: ${APP_NOTIFICATION_FCM_BASE_URL:https://fcm.googleapis.com}

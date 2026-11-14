@@ -74,6 +74,9 @@ class TaskProgressWarningIssuerTest {
     @Mock
     private NotificationSender notificationSender;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+
     @InjectMocks
     private TaskProgressWarningIssuer issuer;
 

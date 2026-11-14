@@ -81,6 +81,9 @@ class TaskOverdueEscalationIssuerTest {
     @Mock
     private NotificationSender notificationSender;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+
     @InjectMocks
     private TaskOverdueEscalationIssuer issuer;
 

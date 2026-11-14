@@ -7,6 +7,8 @@ import com.familyfund.event.internal.entity.Event;
 import com.familyfund.event.internal.entity.EventTask;
 import com.familyfund.event.internal.entity.TaskProgressAlert;
 import com.familyfund.event.internal.notification.NotificationSender;
+import com.familyfund.event.api.event.TaskProgressAlertIssuedDomainEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.familyfund.event.internal.repository.EventRepository;
 import com.familyfund.event.internal.repository.EventTaskRepository;
 import com.familyfund.event.internal.repository.TaskProgressAlertRepository;
@@ -58,6 +60,7 @@ public class TaskOverdueEscalationIssuer {
     private final GenealogyQueryService genealogyQueryService;
     private final IdentityRoleCommandService identityRoleCommandService;
     private final NotificationSender notificationSender;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     /**
      * Evaluates one overdue task and, when all escalation conditions hold, persists the
@@ -160,6 +163,19 @@ public class TaskOverdueEscalationIssuer {
                 representativeMemberId,
                 representativeAccount.get().accountId()
         );
+
+        // US-39: let the notification module mirror this escalation into the representative's personal inbox.
+        applicationEventPublisher.publishEvent(new TaskProgressAlertIssuedDomainEvent(
+                event.getClanId(),
+                event.getEventId(),
+                task.getTaskId(),
+                task.getTaskName(),
+                TaskAlertLevel.OverdueAlert12H.name(),
+                title,
+                content,
+                representativeMemberId,
+                representativeAccount.get().accountId()
+        ));
 
         log.info("US-47 escalation: alert [{}] issued for overdue task [{}] ({} late) to branch [{}] representative [{}]",
                 alert.getAlertId(), task.getTaskId(), formatOverdue(overdue), branchId, representativeMemberId);

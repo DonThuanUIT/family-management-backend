@@ -7,6 +7,8 @@ import com.familyfund.event.internal.entity.Event;
 import com.familyfund.event.internal.entity.EventTask;
 import com.familyfund.event.internal.entity.TaskProgressAlert;
 import com.familyfund.event.internal.notification.NotificationSender;
+import com.familyfund.event.api.event.TaskProgressAlertIssuedDomainEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.familyfund.event.internal.repository.EventRepository;
 import com.familyfund.event.internal.repository.EventTaskRepository;
 import com.familyfund.event.internal.repository.TaskProgressAlertRepository;
@@ -46,6 +48,7 @@ public class TaskProgressWarningIssuer {
     private final AlertIdGenerator alertIdGenerator;
     private final IdentityRoleCommandService identityRoleCommandService;
     private final NotificationSender notificationSender;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     /**
      * Evaluates one task and, when all US-08 conditions hold, persists the progress alert and
@@ -118,6 +121,19 @@ public class TaskProgressWarningIssuer {
                 memberId,
                 account.get().accountId()
         );
+
+        // US-39: let the notification module mirror this alert into the recipient's personal inbox.
+        applicationEventPublisher.publishEvent(new TaskProgressAlertIssuedDomainEvent(
+                event.getClanId(),
+                event.getEventId(),
+                task.getTaskId(),
+                task.getTaskName(),
+                TaskAlertLevel.Reminder24H.name(),
+                title,
+                content,
+                memberId,
+                account.get().accountId()
+        ));
 
         log.info("US-08: progress warning [{}] issued for task [{}] (deadline {}) to member [{}]",
                 alert.getAlertId(), task.getTaskId(), task.getDeadline(), memberId);
