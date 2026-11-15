@@ -43,8 +43,8 @@ server:
 
 app:
   storage:
-    supabase-url: ${SUPABASE_URL:}
-    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    supabase-url: ${SUPABASE_URL:https://storage.example.invalid}
+    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:sb_secret_local_dev}
     bucket: ${APP_STORAGE_BUCKET:member-media}
     quota-bytes: ${APP_STORAGE_QUOTA_BYTES:524288000}
     max-attachments: ${APP_STORAGE_MAX_ATTACHMENTS:20}
