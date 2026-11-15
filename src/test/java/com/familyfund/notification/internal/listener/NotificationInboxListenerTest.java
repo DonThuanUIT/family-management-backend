@@ -2,6 +2,7 @@ package com.familyfund.notification.internal.listener;
 
 import com.familyfund.event.api.dto.AssignableRoleCode;
 import com.familyfund.event.api.dto.RoleActionType;
+import com.familyfund.event.api.event.DeathAnniversaryReminderIssuedDomainEvent;
 import com.familyfund.event.api.event.EventOpenedDomainEvent;
 import com.familyfund.event.api.event.EventScheduleChangedDomainEvent;
 import com.familyfund.event.api.event.RoleChangedDomainEvent;
@@ -245,6 +246,53 @@ class NotificationInboxListenerTest {
         listener.onRoleChanged(new RoleChangedDomainEvent("AUD_3", CLAN, "ACC_ACTOR", "MEM_TARGET",
                 null, RoleActionType.ASSIGN, AssignableRoleCode.OrganizerMember,
                 null, null, null, null, Instant.now()));
+
+        verifyNoInteractions(notificationService);
+    }
+
+    // ------------------------------------------------------------------ death anniversaries (US-40)
+
+    @Test
+    @DisplayName("a death-anniversary reminder fills the inbox of every resolved recipient")
+    void deathAnniversaryReminderFansOut() {
+        listener.onDeathAnniversaryReminderIssued(new DeathAnniversaryReminderIssuedDomainEvent(
+                CLAN, "MEM_GIO", "Cụ Nguyễn Văn An", BRANCH_ID, "Chi Một",
+                java.time.LocalDate.of(2026, 4, 2), 2026, "15/02 Bính Ngọ", 14, 14,
+                "Nhắc giỗ Cụ Nguyễn Văn An — còn 14 ngày",
+                "Ngày giỗ Cụ Nguyễn Văn An: 15/02 Bính Ngọ, rơi vào 2026-04-02 — còn 14 ngày.",
+                List.of("ACC_REP", "ACC_MEMBER")));
+
+        List<NotificationCommand> commands = capturedCommands(2);
+        assertThat(commands).extracting(NotificationCommand::recipientAccountId)
+                .containsExactly("ACC_REP", "ACC_MEMBER");
+        assertThat(commands).allSatisfy(command -> {
+            assertThat(command.category()).isEqualTo(NotificationCategory.Event);
+            assertThat(command.clanId()).isEqualTo(CLAN);
+            assertThat(command.title()).isEqualTo("Nhắc giỗ Cụ Nguyễn Văn An — còn 14 ngày");
+            assertThat(command.content()).contains("15/02 Bính Ngọ").contains("còn 14 ngày");
+            assertThat(command.referenceType()).isEqualTo("DEATH_ANNIVERSARY");
+            assertThat(command.referenceId()).isEqualTo("MEM_GIO");
+        });
+    }
+
+    @Test
+    @DisplayName("a death-anniversary reminder without recipients writes nothing")
+    void deathAnniversaryReminderWithoutRecipients() {
+        listener.onDeathAnniversaryReminderIssued(new DeathAnniversaryReminderIssuedDomainEvent(
+                CLAN, "MEM_GIO", "Cụ Nguyễn Văn An", BRANCH_ID, "Chi Một",
+                java.time.LocalDate.of(2026, 4, 2), 2026, "15/02 Bính Ngọ", 3, 3,
+                "title", "content", List.of()));
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("a death-anniversary reminder with a blank clan is ignored")
+    void deathAnniversaryReminderWithoutClan() {
+        listener.onDeathAnniversaryReminderIssued(new DeathAnniversaryReminderIssuedDomainEvent(
+                "  ", "MEM_GIO", "Cụ Nguyễn Văn An", BRANCH_ID, "Chi Một",
+                java.time.LocalDate.of(2026, 4, 2), 2026, "15/02 Bính Ngọ", 3, 3,
+                "title", "content", List.of("ACC_REP")));
 
         verifyNoInteractions(notificationService);
     }

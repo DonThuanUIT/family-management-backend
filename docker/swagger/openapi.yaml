@@ -610,6 +610,103 @@ paths:
         '201':
           description: Tạo sự kiện thành công
 
+
+  /events/death-anniversaries:
+    get:
+      summary: Ngày giỗ sắp tới kèm payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      description: |
+        Đối chiếu ngày giỗ âm lịch (members.death_date_lunar, US-27) với lịch hiện tại và trả về các ngày giỗ
+        rơi vào cửa sổ N ngày tới. Mỗi phần tử có sẵn `suggestion.requestBody` — gửi nguyên văn tới
+        POST /api/v1/events để tạo sự kiện Đám giỗ mà không cần client tự quy đổi âm lịch.
+        Khi sự kiện cho ngày giỗ đó đã tồn tại (trùng ngày hoặc trùng nhãn âm lịch trong năm), `suggestion` là null.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Ngày bắt đầu cửa sổ (yyyy-MM-dd). Bỏ trống = hôm nay (giờ Việt Nam).
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+        - name: days
+          in: query
+          required: false
+          description: Độ dài cửa sổ tính bằng ngày. Bỏ trống hoặc 0 = cấu hình app.death-anniversary.window-days.
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Danh sách ngày giỗ trong cửa sổ, sắp theo ngày
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryListEnvelope"
+        '400':
+          description: Tham số from sai định dạng yyyy-MM-dd
+        '401':
+          description: Chưa xác thực
+
+  /events/death-anniversaries/{memberId}/reminders:
+    get:
+      summary: Lịch sử nhắc giỗ đã gửi cho một thành viên (US-40)
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Các vết nhắc giỗ đã ghi (mới nhất trước)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryReminderListEnvelope"
+        '404':
+          description: Không tìm thấy thành viên trong dòng họ hiện hành
+
+  /events/death-anniversaries/scan:
+    post:
+      summary: Chạy ngay lượt đối chiếu ngày giỗ (Trưởng tộc / Admin) (US-40)
+      description: |
+        Cùng code path với cron job hằng ngày (idempotent theo mốc đã gửi), dùng để chạy bù một lượt bị lỡ
+        hoặc để kiểm chứng tính năng mà không phải chờ 07:00.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: Ngày mốc để đối chiếu (yyyy-MM-dd). Bỏ trống = hôm nay.
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+      responses:
+        '200':
+          description: Số nhắc giỗ đã gửi trong lượt chạy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryScanEnvelope"
+        '400':
+          description: Tham số date sai định dạng yyyy-MM-dd
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+
   /events/{eventId}:
     get:
       summary: Xem chi tiết sự kiện và ban tổ chức (US-21)
@@ -4035,3 +4132,200 @@ components:
         errors:
           type: object
           nullable: true
+
+    DeathAnniversary:
+      type: object
+      description: Một ngày giỗ của thành viên đã mất, nhìn từ một ngày mốc (US-40)
+      properties:
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        memberFullName:
+          type: string
+          example: "Cụ Nguyễn Văn An"
+        generation:
+          type: integer
+          example: 2
+        branchId:
+          type: string
+          example: "BR_CHI_1"
+        branchName:
+          type: string
+          nullable: true
+          example: "Chi Một"
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+          example: "2020-01-08"
+        deathDateLunar:
+          type: string
+          description: Chuỗi ngày giỗ âm lịch đã lưu (US-27)
+          example: "15/02 Bính Ngọ"
+        lunarDay:
+          type: integer
+          example: 15
+        lunarMonth:
+          type: integer
+          example: 2
+        leapMonth:
+          type: boolean
+          example: false
+        anniversaryYear:
+          type: integer
+          example: 2026
+        anniversaryDate:
+          type: string
+          format: date
+          description: Ngày Dương lịch của lần giỗ năm nay
+          example: "2026-04-02"
+        daysRemaining:
+          type: integer
+          format: int64
+          description: Số ngày từ ngày mốc tới ngày giỗ (0 = hôm nay là ngày giỗ)
+          example: 14
+        milestoneDays:
+          type: integer
+          nullable: true
+          description: Mốc nhắc khớp (14 hoặc 3), null khi ngày mốc không phải mốc nhắc
+          example: 14
+        reminderTriggered:
+          type: boolean
+          example: true
+        alreadyReminded:
+          type: boolean
+          example: true
+        suggestion:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/EventSuggestion"
+        computedAt:
+          type: string
+          format: date-time
+
+    EventSuggestion:
+      type: object
+      description: Payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      properties:
+        suggestionId:
+          type: string
+          description: Id tổng hợp cho client (không lưu CSDL)
+          example: "GSU00K3F2A9Z8Y7"
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        eventName:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (15/02 Bính Ngọ)"
+        eventDatetime:
+          type: string
+          format: date-time
+          example: "2026-04-02T01:00:00Z"
+        eventDateLunar:
+          type: string
+          example: "15/02 Bính Ngọ"
+        location:
+          type: string
+          example: "Chi Một"
+        estimatedBudget:
+          type: number
+          format: double
+          nullable: true
+          example: 5000000
+        description:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (đời thứ 2) — giỗ năm 2026, 15/02 Bính Ngọ, chi/nhánh Chi Một."
+        daysRemaining:
+          type: integer
+          format: int64
+          example: 14
+        requestBody:
+          type: object
+          description: Body gửi thẳng tới POST /api/v1/events (cùng tên trường với CreateEventRequest)
+          properties:
+            eventName:
+              type: string
+            eventDatetime:
+              type: string
+              format: date-time
+            eventDateLunar:
+              type: string
+            location:
+              type: string
+            estimatedBudget:
+              type: number
+              format: double
+              nullable: true
+            description:
+              type: string
+
+    DeathAnniversaryListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Lấy danh sách ngày giỗ sắp tới thành công"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversary"
+
+    DeathAnniversaryReminder:
+      type: object
+      description: Vết đã gửi nhắc giỗ (US-40)
+      properties:
+        reminderId:
+          type: string
+          example: "GIO00K3F2A9Z8Y7"
+        memberId:
+          type: string
+        anniversaryYear:
+          type: integer
+          example: 2026
+        lunarYear:
+          type: integer
+          example: 2026
+        milestoneDays:
+          type: integer
+          example: 14
+        anniversaryDate:
+          type: string
+          format: date
+        triggerDate:
+          type: string
+          format: date
+        recipientCount:
+          type: integer
+          example: 3
+
+    DeathAnniversaryReminderListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversaryReminder"
+
+    DeathAnniversaryScanEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Chạy đối chiếu ngày giỗ thành công"
+        data:
+          type: object
+          properties:
+            remindersSent:
+              type: integer
+              example: 2
+            referenceDate:
+              type: string
+              format: date
