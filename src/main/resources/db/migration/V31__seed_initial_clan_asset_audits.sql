@@ -2,6 +2,37 @@
 -- V31: Seed initial asset audit log history for clan assets (US-52, Task #184)
 -- ==============================================================================
 
+-- 1. Ensure referenced assets exist in clan_assets
+INSERT INTO clan_assets (
+    asset_id, clan_id, asset_name, quantity, unit,
+    assessed_value, storage_location, origin_contribution_id, created_at
+)
+VALUES
+    (
+        'AST-2026-004',
+        'CLAN_DEFAULT',
+        'Đôi lọ lục bình sứ Bát Tràng men rạn vẽ tứ linh',
+        2,
+        'đôi',
+        15000000.00,
+        'Hai bên hương án chính điện Từ Đường',
+        NULL,
+        CURRENT_TIMESTAMP - INTERVAL '200 days'
+    ),
+    (
+        'AST-2026-005',
+        'CLAN_DEFAULT',
+        'Đại hồng chung đồng đỏ đúc thủ công',
+        1,
+        'chiếc',
+        35000000.00,
+        'Gác chuông Từ Đường Dòng Họ',
+        NULL,
+        CURRENT_TIMESTAMP - INTERVAL '300 days'
+    )
+ON CONFLICT (asset_id) DO NOTHING;
+
+-- 2. Seed initial audit log history
 INSERT INTO clan_asset_audits (
     audit_id, asset_id, audit_date, previous_quantity, actual_quantity,
     previous_condition, condition_status, storage_location, auditor_account_id, notes, created_at
