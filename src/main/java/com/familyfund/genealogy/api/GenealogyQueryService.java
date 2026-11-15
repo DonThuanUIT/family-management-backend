@@ -2,6 +2,7 @@ package com.familyfund.genealogy.api;
 
 import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
+import com.familyfund.genealogy.api.dto.DeceasedMemberDto;
 import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 
@@ -100,6 +101,24 @@ public interface GenealogyQueryService {
      * Retrieves all living members belonging to a clan.
      */
     List<MemberSummaryDto> findAllAliveMembersByClanId(String clanId);
+
+    /**
+     * Deceased members of one clan that carry a lunar death-anniversary string (US-40).
+     *
+     * @param clanId tenant clan
+     * @return candidates of the daily anniversary job, ceremonial fields only
+     */
+    List<DeceasedMemberDto> findDeceasedMembersWithAnniversary(String clanId);
+
+    /**
+     * Deceased members of EVERY clan that carry a lunar death-anniversary string.
+     *
+     * <p>Used by the daily cron pass, which runs outside any request and therefore has no tenant context; the
+     * caller groups the result by {@code clanId}.</p>
+     *
+     * @return every candidate in the database
+     */
+    List<DeceasedMemberDto> findAllDeceasedMembersWithAnniversary();
 
     /**
      * Checks if a member is currently assigned as representative of any branch in the clan.

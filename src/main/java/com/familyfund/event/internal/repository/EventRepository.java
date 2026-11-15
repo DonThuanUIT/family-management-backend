@@ -16,6 +16,20 @@ public interface EventRepository extends JpaRepository<Event, String> {
 
     List<Event> findAllByClanIdOrderByEventDatetimeDesc(String clanId);
 
+    /**
+     * Events of one clan whose start falls inside {@code [from, to)} — used by the US-40 anniversary matcher to know
+     * whether the suggested "Đám giỗ" event already exists, without loading the whole event list of the clan.
+     */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.clanId = :clanId
+              AND e.eventDatetime >= :from
+              AND e.eventDatetime < :to
+            """)
+    List<Event> findEventsInWindow(@Param("clanId") String clanId,
+                                   @Param("from") java.time.Instant from,
+                                   @Param("to") java.time.Instant to);
+
     boolean existsByEventIdAndClanId(String eventId, String clanId);
 
     @Query("""

@@ -33,6 +33,11 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-32** | **Đính Kèm Ảnh Chân Dung, Tiểu Sử Và Tư Liệu Gia Sử Vào Hồ Sơ Thành Viên** | `com.familyfund.genealogy` & `core.storage` | **Backend đã kiểm chứng Supabase thật; đã bỏ local; chờ frontend** | [`US-32-member-portrait-biography-and-family-documents.md`](./US-32-member-portrait-biography-and-family-documents.md) |
 | **US-26** | **Ghi Nhận Giao Dịch Vào Sổ Cái Bất Biến (Immutable Ledger)** | `com.familyfund.finance` | 📝 *Kế hoạch* | *Chưa khởi tạo* |
 | **US-30** | **Tiếp Nhận Đóng Góp Quỹ Đa Hình (Tiền/Hiện Vật)** | `com.familyfund.contribution`| 📝 *Kế hoạch* | *Chưa khởi tạo* |
+| **US-47** | **Leo Thang Cảnh Báo Công Việc Quá Hạn 12 Giờ (Overdue Escalation → Trưởng chi)** | `com.familyfund.event` | ✅ **Đã hoàn thành** | [`US-47-task-overdue-12h-escalation.md`](./US-47-task-overdue-12h-escalation.md) |
+| **US-39** | **NotificationService Đa Nhóm (Events/Tasks/Finance), Push FCM & API Đánh Dấu Đã Đọc** | `com.familyfund.notification` | ✅ **Đã hoàn thành (Backend)** | [`US-39-notification-service-fcm-and-read-state.md`](./US-39-notification-service-fcm-and-read-state.md) |
+| **US-40** | **Cron Job Hằng Ngày Đối Chiếu Ngày Giỗ Âm Lịch & Gợi Ý Sự Kiện "Đám Giỗ"** | `com.familyfund.event` & `genealogy` | ✅ **Đã hoàn thành (Backend)** | [`US-40-daily-death-anniversary-reminder-and-event-suggestion.md`](./US-40-daily-death-anniversary-reminder-and-event-suggestion.md) |
+| **US-46** | **Quản Lý Phiếu Tạm Ứng Sự Kiện (BTC Lập Phiếu & Thủ Quỹ Xác Nhận Giao Tiền)** | `com.familyfund.finance` | ✅ **Đã hoàn thành (Backend)** | [`US-46-event-advance-voucher-management.md`](./US-46-event-advance-voucher-management.md) |
+| **US-48** | **Background Job Quét Phiếu Tạm Ứng Quá Hạn & Cảnh Báo Đồng Thời (Người Nhận & BTC)** | `com.familyfund.finance` | ✅ **Đã hoàn thành (Backend)** | [`US-48-advance-voucher-overdue-job.md`](./US-48-advance-voucher-overdue-job.md) |
 
 ---
 

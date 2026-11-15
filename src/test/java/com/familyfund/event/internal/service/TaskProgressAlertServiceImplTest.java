@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -37,6 +38,9 @@ class TaskProgressAlertServiceImplTest {
 
     @Mock
     private TaskProgressWarningIssuer warningIssuer;
+
+    @Mock
+    private TaskOverdueEscalationIssuer overdueEscalationIssuer;
 
     @InjectMocks
     private TaskProgressAlertServiceImpl service;
@@ -113,5 +117,55 @@ class TaskProgressAlertServiceImplTest {
 
         assertEquals(0, issued);
         verify(warningIssuer, times(0)).issueProgressWarning(any(), any());
+    }
+
+    // ------------------------------------------------ US-47 escalation pass (12h overdue)
+
+    @Test
+    @DisplayName("Escalation pass counts only the escalations actually issued")
+    void countsIssuedEscalations() {
+        when(eventTaskRepository.findUnfinishedTasksOverdueBefore(any(), eq(TaskStatus.Completed)))
+                .thenReturn(List.of(task("TSK_LATE_1"), task("TSK_LATE_2")));
+        when(overdueEscalationIssuer.issueOverdueEscalation(eq("TSK_LATE_1"), any())).thenReturn(true);
+        when(overdueEscalationIssuer.issueOverdueEscalation(eq("TSK_LATE_2"), any())).thenReturn(false);
+
+        int issued = service.scanAndEscalateOverdueTasks();
+
+        assertEquals(1, issued);
+        verify(overdueEscalationIssuer, times(2)).issueOverdueEscalation(any(String.class), any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("Escalation pass looks for deadlines at least 12 hours in the past")
+    void usesTwelveHourOverdueThreshold() {
+        when(eventTaskRepository.findUnfinishedTasksOverdueBefore(any(), eq(TaskStatus.Completed)))
+                .thenReturn(List.of());
+
+        service.scanAndEscalateOverdueTasks();
+
+        ArgumentCaptor<Instant> overdueBeforeCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(eventTaskRepository).findUnfinishedTasksOverdueBefore(
+                overdueBeforeCaptor.capture(), eq(TaskStatus.Completed));
+
+        Duration lateness = Duration.between(overdueBeforeCaptor.getValue(), Instant.now());
+        assertTrue(lateness.compareTo(Duration.ofHours(12)) >= 0,
+                "Threshold must be at least 12h before the scan instant, was " + lateness);
+        assertTrue(lateness.compareTo(Duration.ofHours(12).plusMinutes(1)) < 0,
+                "Threshold must be computed from the scan instant, was " + lateness);
+    }
+
+    @Test
+    @DisplayName("A failing escalation does not abort the pass: remaining overdue tasks are still escalated")
+    void isolatesEscalationFailuresPerTask() {
+        when(eventTaskRepository.findUnfinishedTasksOverdueBefore(any(), eq(TaskStatus.Completed)))
+                .thenReturn(List.of(task("TSK_LATE_BOOM"), task("TSK_LATE_OK")));
+        when(overdueEscalationIssuer.issueOverdueEscalation(eq("TSK_LATE_BOOM"), any()))
+                .thenThrow(new IllegalStateException("notification provider down"));
+        when(overdueEscalationIssuer.issueOverdueEscalation(eq("TSK_LATE_OK"), any())).thenReturn(true);
+
+        int issued = service.scanAndEscalateOverdueTasks();
+
+        assertEquals(1, issued);
+        verify(overdueEscalationIssuer).issueOverdueEscalation(eq("TSK_LATE_OK"), any());
     }
 }

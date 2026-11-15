@@ -69,6 +69,33 @@ public interface EventTaskRepository extends JpaRepository<EventTask, String> {
             @Param("completedStatus") TaskStatus completedStatus);
 
     /**
+     * Finds every unfinished task that went past its deadline at least {@code overdueBefore} ago,
+     * i.e. {@code deadline <= overdueBefore} where {@code overdueBefore = now - 12h} (US-47 escalation).
+     *
+     * <p>Like {@link #findUnfinishedTasksDueWithin}, this runs on the scheduler thread outside any
+     * HTTP request, so there is no {@code TenantContext} and no {@code clan_id} filter on purpose:
+     * the scan covers every clan and the owning clan is resolved from the loaded event.</p>
+     *
+     * <p>Tasks are only candidates when somebody can be held responsible: the task carries either a
+     * responsible branch ({@code assigned_branch_id}, whose representative is escalated to) or an
+     * assigned member (whose home branch is used as a fallback). Completed tasks are excluded.</p>
+     *
+     * @param overdueBefore   upper bound of the deadline; typically {@code now - 12h}
+     * @param completedStatus terminal status excluded from the scan
+     * @return overdue unfinished tasks, the most overdue first
+     */
+    @Query("""
+            SELECT t FROM EventTask t
+            WHERE t.status <> :completedStatus
+              AND t.deadline <= :overdueBefore
+              AND (t.assignedBranchId IS NOT NULL OR t.assignedMemberId IS NOT NULL)
+            ORDER BY t.deadline ASC
+            """)
+    List<EventTask> findUnfinishedTasksOverdueBefore(
+            @Param("overdueBefore") Instant overdueBefore,
+            @Param("completedStatus") TaskStatus completedStatus);
+
+    /**
      * Projection chứa số liệu ngân sách dự kiến công việc (`advance_budget`),
      * tổng tạm ứng (`advance_amount`) và tổng thực chi (`actual_expense_amount`)
      * của từng hạng mục công việc thuộc sự kiện (US-37).

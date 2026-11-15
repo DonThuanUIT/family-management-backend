@@ -610,6 +610,103 @@ paths:
         '201':
           description: Tạo sự kiện thành công
 
+
+  /events/death-anniversaries:
+    get:
+      summary: Ngày giỗ sắp tới kèm payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      description: |
+        Đối chiếu ngày giỗ âm lịch (members.death_date_lunar, US-27) với lịch hiện tại và trả về các ngày giỗ
+        rơi vào cửa sổ N ngày tới. Mỗi phần tử có sẵn `suggestion.requestBody` — gửi nguyên văn tới
+        POST /api/v1/events để tạo sự kiện Đám giỗ mà không cần client tự quy đổi âm lịch.
+        Khi sự kiện cho ngày giỗ đó đã tồn tại (trùng ngày hoặc trùng nhãn âm lịch trong năm), `suggestion` là null.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Ngày bắt đầu cửa sổ (yyyy-MM-dd). Bỏ trống = hôm nay (giờ Việt Nam).
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+        - name: days
+          in: query
+          required: false
+          description: Độ dài cửa sổ tính bằng ngày. Bỏ trống hoặc 0 = cấu hình app.death-anniversary.window-days.
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Danh sách ngày giỗ trong cửa sổ, sắp theo ngày
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryListEnvelope"
+        '400':
+          description: Tham số from sai định dạng yyyy-MM-dd
+        '401':
+          description: Chưa xác thực
+
+  /events/death-anniversaries/{memberId}/reminders:
+    get:
+      summary: Lịch sử nhắc giỗ đã gửi cho một thành viên (US-40)
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Các vết nhắc giỗ đã ghi (mới nhất trước)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryReminderListEnvelope"
+        '404':
+          description: Không tìm thấy thành viên trong dòng họ hiện hành
+
+  /events/death-anniversaries/scan:
+    post:
+      summary: Chạy ngay lượt đối chiếu ngày giỗ (Trưởng tộc / Admin) (US-40)
+      description: |
+        Cùng code path với cron job hằng ngày (idempotent theo mốc đã gửi), dùng để chạy bù một lượt bị lỡ
+        hoặc để kiểm chứng tính năng mà không phải chờ 07:00.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: Ngày mốc để đối chiếu (yyyy-MM-dd). Bỏ trống = hôm nay.
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+      responses:
+        '200':
+          description: Số nhắc giỗ đã gửi trong lượt chạy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryScanEnvelope"
+        '400':
+          description: Tham số date sai định dạng yyyy-MM-dd
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+
   /events/{eventId}:
     get:
       summary: Xem chi tiết sự kiện và ban tổ chức (US-21)
@@ -1023,6 +1120,187 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /advances:
+    post:
+      summary: Lập phiếu tạm ứng mới cho hạng mục sự kiện (US-46)
+      description: |
+        Ban tổ chức sự kiện (Trưởng ban, Thành viên BTC, Thủ quỹ) hoặc Trưởng tộc/Admin lập phiếu tạm ứng
+        gắn với một hạng mục công việc (event_tasks). Hệ thống tự sinh mã phiếu `ADV...`, khởi tạo trạng thái `ChoGiaoTien`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Mã dòng họ (Tenant ID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdvanceVoucherRequest'
+      responses:
+        '201':
+          description: Lập phiếu tạm ứng thành công (trạng thái ChoGiaoTien)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Danh sách phiếu tạm ứng có bộ lọc (US-46)
+      description: Tra cứu danh sách phiếu tạm ứng trong dòng họ, hỗ trợ lọc theo eventId, taskId, recipientMemberId, status.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: recipientMemberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
+      responses:
+        '200':
+          description: Danh sách phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherListEnvelope'
+
+  /advances/{id}:
+    get:
+      summary: Xem chi tiết phiếu tạm ứng (US-46)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/{id}/disburse:
+    post:
+      summary: Thủ quỹ xác nhận đã giao tiền tạm ứng (US-46)
+      description: |
+        Chỉ Thủ quỹ sự kiện (EventTreasurer) hoặc Trưởng tộc/Admin mới có quyền gọi.
+        Xác nhận tiền mặt/chuyển khoản đã được giao thực tế cho người nhận tạm ứng,
+        chuyển trạng thái phiếu từ `ChoGiaoTien` sang `ChuaTatToan`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmDisbursementRequest'
+      responses:
+        '200':
+          description: Xác nhận giao tiền thành công (trạng thái ChuaTatToan)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          description: Phiếu không ở trạng thái ChoGiaoTien hoặc dữ liệu không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Không có quyền Thủ quỹ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/scan-overdue:
+    post:
+      summary: Quét và cập nhật trạng thái phiếu tạm ứng quá hạn (US-48)
+      description: |
+        Job / API quét các phiếu trong ADVANCE_VOUCHER đang ở trạng thái chưa quyết toán (ChuaTatToan)
+        mà thời gian thực tế đã vượt quá hạn nộp chứng từ (settlement_deadline). Tự động đổi trạng thái
+        sang QuaHan ('Quá hạn quyết toán') và gửi cảnh báo đồng thời cho người nhận tiền và Ban tổ chức.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Kết quả quét và chuyển đổi phiếu quá hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverdueScanSummaryEnvelope'
+        '403':
+          description: Yêu cầu quyền CLAN_HEAD hoặc ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /events/{eventId}/advance-vouchers:
     post:
@@ -2494,6 +2772,180 @@ paths:
             enum: ["attachment", "inline"]
             default: "attachment"
 
+
+  /notifications:
+    get:
+      summary: Hộp thư thông báo của người dùng đang đăng nhập (US-39)
+      description: |
+        Trả về thông báo của **chính người gọi**, mới nhất trước. Danh tính lấy từ JWT — không có tham số
+        accountId, nên không thể đọc hộp thư của tài khoản khác. size bị chặn tối đa 100.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Lọc theo nhóm thông báo; giá trị lạ trả 400.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+        - name: isRead
+          in: query
+          required: false
+          description: "false = chỉ thông báo chưa đọc, true = chỉ đã đọc, bỏ trống = tất cả."
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Trang thông báo của người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPageEnvelope"
+        '400':
+          description: Tham số không hợp lệ (ví dụ category=Bogus)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/unread-count:
+    get:
+      summary: Số thông báo chưa đọc của người gọi, tổng và theo nhóm (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Badge chưa đọc
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationUnreadCountEnvelope"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/{notificationId}/read:
+    patch:
+      summary: Đánh dấu một thông báo là đã đọc (is_read = true) (US-39)
+      description: |
+        Idempotent: gọi lại trên thông báo đã đọc giữ nguyên read_at. Thông báo của tài khoản khác trả 404
+        (không phải 403) để không thể dò id.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Thông báo sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEnvelope"
+        '404':
+          description: Không tìm thấy thông báo thuộc về người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+
+  /notifications/read-all:
+    patch:
+      summary: Đánh dấu tất cả thông báo chưa đọc của người gọi (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Chỉ đánh dấu trong một nhóm; bỏ trống = cả ba nhóm.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+      responses:
+        '200':
+          description: Số thông báo đã cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationMarkAllEnvelope"
+
+  /notifications/device-tokens:
+    post:
+      summary: Đăng ký thiết bị nhận push notification (FCM registration token) (US-39)
+      description: |
+        fcm_token là UNIQUE: đăng ký lại một token đã tồn tại sẽ chuyển quyền sở hữu sang tài khoản đang
+        đăng nhập (thiết bị dùng chung / đăng nhập lại) thay vì tạo bản ghi trùng.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationDeviceTokenRequest"
+      responses:
+        '201':
+          description: Đã đăng ký thiết bị
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationDeviceTokenEnvelope"
+        '400':
+          description: Token rỗng/quá 255 ký tự hoặc platform ngoài Android/IOS/Web
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+    delete:
+      summary: Huỷ đăng ký thiết bị (gọi khi logout) (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fcmToken
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Token đã bị vô hiệu hoá (is_active = false)
+        '400':
+          description: Thiếu fcmToken
+
 components:
   securitySchemes:
     BearerAuth:
@@ -3671,3 +4123,544 @@ components:
                   format: "int64"
                 totalPages:
                   type: "integer"
+
+    NotificationCategory:
+      type: string
+      description: Ba nhóm thông báo của hộp thư (US-39), trùng ràng buộc CHECK của bảng notifications.
+      enum: ["Event", "Task", "Finance"]
+
+    Notification:
+      type: object
+      description: Một thông báo trong hộp thư cá nhân (US-39)
+      properties:
+        notificationId:
+          type: string
+          maxLength: 20
+          example: "NTC00K3F2A9Z8Y7"
+        clanId:
+          type: string
+          maxLength: 20
+          example: "CLAN_DEFAULT"
+        category:
+          $ref: "#/components/schemas/NotificationCategory"
+        title:
+          type: string
+          maxLength: 200
+          example: "Bạn được giao việc: Chuẩn bị mâm cỗ"
+        content:
+          type: string
+          example: "Sự kiện Giỗ tổ: công việc Chuẩn bị mâm cỗ, hạn chót 20/04/2026 10:00."
+        referenceType:
+          type: string
+          maxLength: 30
+          nullable: true
+          example: "TASK"
+        referenceId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "TSK00K3F2A9Z8Y7"
+        isRead:
+          type: boolean
+          example: false
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    NotificationPageData:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+
+    NotificationPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Lấy danh sách thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationPageData"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Đã đánh dấu thông báo là đã đọc"
+        data:
+          $ref: "#/components/schemas/Notification"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationUnreadCount:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 4
+        byCategory:
+          type: object
+          properties:
+            event:
+              type: integer
+              format: int64
+            task:
+              type: integer
+              format: int64
+            finance:
+              type: integer
+              format: int64
+
+    NotificationUnreadCountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/NotificationUnreadCount"
+
+    NotificationMarkAllEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đã đánh dấu tất cả thông báo là đã đọc"
+        data:
+          type: object
+          properties:
+            markedCount:
+              type: integer
+              example: 9
+
+    NotificationDeviceTokenRequest:
+      type: object
+      required: ["fcmToken"]
+      properties:
+        fcmToken:
+          type: string
+          maxLength: 255
+          example: "fcm-demo-token-001"
+        platform:
+          type: string
+          enum: ["Android", "IOS", "Web"]
+          default: "Android"
+
+    NotificationDeviceTokenResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          maxLength: 20
+          example: "DVT00K3F2A9Z8Y7"
+        platform:
+          type: string
+          example: "Android"
+
+    NotificationDeviceTokenEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đăng ký thiết bị nhận thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationDeviceTokenResponse"
+
+    NotificationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          nullable: true
+
+    DeathAnniversary:
+      type: object
+      description: Một ngày giỗ của thành viên đã mất, nhìn từ một ngày mốc (US-40)
+      properties:
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        memberFullName:
+          type: string
+          example: "Cụ Nguyễn Văn An"
+        generation:
+          type: integer
+          example: 2
+        branchId:
+          type: string
+          example: "BR_CHI_1"
+        branchName:
+          type: string
+          nullable: true
+          example: "Chi Một"
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+          example: "2020-01-08"
+        deathDateLunar:
+          type: string
+          description: Chuỗi ngày giỗ âm lịch đã lưu (US-27)
+          example: "15/02 Bính Ngọ"
+        lunarDay:
+          type: integer
+          example: 15
+        lunarMonth:
+          type: integer
+          example: 2
+        leapMonth:
+          type: boolean
+          example: false
+        anniversaryYear:
+          type: integer
+          example: 2026
+        anniversaryDate:
+          type: string
+          format: date
+          description: Ngày Dương lịch của lần giỗ năm nay
+          example: "2026-04-02"
+        daysRemaining:
+          type: integer
+          format: int64
+          description: Số ngày từ ngày mốc tới ngày giỗ (0 = hôm nay là ngày giỗ)
+          example: 14
+        milestoneDays:
+          type: integer
+          nullable: true
+          description: Mốc nhắc khớp (14 hoặc 3), null khi ngày mốc không phải mốc nhắc
+          example: 14
+        reminderTriggered:
+          type: boolean
+          example: true
+        alreadyReminded:
+          type: boolean
+          example: true
+        suggestion:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/EventSuggestion"
+        computedAt:
+          type: string
+          format: date-time
+
+    EventSuggestion:
+      type: object
+      description: Payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      properties:
+        suggestionId:
+          type: string
+          description: Id tổng hợp cho client (không lưu CSDL)
+          example: "GSU00K3F2A9Z8Y7"
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        eventName:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (15/02 Bính Ngọ)"
+        eventDatetime:
+          type: string
+          format: date-time
+          example: "2026-04-02T01:00:00Z"
+        eventDateLunar:
+          type: string
+          example: "15/02 Bính Ngọ"
+        location:
+          type: string
+          example: "Chi Một"
+        estimatedBudget:
+          type: number
+          format: double
+          nullable: true
+          example: 5000000
+        description:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (đời thứ 2) — giỗ năm 2026, 15/02 Bính Ngọ, chi/nhánh Chi Một."
+        daysRemaining:
+          type: integer
+          format: int64
+          example: 14
+        requestBody:
+          type: object
+          description: Body gửi thẳng tới POST /api/v1/events (cùng tên trường với CreateEventRequest)
+          properties:
+            eventName:
+              type: string
+            eventDatetime:
+              type: string
+              format: date-time
+            eventDateLunar:
+              type: string
+            location:
+              type: string
+            estimatedBudget:
+              type: number
+              format: double
+              nullable: true
+            description:
+              type: string
+
+    DeathAnniversaryListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Lấy danh sách ngày giỗ sắp tới thành công"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversary"
+
+    DeathAnniversaryReminder:
+      type: object
+      description: Vết đã gửi nhắc giỗ (US-40)
+      properties:
+        reminderId:
+          type: string
+          example: "GIO00K3F2A9Z8Y7"
+        memberId:
+          type: string
+        anniversaryYear:
+          type: integer
+          example: 2026
+        lunarYear:
+          type: integer
+          example: 2026
+        milestoneDays:
+          type: integer
+          example: 14
+        anniversaryDate:
+          type: string
+          format: date
+        triggerDate:
+          type: string
+          format: date
+        recipientCount:
+          type: integer
+          example: 3
+
+    DeathAnniversaryReminderListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversaryReminder"
+
+    DeathAnniversaryScanEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Chạy đối chiếu ngày giỗ thành công"
+        data:
+          type: object
+          properties:
+            remindersSent:
+              type: integer
+              example: 2
+            referenceDate:
+              type: string
+              format: date
+
+    CreateAdvanceVoucherRequest:
+      type: object
+      required:
+        - taskId
+        - recipientMemberId
+        - advanceAmount
+        - receivedDate
+        - settlementDeadline
+      properties:
+        taskId:
+          type: string
+          example: "TSK_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        advanceAmount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+          example: "2026-04-01T08:00:00Z"
+        settlementDeadline:
+          type: string
+          format: date-time
+          example: "2026-04-10T17:00:00Z"
+        commitmentNotes:
+          type: string
+          example: "Cam kết chi tiêu đúng dự toán mâm cỗ"
+
+    ConfirmDisbursementRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          example: "Đã giao tiền mặt 5.000.000đ tại từ đường"
+
+    AdvanceVoucherResponse:
+      type: object
+      properties:
+        advanceVoucherId:
+          type: string
+          example: "ADV_01HX4A7B2C"
+        taskId:
+          type: string
+          example: "TSK_001"
+        taskName:
+          type: string
+          example: "Chuẩn bị mâm cỗ"
+        eventId:
+          type: string
+          example: "EVT_001"
+        clanId:
+          type: string
+          example: "CLAN_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        recipientName:
+          type: string
+          example: "Nguyễn Văn A"
+        advanceAmount:
+          type: number
+          format: double
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+        settlementDeadline:
+          type: string
+          format: date-time
+        commitmentNotes:
+          type: string
+        createdByAccountId:
+          type: string
+        status:
+          type: string
+          enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
+          example: "ChoGiaoTien"
+        treasurerAccountId:
+          type: string
+          nullable: true
+        disbursedAt:
+          type: string
+          format: date-time
+          nullable: true
+        overdueAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-04-20T10:00:00Z"
+        disbursementNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdvanceVoucherEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    AdvanceVoucherListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    OverdueScanSummary:
+      type: object
+      properties:
+        scannedCount:
+          type: integer
+          example: 10
+        overdueTransitionedCount:
+          type: integer
+          example: 2
+        notificationsSentCount:
+          type: integer
+          example: 4
+        referenceTime:
+          type: string
+          format: date-time
+          example: "2026-04-20T10:00:00Z"
+
+    OverdueScanSummaryEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Quét và xử lý phiếu tạm ứng quá hạn thành công"
+        data:
+          $ref: '#/components/schemas/OverdueScanSummary'

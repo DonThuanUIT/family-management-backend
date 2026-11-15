@@ -67,6 +67,12 @@ class CashContributionServiceImplTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private com.familyfund.identity.api.IdentityRoleCommandService identityRoleCommandService;
+
+    @Mock
+    private com.familyfund.notification.api.NotificationService notificationService;
+
     @InjectMocks
     private CashContributionServiceImpl service;
 
@@ -242,5 +248,69 @@ class CashContributionServiceImplTest {
         assertThatThrownBy(() -> service.recordCashContribution(request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Payer member not found");
+    }
+
+    // ---------------------------------------------------------------- US-39: Finance notification
+
+    @Test
+    @DisplayName("US-39: a recorded contribution lands in the payer's Finance inbox")
+    void recordCashContribution_notifiesPayerFinance() {
+        BigDecimal amount = BigDecimal.valueOf(2000000);
+        RecordCashContributionRequest request = new RecordCashContributionRequest(
+                eventId, payerId, amount, PaymentMethod.Cash, null
+        );
+
+        EventSummaryDto eventSummary = new EventSummaryDto(eventId, clanId, "Lễ Giỗ Tổ", EventStatus.Ongoing, Instant.now());
+        MemberSummaryDto payerSummary = new MemberSummaryDto(payerId, "Nguyễn Văn A", clanId, "BR_01");
+
+        when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(eventSummary));
+        when(genealogyQueryService.findMemberSummary(payerId)).thenReturn(Optional.of(payerSummary));
+        when(currentUserProvider.currentAccountId()).thenReturn(Optional.of(receiverId));
+        when(contributionIdGenerator.generate()).thenReturn("CTB_NOTIFY_01");
+        when(receiptNumberGenerator.generate()).thenReturn("PT-20261029-Z9Y8X7");
+        when(contributionRepository.existsById(anyString())).thenReturn(false);
+        when(cashContributionRepository.existsByReceiptNumber(anyString())).thenReturn(false);
+        when(identityRoleCommandService.findAccountByMemberId(payerId))
+                .thenReturn(java.util.Optional.of(new com.familyfund.identity.api.dto.AccountSummaryDto(
+                        "ACC_PAYER", payerId, "0900000001", null, "Active", java.util.Set.of())));
+
+        service.recordCashContribution(request);
+
+        org.mockito.ArgumentCaptor<com.familyfund.notification.api.NotificationCommand> captor =
+                org.mockito.ArgumentCaptor.forClass(com.familyfund.notification.api.NotificationCommand.class);
+        verify(notificationService).notify(captor.capture());
+        com.familyfund.notification.api.NotificationCommand command = captor.getValue();
+        assertThat(command.recipientAccountId()).isEqualTo("ACC_PAYER");
+        assertThat(command.clanId()).isEqualTo(clanId);
+        assertThat(command.category()).isEqualTo(com.familyfund.notification.api.NotificationCategory.Finance);
+        assertThat(command.title()).contains("2000000");
+        assertThat(command.content()).contains("PT-20261029-Z9Y8X7").contains("Lễ Giỗ Tổ");
+        assertThat(command.referenceType()).isEqualTo("CONTRIBUTION");
+        assertThat(command.referenceId()).isEqualTo("CTB_NOTIFY_01");
+    }
+
+    @Test
+    @DisplayName("US-39: a payer without a linked account is skipped and the receipt still succeeds")
+    void recordCashContribution_payerWithoutAccount_skipsNotification() {
+        RecordCashContributionRequest request = new RecordCashContributionRequest(
+                eventId, payerId, BigDecimal.valueOf(500000), PaymentMethod.Cash, null
+        );
+
+        EventSummaryDto eventSummary = new EventSummaryDto(eventId, clanId, "Lễ Giỗ", EventStatus.Ongoing, Instant.now());
+        MemberSummaryDto payerSummary = new MemberSummaryDto(payerId, "Nguyễn Văn A", clanId, "BR_01");
+
+        when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(eventSummary));
+        when(genealogyQueryService.findMemberSummary(payerId)).thenReturn(Optional.of(payerSummary));
+        when(currentUserProvider.currentAccountId()).thenReturn(Optional.of(receiverId));
+        when(contributionIdGenerator.generate()).thenReturn("CTB_NOTIFY_02");
+        when(receiptNumberGenerator.generate()).thenReturn("PT-20261029-Q1W2E3");
+        when(contributionRepository.existsById(anyString())).thenReturn(false);
+        when(cashContributionRepository.existsByReceiptNumber(anyString())).thenReturn(false);
+        when(identityRoleCommandService.findAccountByMemberId(payerId)).thenReturn(java.util.Optional.empty());
+
+        ElectronicReceiptResponse response = service.recordCashContribution(request);
+
+        assertThat(response.receiptNumber()).isEqualTo("PT-20261029-Q1W2E3");
+        verify(notificationService, never()).notify(any());
     }
 }

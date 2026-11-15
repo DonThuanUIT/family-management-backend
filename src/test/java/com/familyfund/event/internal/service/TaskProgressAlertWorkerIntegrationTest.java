@@ -67,6 +67,12 @@ class TaskProgressAlertWorkerIntegrationTest {
     private static final String TASK_OTHER_CLAN = "TSK_IT08_OTHER";
     private static final String TASK_CLOSED_EVENT = "TSK_IT08_CLOSED";
     private static final String TASK_NO_ACCOUNT = "TSK_IT08_NOACC";
+    private static final String MEMBER_REP = "MEM_IT08_REP";
+    private static final String ACCOUNT_REP = "ACC_IT08_REP";
+    private static final String TASK_OVERDUE_20H = "TSK_IT08_LATE20";
+    private static final String TASK_OVERDUE_11H = "TSK_IT08_LATE11";
+    private static final String TASK_OVERDUE_COMPLETED = "TSK_IT08_LATEDONE";
+    private static final String TASK_OVERDUE_NO_REP = "TSK_IT08_LATENOREP";
 
     @Autowired
     private ClanRepository clanRepository;
@@ -84,6 +90,8 @@ class TaskProgressAlertWorkerIntegrationTest {
     private TaskProgressAlertRepository taskProgressAlertRepository;
     @Autowired
     private TaskProgressWarningIssuer issuer;
+    @Autowired
+    private TaskOverdueEscalationIssuer overdueIssuer;
     @Autowired
     private TaskProgressAlertService service;
 
@@ -106,8 +114,18 @@ class TaskProgressAlertWorkerIntegrationTest {
                 .memberId(MEMBER_WITHOUT_ACCOUNT).fullName("Nguyen Van Ho So Ao").gender("Male")
                 .generation(3).branch(branchA).isPlaceholder(true).build());
 
+        // US-47 escalation: the representative (Trưởng chi) of BRANCH_A is the recipient of 12h overdue alerts.
+        Member representative = memberRepository.saveAndFlush(Member.builder()
+                .memberId(MEMBER_REP).fullName("Nguyen Van Truong Chi").gender("Male")
+                .generation(1).branch(branchA).isPlaceholder(false).build());
+        branchA.setRepresentative(representative);
+        familyBranchRepository.saveAndFlush(branchA);
+
         userAccountRepository.saveAndFlush(UserAccount.builder()
                 .accountId(ACCOUNT_ID).memberId(linked.getMemberId()).phoneNumber("0898000801")
+                .passwordHash("{noop}integration").accountStatus(AccountStatus.Active).build());
+        userAccountRepository.saveAndFlush(UserAccount.builder()
+                .accountId(ACCOUNT_REP).memberId(MEMBER_REP).phoneNumber("0898000802")
                 .passwordHash("{noop}integration").accountStatus(AccountStatus.Active).build());
 
         Instant eventTime = Instant.now().plus(Duration.ofDays(10));
@@ -132,6 +150,14 @@ class TaskProgressAlertWorkerIntegrationTest {
                 task(TASK_CLOSED_EVENT, EVENT_CLOSED, TaskStatus.InProgress, MEMBER_WITH_ACCOUNT, Duration.ofHours(6)),
                 task(TASK_NO_ACCOUNT, EVENT_A, TaskStatus.InProgress, MEMBER_WITHOUT_ACCOUNT, Duration.ofHours(7))
         ));
+
+        // US-47 escalation candidates: deadlines in the past.
+        eventTaskRepository.saveAll(List.of(
+                task(TASK_OVERDUE_20H, EVENT_A, TaskStatus.InProgress, MEMBER_WITH_ACCOUNT, Duration.ofHours(-20)),
+                task(TASK_OVERDUE_11H, EVENT_A, TaskStatus.InProgress, MEMBER_WITH_ACCOUNT, Duration.ofHours(-11)),
+                task(TASK_OVERDUE_COMPLETED, EVENT_A, TaskStatus.Completed, MEMBER_WITH_ACCOUNT, Duration.ofHours(-20)),
+                branchOnlyTask(TASK_OVERDUE_NO_REP, EVENT_A, BRANCH_B, Duration.ofHours(-20))
+        ));
         eventTaskRepository.flush();
         TenantContext.clear();
     }
@@ -151,6 +177,19 @@ class TaskProgressAlertWorkerIntegrationTest {
                 .status(status)
                 .assignedBranchId(BRANCH_A)
                 .assignedMemberId(memberId)
+                .createdBy(ACCOUNT_ID)
+                .build();
+    }
+
+    private EventTask branchOnlyTask(String taskId, String eventId, String branchId, Duration untilDeadline) {
+        return EventTask.builder()
+                .taskId(taskId)
+                .eventId(eventId)
+                .taskName("Chuan bi le vat " + taskId)
+                .advanceBudget(new BigDecimal("1500000.00"))
+                .deadline(Instant.now().plus(untilDeadline))
+                .status(TaskStatus.InProgress)
+                .assignedBranchId(branchId)
                 .createdBy(ACCOUNT_ID)
                 .build();
     }
@@ -214,5 +253,55 @@ class TaskProgressAlertWorkerIntegrationTest {
         int secondPass = service.scanAndWarnUpcomingDeadlines();
         assertTrue(taskProgressAlertRepository.findAllByTaskIdOrderBySentTimeDesc(TASK_DUE_SOON).size() == 1);
         assertTrue(secondPass >= 0);
+    }
+
+    // ------------------------------------------------ US-47 escalation pass (12h overdue)
+
+    @Test
+    @DisplayName("Escalates a 20h-overdue task to the branch representative (Trưởng chi) with task, assignee and lateness")
+    void writesOverdueEscalationForRepresentative() {
+        assertTrue(overdueIssuer.issueOverdueEscalation(TASK_OVERDUE_20H, Instant.now()));
+
+        List<TaskProgressAlert> alerts =
+                taskProgressAlertRepository.findAllByTaskIdOrderBySentTimeDesc(TASK_OVERDUE_20H);
+        assertEquals(1, alerts.size());
+
+        TaskProgressAlert alert = alerts.getFirst();
+        assertEquals(TaskAlertLevel.OverdueAlert12H, alert.getAlertLevel());
+        // Recipient is the branch representative's account, not the assignee's.
+        assertEquals(ACCOUNT_REP, alert.getRecipientAccountId());
+        assertFalse(alert.getIsRead());
+        assertNotNull(alert.getSentTime());
+        assertTrue(alert.getAlertContent().contains("Gio To Integration A"), alert.getAlertContent());
+        assertTrue(alert.getAlertContent().contains(MEMBER_WITH_ACCOUNT), alert.getAlertContent());
+        assertTrue(alert.getAlertContent().contains("Nguyen Van Lien Ket"), alert.getAlertContent());
+        assertTrue(alert.getAlertContent().contains("20 giờ"), alert.getAlertContent());
+        assertTrue(alert.getAlertContent().contains(MEMBER_REP), alert.getAlertContent());
+    }
+
+    @Test
+    @DisplayName("Escalation is idempotent: a task that stays overdue is escalated exactly once")
+    void escalatesOnlyOncePerTask() {
+        Instant now = Instant.now();
+
+        assertTrue(overdueIssuer.issueOverdueEscalation(TASK_OVERDUE_20H, now));
+        assertFalse(overdueIssuer.issueOverdueEscalation(TASK_OVERDUE_20H, now.plus(Duration.ofDays(2))));
+
+        assertEquals(1, taskProgressAlertRepository.findAllByTaskIdOrderBySentTimeDesc(TASK_OVERDUE_20H).size());
+    }
+
+    @Test
+    @DisplayName("Escalation scan skips tasks under 12h late, completed tasks and branches without a representative")
+    void escalationScanSkipsIneligibleTasks() {
+        int issued = service.scanAndEscalateOverdueTasks();
+
+        assertTrue(issued >= 1, "The 20h overdue task must be escalated, issued=" + issued);
+        assertTrue(taskProgressAlertRepository.existsByTaskIdAndAlertLevel(TASK_OVERDUE_20H, TaskAlertLevel.OverdueAlert12H));
+        assertFalse(taskProgressAlertRepository.existsByTaskIdAndAlertLevel(TASK_OVERDUE_11H, TaskAlertLevel.OverdueAlert12H));
+        assertFalse(taskProgressAlertRepository.existsByTaskIdAndAlertLevel(TASK_OVERDUE_COMPLETED, TaskAlertLevel.OverdueAlert12H));
+        assertFalse(taskProgressAlertRepository.existsByTaskIdAndAlertLevel(TASK_OVERDUE_NO_REP, TaskAlertLevel.OverdueAlert12H));
+
+        // A second pass finds nothing new for the escalated task.
+        assertFalse(overdueIssuer.issueOverdueEscalation(TASK_OVERDUE_20H, Instant.now()));
     }
 }

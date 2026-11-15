@@ -13,6 +13,13 @@ import java.util.Optional;
 @Repository
 public interface MemberRepository extends JpaRepository<Member, String> {
 
+    /**
+     * Every member whose life status is {@code Deceased} and who carries a lunar anniversary string — the input of
+     * the daily death-anniversary job (US-40) and of the "upcoming anniversaries" API.
+     */
+    List<Member> findAllByStatusAndDeathDateLunarIsNotNull(String status);
+
+
     // Global uniqueness guard for MemberIdGenerator: members.member_id is a clan-agnostic PRIMARY KEY
     boolean existsByMemberId(String memberId);
 
