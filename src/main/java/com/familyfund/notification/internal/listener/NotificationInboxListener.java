@@ -1,5 +1,6 @@
 package com.familyfund.notification.internal.listener;
 
+import com.familyfund.event.api.event.DeathAnniversaryReminderIssuedDomainEvent;
 import com.familyfund.event.api.event.EventOpenedDomainEvent;
 import com.familyfund.event.api.event.EventScheduleChangedDomainEvent;
 import com.familyfund.event.api.event.RoleChangedDomainEvent;
@@ -57,6 +58,7 @@ public class NotificationInboxListener {
     private static final String REFERENCE_EVENT = "EVENT";
     private static final String REFERENCE_TASK = "TASK";
     private static final String REFERENCE_ROLE = "ROLE";
+    private static final String REFERENCE_DEATH_ANNIVERSARY = "DEATH_ANNIVERSARY";
 
     private final NotificationService notificationService;
     private final IdentityRoleCommandService identityRoleCommandService;
@@ -201,8 +203,28 @@ public class NotificationInboxListener {
                 .build());
     }
 
-    // ------------------------------------------------------------------ helpers
+    /**
+     * A death-anniversary reminder was issued by the daily job (US-40): one inbox row per recipient account that the
+     * {@code event} module resolved (branch representative + members of the branch).
+     */
+    @Async
+    @EventListener
+    public void onDeathAnniversaryReminderIssued(DeathAnniversaryReminderIssuedDomainEvent event) {
+        if (event == null || isBlank(event.clanId()) || event.recipientAccountIds() == null) {
+            return;
+        }
+        event.recipientAccountIds().forEach(accountId -> notifyQuietly(NotificationCommand.builder()
+                .clanId(event.clanId().trim())
+                .recipientAccountId(accountId)
+                .category(NotificationCategory.Event)
+                .title(isBlank(event.title()) ? "Nhắc ngày giỗ" : event.title().trim())
+                .content(isBlank(event.content()) ? "Sắp tới ngày giỗ của thành viên trong dòng họ." : event.content().trim())
+                .referenceType(REFERENCE_DEATH_ANNIVERSARY)
+                .referenceId(event.memberId())
+                .build()));
+    }
 
+    // ------------------------------------------------------------------ helpers
     private void broadcastToClan(String clanId, NotificationCategory category, String title, String content,
                                  String referenceType, String referenceId) {
         List<AccountSummaryDto> accounts = identityRoleCommandService.findActiveAccountsByClan(clanId.trim());

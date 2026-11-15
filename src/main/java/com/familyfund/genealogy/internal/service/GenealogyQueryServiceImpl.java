@@ -6,6 +6,7 @@ import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
+import com.familyfund.genealogy.api.dto.DeceasedMemberDto;
 import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import com.familyfund.genealogy.internal.entity.Clan;
@@ -263,6 +264,51 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
                         m.getBranch() != null ? m.getBranch().getBranchId() : null
                 ))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeceasedMemberDto> findDeceasedMembersWithAnniversary(String clanId) {
+        if (clanId == null || clanId.isBlank()) {
+            return Collections.emptyList();
+        }
+        return memberRepository.findByBranch_ClanId(clanId.trim())
+                .stream()
+                .filter(GenealogyQueryServiceImpl::isAnniversaryCandidate)
+                .map(this::toDeceasedMemberDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeceasedMemberDto> findAllDeceasedMembersWithAnniversary() {
+        return memberRepository.findAllByStatusAndDeathDateLunarIsNotNull(Member.STATUS_DECEASED)
+                .stream()
+                .filter(GenealogyQueryServiceImpl::isAnniversaryCandidate)
+                .map(this::toDeceasedMemberDto)
+                .toList();
+    }
+
+    /** US-40 candidate: deceased, has a lunar anniversary string, and is not a placeholder position. */
+    private static boolean isAnniversaryCandidate(Member member) {
+        return Member.STATUS_DECEASED.equalsIgnoreCase(member.getStatus())
+                && member.getDeathDateLunar() != null
+                && !member.getDeathDateLunar().isBlank()
+                && !Boolean.TRUE.equals(member.getIsPlaceholder());
+    }
+
+    private DeceasedMemberDto toDeceasedMemberDto(Member member) {
+        FamilyBranch branch = member.getBranch();
+        return DeceasedMemberDto.builder()
+                .memberId(member.getMemberId())
+                .clanId(branch != null ? branch.getClanId() : null)
+                .fullName(member.getFullName())
+                .generation(member.getGeneration())
+                .branchId(branch != null ? branch.getBranchId() : null)
+                .branchName(branch != null ? branch.getBranchName() : null)
+                .deathDate(member.getDeathDate())
+                .deathDateLunar(member.getDeathDateLunar())
+                .build();
     }
 
     @Override
