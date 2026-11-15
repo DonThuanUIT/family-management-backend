@@ -31,4 +31,9 @@ public interface EventQueryService {
      * Retrieves aggregated attendee and meal metrics for an event (US-06).
      */
     Optional<RegistrationSummaryDto> getRegistrationSummary(String eventId);
+
+    /**
+     * Finds summary of an event task by ID for cross-module advance vouchers (US-46).
+     */
+    Optional<com.familyfund.event.api.dto.EventTaskSummaryDto> findTaskSummary(String taskId);
 }

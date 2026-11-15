@@ -1121,6 +1121,162 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseRegistration'
 
+  /advances:
+    post:
+      summary: Lập phiếu tạm ứng mới cho hạng mục sự kiện (US-46)
+      description: |
+        Ban tổ chức sự kiện (Trưởng ban, Thành viên BTC, Thủ quỹ) hoặc Trưởng tộc/Admin lập phiếu tạm ứng
+        gắn với một hạng mục công việc (event_tasks). Hệ thống tự sinh mã phiếu `ADV...`, khởi tạo trạng thái `ChoGiaoTien`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Mã dòng họ (Tenant ID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdvanceVoucherRequest'
+      responses:
+        '201':
+          description: Lập phiếu tạm ứng thành công (trạng thái ChoGiaoTien)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Danh sách phiếu tạm ứng có bộ lọc (US-46)
+      description: Tra cứu danh sách phiếu tạm ứng trong dòng họ, hỗ trợ lọc theo eventId, taskId, recipientMemberId, status.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: recipientMemberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy]
+      responses:
+        '200':
+          description: Danh sách phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherListEnvelope'
+
+  /advances/{id}:
+    get:
+      summary: Xem chi tiết phiếu tạm ứng (US-46)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/{id}/disburse:
+    post:
+      summary: Thủ quỹ xác nhận đã giao tiền tạm ứng (US-46)
+      description: |
+        Chỉ Thủ quỹ sự kiện (EventTreasurer) hoặc Trưởng tộc/Admin mới có quyền gọi.
+        Xác nhận tiền mặt/chuyển khoản đã được giao thực tế cho người nhận tạm ứng,
+        chuyển trạng thái phiếu từ `ChoGiaoTien` sang `ChuaTatToan`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmDisbursementRequest'
+      responses:
+        '200':
+          description: Xác nhận giao tiền thành công (trạng thái ChuaTatToan)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          description: Phiếu không ở trạng thái ChoGiaoTien hoặc dữ liệu không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Không có quyền Thủ quỹ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
   /events/{eventId}/advance-vouchers:
     post:
       summary: Lập phiếu cấp phát kinh phí tạm ứng (Phân hệ 3)
@@ -4329,3 +4485,123 @@ components:
             referenceDate:
               type: string
               format: date
+
+    CreateAdvanceVoucherRequest:
+      type: object
+      required:
+        - taskId
+        - recipientMemberId
+        - advanceAmount
+        - receivedDate
+        - settlementDeadline
+      properties:
+        taskId:
+          type: string
+          example: "TSK_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        advanceAmount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+          example: "2026-04-01T08:00:00Z"
+        settlementDeadline:
+          type: string
+          format: date-time
+          example: "2026-04-10T17:00:00Z"
+        commitmentNotes:
+          type: string
+          example: "Cam kết chi tiêu đúng dự toán mâm cỗ"
+
+    ConfirmDisbursementRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          example: "Đã giao tiền mặt 5.000.000đ tại từ đường"
+
+    AdvanceVoucherResponse:
+      type: object
+      properties:
+        advanceVoucherId:
+          type: string
+          example: "ADV_01HX4A7B2C"
+        taskId:
+          type: string
+          example: "TSK_001"
+        taskName:
+          type: string
+          example: "Chuẩn bị mâm cỗ"
+        eventId:
+          type: string
+          example: "EVT_001"
+        clanId:
+          type: string
+          example: "CLAN_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        recipientName:
+          type: string
+          example: "Nguyễn Văn A"
+        advanceAmount:
+          type: number
+          format: double
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+        settlementDeadline:
+          type: string
+          format: date-time
+        commitmentNotes:
+          type: string
+        createdByAccountId:
+          type: string
+        status:
+          type: string
+          enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy]
+          example: "ChoGiaoTien"
+        treasurerAccountId:
+          type: string
+          nullable: true
+        disbursedAt:
+          type: string
+          format: date-time
+          nullable: true
+        disbursementNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdvanceVoucherEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    AdvanceVoucherListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdvanceVoucherResponse'
