@@ -72,6 +72,9 @@ public class AdvanceVoucher {
     @Column(name = "disbursement_notes", columnDefinition = "TEXT")
     private String disbursementNotes;
 
+    @Column(name = "overdue_at")
+    private Instant overdueAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

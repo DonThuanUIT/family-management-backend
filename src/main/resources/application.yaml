@@ -94,3 +94,9 @@ app:
     reminder-time: ${APP_DEATH_ANNIVERSARY_REMINDER_TIME:08:00}
     default-budget: ${APP_DEATH_ANNIVERSARY_DEFAULT_BUDGET:}
     event-name-template: "${APP_DEATH_ANNIVERSARY_EVENT_NAME:Đám giỗ {name} ({lunar})}"
+  finance:
+    advance-overdue:
+      # US-48: background job scanning advance vouchers past settlement deadline
+      enabled: ${APP_FINANCE_ADVANCE_OVERDUE_ENABLED:true}
+      interval-ms: ${APP_FINANCE_ADVANCE_OVERDUE_INTERVAL_MS:900000}
+      initial-delay-ms: ${APP_FINANCE_ADVANCE_OVERDUE_INITIAL_DELAY_MS:60000}

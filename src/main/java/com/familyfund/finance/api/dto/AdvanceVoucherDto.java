@@ -21,5 +21,6 @@ public record AdvanceVoucherDto(
         String treasurerAccountId,
         Instant disbursedAt,
         String disbursementNotes,
+        Instant overdueAt,
         Instant createdAt
 ) {}

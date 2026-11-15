@@ -68,6 +68,7 @@ public class AdvanceVoucherQueryServiceImpl implements AdvanceVoucherQueryServic
                 v.getTreasurerAccountId(),
                 v.getDisbursedAt(),
                 v.getDisbursementNotes(),
+                v.getOverdueAt(),
                 v.getCreatedAt()
         );
     }

@@ -8,11 +8,13 @@ package com.familyfund.finance.api.dto;
  *   <li>{@link #ChuaTatToan} - Cash disbursed by treasurer, awaiting expense settlement.</li>
  *   <li>{@link #DaTatToan} - Fully settled via expense settlement voucher.</li>
  *   <li>{@link #DaHuy} - Cancelled prior to cash disbursement.</li>
+ *   <li>{@link #QuaHan} - Overdue for expense settlement beyond settlement deadline (US-48).</li>
  * </ul>
  */
 public enum AdvanceVoucherStatus {
     ChoGiaoTien,
     ChuaTatToan,
     DaTatToan,
-    DaHuy
+    DaHuy,
+    QuaHan
 }

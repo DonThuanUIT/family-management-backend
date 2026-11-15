@@ -36,4 +36,10 @@ public interface EventQueryService {
      * Finds summary of an event task by ID for cross-module advance vouchers (US-46).
      */
     Optional<com.familyfund.event.api.dto.EventTaskSummaryDto> findTaskSummary(String taskId);
+
+    /**
+     * Resolves member IDs of all event personnel / organizers (HeadOfOrganizer, OrganizerMember, EventTreasurer)
+     * for a given event (US-48).
+     */
+    Set<String> findOrganizerMemberIds(String eventId);
 }

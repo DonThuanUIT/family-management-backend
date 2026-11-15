@@ -154,7 +154,8 @@ family-management-backend/
 │   │   ├── US-39-notification-service-fcm-and-read-state.md # Đặc tả US-39 Hộp thư 3 nhóm, push FCM & đánh dấu đã đọc
 │   │   ├── US-40-daily-death-anniversary-reminder-and-event-suggestion.md # Đặc tả US-40 Cron nhắc giỗ âm lịch & gợi ý sự kiện Đám giỗ
 │   │   ├── US-46-event-advance-voucher-management.md # Đặc tả US-46 Lập phiếu tạm ứng & xác nhận giao tiền
-│   │   └── US-47-task-overdue-12h-escalation.md # Đặc tả US-47 Leo thang cảnh báo công việc quá hạn 12h
+│   │   ├── US-47-task-overdue-12h-escalation.md # Đặc tả US-47 Leo thang cảnh báo công việc quá hạn 12h
+│   │   └── US-48-advance-voucher-overdue-job.md # Đặc tả US-48 Job quét phiếu tạm ứng quá hạn & cảnh báo đồng thời
 │   └── guidelines/            # Quy chuẩn phát triển & coding conventions
 │       ├── development-guide.md
 │       └── modulith-rules.md

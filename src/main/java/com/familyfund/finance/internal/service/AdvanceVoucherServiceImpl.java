@@ -317,6 +317,7 @@ public class AdvanceVoucherServiceImpl implements AdvanceVoucherService {
                 treasurerName,
                 v.getDisbursedAt(),
                 v.getDisbursementNotes(),
+                v.getOverdueAt(),
                 v.getCreatedAt(),
                 v.getUpdatedAt()
         );
