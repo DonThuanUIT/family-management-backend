@@ -149,12 +149,33 @@ class ContributionHistoryServiceImplTest {
         );
 
         when(cashContributionRepository.existsByReceiptNumber(receiptNumber)).thenReturn(true);
+        when(currentUserProvider.currentMemberId()).thenReturn(Optional.of(currentMemberId));
         when(cashContributionService.getReceiptByReceiptNumber(receiptNumber)).thenReturn(receipt);
         when(receiptPdfService.generateCashReceiptPdf(eq(receipt), any())).thenReturn(expectedPdf);
 
         byte[] result = contributionHistoryService.downloadReceiptPdf(receiptNumber);
 
         assertThat(result).isEqualTo(expectedPdf);
+    }
+
+    @Test
+    @DisplayName("downloadReceiptPdf - throws AccessDeniedException when stranger tries to download receipt")
+    void downloadReceiptPdf_unauthorizedStranger_throwsAccessDenied() {
+        String receiptNumber = "PT-20261109-00001";
+
+        ElectronicReceiptResponse receipt = new ElectronicReceiptResponse(
+                receiptNumber, "CTB01", eventId, "Lễ Giỗ Tổ", "SOMEONE_ELSE", "Người Khác",
+                "ACC01", new BigDecimal("1000000.00"), "Một triệu", PaymentMethod.Cash,
+                Instant.now(), Collections.emptyList()
+        );
+
+        when(cashContributionRepository.existsByReceiptNumber(receiptNumber)).thenReturn(true);
+        when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("STRANGER_ID"));
+        when(cashContributionService.getReceiptByReceiptNumber(receiptNumber)).thenReturn(receipt);
+
+        assertThatThrownBy(() -> contributionHistoryService.downloadReceiptPdf(receiptNumber))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("You do not have permission");
     }
 
     @Test

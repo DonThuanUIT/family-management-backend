@@ -14,13 +14,16 @@ import com.familyfund.contribution.internal.repository.InKindContributionReposit
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
+import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.EventQueryService;
+import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -183,16 +186,47 @@ public class ContributionHistoryServiceImpl implements ContributionHistoryServic
     @Transactional(readOnly = true)
     public byte[] downloadReceiptPdf(String receiptNumber) {
         String clanId = TenantContext.getClanId();
+        String currentMemberId = currentUserProvider.currentMemberId().orElse(null);
+        boolean isManager = currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)
+                || currentUserProvider.hasAuthority(SystemRoles.ADMIN)
+                || currentUserProvider.hasAuthority(SystemRoles.BRANCH_HEAD);
+
         String clanName = (clanId != null) ? genealogyQueryService.getClanName(clanId).orElse(null) : null;
 
         if (cashContributionRepository.existsByReceiptNumber(receiptNumber)) {
             ElectronicReceiptResponse receipt = cashContributionService.getReceiptByReceiptNumber(receiptNumber);
+            validateReceiptAccess(receipt.eventId(), receipt.payerMemberId(), receipt.allocations(), currentMemberId, isManager);
             return receiptPdfService.generateCashReceiptPdf(receipt, clanName);
         } else if (inKindContributionRepository.existsByReceiptNumber(receiptNumber)) {
             InKindElectronicReceiptResponse receipt = inKindContributionService.getReceiptByReceiptNumber(receiptNumber);
+            validateReceiptAccess(receipt.eventId(), receipt.payerMemberId(), receipt.allocations(), currentMemberId, isManager);
             return receiptPdfService.generateInKindReceiptPdf(receipt, clanName);
         } else {
             throw new ResourceNotFoundException("Electronic receipt not found with number: " + receiptNumber);
         }
+    }
+
+    private void validateReceiptAccess(String eventId, String payerMemberId, List<MemberAllocationResponse> allocations,
+                                       String currentMemberId, boolean isManager) {
+        if (isManager) {
+            return;
+        }
+
+        if (currentMemberId != null) {
+            if (currentMemberId.equals(payerMemberId)) {
+                return;
+            }
+            if (allocations != null && allocations.stream().anyMatch(a -> currentMemberId.equals(a.memberId()))) {
+                return;
+            }
+            if (eventId != null) {
+                Set<EventRole> roles = eventQueryService.getMemberRolesInEvent(eventId, currentMemberId);
+                if (roles.contains(EventRole.EventTreasurer) || roles.contains(EventRole.HeadOfOrganizer)) {
+                    return;
+                }
+            }
+        }
+
+        throw new AccessDeniedException("Access denied: You do not have permission to view or download this receipt");
     }
 }
