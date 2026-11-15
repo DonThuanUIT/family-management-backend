@@ -494,7 +494,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
 
     @Override
     @Transactional(readOnly = true)
-    public com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse checkPendingInKindContributions(String eventId) {
+    public EventPendingInKindCheckResponse checkPendingInKindContributions(String eventId) {
         EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with ID: " + eventId));
 
@@ -512,7 +512,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
                 ? String.format("Cảnh báo: Còn %d hiện vật cúng tiến ở trạng thái chờ xử lý (Pending). Vui lòng cập nhật trạng thái (Tiêu hao, Hoàn trả hoặc Nhập kho tài sản) trước khi khóa sổ sự kiện.", pendingCount)
                 : "Tất cả hiện vật cúng tiến trong sự kiện đã được phân loại vòng đời hoàn tất.";
 
-        return new com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse(
+        return new EventPendingInKindCheckResponse(
                 eventId,
                 eventSummary.eventName(),
                 hasPending,
@@ -561,7 +561,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
 
     private String generateUniqueReceiptNumber() {
         for (int i = 0; i < 5; i++) {
-            String candidate = receiptNumberGenerator.generate();
+            String candidate = receiptNumberGenerator.generate("HV-");
             if (!inKindContributionRepository.existsByReceiptNumber(candidate)) {
                 return candidate;
             }

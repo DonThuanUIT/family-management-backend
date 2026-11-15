@@ -15,10 +15,12 @@ import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.core.utils.BankBinDirectory;
 import com.familyfund.event.api.EventQueryService;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.dto.ClanBankingInfoDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,27 +87,50 @@ public class VietQrServiceImpl implements VietQrService {
         // 3. Build standardized transfer description: FFUND {eventId} {memberId}
         String transferContent = String.format("FFUND %s %s", request.eventId().trim(), targetMemberId.trim());
 
-        // 4. Construct QuickLink VietQR image URL
+        // 4. Resolve Clan beneficiary banking info (multi-tenancy) with fallback to application config
+        String targetBankBin = bankBin;
+        String targetAccountNumber = accountNumber;
+        String targetAccountName = accountName;
+        String targetTemplate = template;
+
+        Optional<ClanBankingInfoDto> clanBankingOpt = genealogyQueryService.getClanBankingInfo(eventSummary.clanId());
+        if (clanBankingOpt.isPresent()) {
+            ClanBankingInfoDto clanBanking = clanBankingOpt.get();
+            if (clanBanking.bankBin() != null && !clanBanking.bankBin().isBlank()) {
+                targetBankBin = clanBanking.bankBin().trim();
+            }
+            if (clanBanking.bankAccountNumber() != null && !clanBanking.bankAccountNumber().isBlank()) {
+                targetAccountNumber = clanBanking.bankAccountNumber().trim();
+            }
+            if (clanBanking.bankAccountName() != null && !clanBanking.bankAccountName().isBlank()) {
+                targetAccountName = clanBanking.bankAccountName().trim();
+            }
+            if (clanBanking.qrTemplate() != null && !clanBanking.qrTemplate().isBlank()) {
+                targetTemplate = clanBanking.qrTemplate().trim();
+            }
+        }
+
+        // 5. Construct QuickLink VietQR image URL
         String encodedContent = URLEncoder.encode(transferContent, StandardCharsets.UTF_8);
-        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+        String encodedAccountName = URLEncoder.encode(targetAccountName, StandardCharsets.UTF_8);
         long amountValue = request.amount().longValue();
 
         String qrCodeUrl = String.format(
                 "https://img.vietqr.io/image/%s-%s-%s.png?amount=%d&addInfo=%s&accountName=%s",
-                bankBin, accountNumber, template, amountValue, encodedContent, encodedAccountName
+                targetBankBin, targetAccountNumber, targetTemplate, amountValue, encodedContent, encodedAccountName
         );
 
-        // 5. Construct EMVCo Payload representation
+        // 6. Construct EMVCo Payload representation
         String qrPayload = String.format("vietqr://transfer?bin=%s&acc=%s&amt=%d&desc=%s",
-                bankBin, accountNumber, amountValue, encodedContent);
+                targetBankBin, targetAccountNumber, amountValue, encodedContent);
 
         return new VietQrResponse(
                 qrCodeUrl,
                 qrPayload,
-                bankBin,
-                lookupBankName(bankBin),
-                accountNumber,
-                accountName,
+                targetBankBin,
+                BankBinDirectory.lookupBankName(targetBankBin),
+                targetAccountNumber,
+                targetAccountName,
                 request.amount(),
                 transferContent,
                 eventSummary.eventId(),
@@ -242,14 +267,6 @@ public class VietQrServiceImpl implements VietQrService {
     }
 
     private String lookupBankName(String bin) {
-        return switch (bin) {
-            case "970436" -> "Vietcombank";
-            case "970422" -> "MBBank";
-            case "970407" -> "Techcombank";
-            case "970415" -> "VietinBank";
-            case "970418" -> "BIDV";
-            case "970423" -> "TPBank";
-            default -> "Ngân hàng liên minh Napas (BIN: " + bin + ")";
-        };
+        return BankBinDirectory.lookupBankName(bin);
     }
 }

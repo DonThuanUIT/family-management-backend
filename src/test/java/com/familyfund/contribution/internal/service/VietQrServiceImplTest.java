@@ -104,6 +104,38 @@ class VietQrServiceImplTest {
     }
 
     @Test
+    @DisplayName("generateVietQr - uses clan-specific banking configuration when configured")
+    void generateVietQr_withClanSpecificBankingInfo_usesClanAccount() {
+        when(eventQueryService.findEventSummary(eventId))
+                .thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ Giỗ Tổ", EventStatus.Draft, Instant.now())));
+        when(genealogyQueryService.findMemberSummary(memberId))
+                .thenReturn(Optional.of(new MemberSummaryDto(memberId, "Nguyễn Văn A", clanId, "BR01")));
+        when(genealogyQueryService.getClanBankingInfo(clanId))
+                .thenReturn(Optional.of(new com.familyfund.genealogy.api.dto.ClanBankingInfoDto(
+                        clanId,
+                        "Họ Nguyễn",
+                        "970422",
+                        "MBBank",
+                        "0987654321",
+                        "NGUYEN VAN THU QUY",
+                        "compact2"
+                )));
+
+        GenerateVietQrRequest request = new GenerateVietQrRequest(
+                eventId, memberId, new BigDecimal("500000.00"), "Cúng giỗ"
+        );
+
+        VietQrResponse response = vietQrService.generateVietQr(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.bankBin()).isEqualTo("970422");
+        assertThat(response.bankName()).isEqualTo("MBBank");
+        assertThat(response.accountNumber()).isEqualTo("0987654321");
+        assertThat(response.accountName()).isEqualTo("NGUYEN VAN THU QUY");
+        assertThat(response.qrCodeUrl()).contains("970422-0987654321-compact2.png");
+    }
+
+    @Test
     @DisplayName("generateVietQr - throws exception when event is closed")
     void generateVietQr_eventClosed_throwsException() {
         when(eventQueryService.findEventSummary(eventId))

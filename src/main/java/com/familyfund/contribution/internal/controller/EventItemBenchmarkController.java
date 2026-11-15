@@ -24,7 +24,7 @@ public class EventItemBenchmarkController {
     private final EventItemBenchmarkService benchmarkService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
     public ResponseEntity<ApiResponse<EventItemBenchmarkResponse>> createBenchmark(
             @PathVariable String eventId,
             @Valid @RequestBody CreateEventItemBenchmarkRequest request) {
@@ -34,7 +34,7 @@ public class EventItemBenchmarkController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer', 'EventTreasurer', 'OrganizerMember')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer', 'OrganizerMember')")
     public ResponseEntity<ApiResponse<List<EventItemBenchmarkResponse>>> getBenchmarksByEvent(
             @PathVariable String eventId) {
         List<EventItemBenchmarkResponse> response = benchmarkService.getBenchmarksByEvent(eventId);
@@ -42,7 +42,7 @@ public class EventItemBenchmarkController {
     }
 
     @DeleteMapping("/{benchmarkId}")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#eventId, 'HeadOfOrganizer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
     public ResponseEntity<ApiResponse<Void>> deleteBenchmark(
             @PathVariable String eventId,
             @PathVariable String benchmarkId) {

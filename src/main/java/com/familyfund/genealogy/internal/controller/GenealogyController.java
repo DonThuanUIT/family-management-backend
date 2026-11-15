@@ -37,7 +37,7 @@ public class GenealogyController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or (hasRole('BRANCH_HEAD') and @genealogySecurity.isBranchRepresentative(#request.parentBranchId()))")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> createChildBranch(
             @Valid @RequestBody CreateChildBranchRequest request) {
         BranchDetailResponse response = genealogyService.createChildBranch(request);
@@ -46,7 +46,7 @@ public class GenealogyController {
     }
 
     @PutMapping("/{branchId}")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or (hasRole('BRANCH_HEAD') and @genealogySecurity.isBranchRepresentative(#branchId))")
     public ResponseEntity<ApiResponse<BranchDetailResponse>> updateBranch(
             @PathVariable String branchId,
             @Valid @RequestBody UpdateBranchRequest request) {

@@ -31,7 +31,7 @@ public class CashContributionController {
      * Record a cash or bank-transfer contribution and issue an electronic receipt (Task #68, #69, #70).
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @nhanSuSuKien.xacThucQuyenTheoNguCanh(#request.eventId(), 'EventTreasurer', 'HeadOfOrganizer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#request.eventId(), 'EventTreasurer', 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<ElectronicReceiptResponse>> recordCashContribution(
             @Valid @RequestBody RecordCashContributionRequest request) {
         ElectronicReceiptResponse response = cashContributionService.recordCashContribution(request);

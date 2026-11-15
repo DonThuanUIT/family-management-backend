@@ -100,4 +100,12 @@ public interface GenealogyQueryService {
      * Checks if a member is currently assigned as representative of any branch in the clan.
      */
     boolean isMemberRepresentativeOfAnyBranch(String memberId, String clanId);
+
+    /**
+     * Retrieves the beneficiary banking configuration of a clan for VietQR dynamic payments.
+     *
+     * @param clanId ID of the clan
+     * @return Optional containing ClanBankingInfoDto if clan exists
+     */
+    Optional<com.familyfund.genealogy.api.dto.ClanBankingInfoDto> getClanBankingInfo(String clanId);
 }

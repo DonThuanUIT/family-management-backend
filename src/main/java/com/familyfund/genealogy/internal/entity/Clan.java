@@ -47,6 +47,19 @@ public class Clan {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "bank_bin", length = 10)
+    private String bankBin;
+
+    @Column(name = "bank_account_number", length = 50)
+    private String bankAccountNumber;
+
+    @Column(name = "bank_account_name", length = 150)
+    private String bankAccountName;
+
+    @Column(name = "qr_template", length = 20)
+    @Builder.Default
+    private String qrTemplate = "compact2";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
