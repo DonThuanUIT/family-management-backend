@@ -561,7 +561,7 @@ public class InKindContributionServiceImpl implements InKindContributionService 
 
     private String generateUniqueReceiptNumber() {
         for (int i = 0; i < 5; i++) {
-            String candidate = receiptNumberGenerator.generate("HV-");
+            String candidate = receiptNumberGenerator.generate();
             if (!inKindContributionRepository.existsByReceiptNumber(candidate)) {
                 return candidate;
             }

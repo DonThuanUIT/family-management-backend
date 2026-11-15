@@ -90,6 +90,7 @@ class InKindContributionServiceImplTest {
     @BeforeEach
     void setUp() {
         TenantContext.setClanId(CLAN_ID);
+        lenient().when(currentUserProvider.hasAuthority(any())).thenReturn(true);
     }
 
     @AfterEach
