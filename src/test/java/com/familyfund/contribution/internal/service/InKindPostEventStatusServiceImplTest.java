@@ -91,6 +91,7 @@ class InKindPostEventStatusServiceImplTest {
     @Test
     @DisplayName("checkPendingInKindContributions - alerts when there are pending items")
     void checkPendingInKindContributions_hasPending_returnsWarning() {
+        when(currentUserProvider.hasAuthority(any())).thenReturn(true);
         EventSummaryDto eventSummary = new EventSummaryDto(eventId, clanId, "Đại Lễ Giỗ Tổ", EventStatus.Draft, Instant.now());
         when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(eventSummary));
 
@@ -128,5 +129,33 @@ class InKindPostEventStatusServiceImplTest {
         assertThat(response.warningMessage()).contains("Còn 1 hiện vật");
         assertThat(response.pendingItems()).hasSize(1);
         assertThat(response.pendingItems().get(0).itemName()).isEqualTo("Heo quay");
+    }
+
+    @Test
+    @DisplayName("processLifecycle - throws AccessDeniedException if regular member without event role")
+    void processLifecycle_unauthorizedMember_throwsAccessDenied() {
+        Contribution c = Contribution.builder()
+                .contributionId("CTB_IK_01")
+                .eventId(eventId)
+                .build();
+        InKindContribution ikc = InKindContribution.builder()
+                .contributionId("CTB_IK_01")
+                .processingStatus(InKindProcessingStatus.Pending)
+                .build();
+
+        when(inKindContributionRepository.findById("CTB_IK_01")).thenReturn(Optional.of(ikc));
+        when(contributionRepository.findById("CTB_IK_01")).thenReturn(Optional.of(c));
+        when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ", EventStatus.Draft, Instant.now())));
+        when(currentUserProvider.hasAuthority(any())).thenReturn(false);
+        when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("REGULAR_MEM"));
+        when(eventQueryService.getMemberRolesInEvent(eventId, "REGULAR_MEM")).thenReturn(Set.of());
+
+        ProcessInKindLifecycleRequest request = new ProcessInKindLifecycleRequest(
+                InKindProcessingStatus.Consumed, "Đã thụ lộc", null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> inKindContributionService.processLifecycle("CTB_IK_01", request))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("Only Clan Head, Admin, Head of Organizer, or Event Treasurer");
     }
 }

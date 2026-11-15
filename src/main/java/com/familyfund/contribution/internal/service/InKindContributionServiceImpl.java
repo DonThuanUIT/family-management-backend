@@ -16,14 +16,17 @@ import com.familyfund.contribution.internal.util.ReceiptNumberGenerator;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
+import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.EventQueryService;
+import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -346,6 +349,8 @@ public class InKindContributionServiceImpl implements InKindContributionService 
             throw new BusinessRuleException("Contribution does not belong to the current clan");
         }
 
+        validateInKindManagementPermission(contribution.getEventId());
+
         if (eventSummary.status() == EventStatus.Closed) {
             throw new BusinessRuleException("Cannot modify lifecycle of contribution for a closed event");
         }
@@ -498,6 +503,8 @@ public class InKindContributionServiceImpl implements InKindContributionService 
             throw new BusinessRuleException("Event does not belong to the current clan");
         }
 
+        validateInKindManagementPermission(eventId);
+
         List<InKindContributionDetailResponse> pendingItems = getInKindContributionsByEvent(eventId, InKindProcessingStatus.Pending);
         int pendingCount = pendingItems.size();
         boolean hasPending = pendingCount > 0;
@@ -513,6 +520,23 @@ public class InKindContributionServiceImpl implements InKindContributionService 
                 warningMessage,
                 pendingItems
         );
+    }
+
+    private void validateInKindManagementPermission(String eventId) {
+        if (currentUserProvider.hasAuthority(SystemRoles.ADMIN)
+                || currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)) {
+            return;
+        }
+
+        String memberId = currentUserProvider.currentMemberId().orElse(null);
+        if (memberId != null && eventId != null && !eventId.isBlank()) {
+            Set<EventRole> roles = eventQueryService.getMemberRolesInEvent(eventId, memberId);
+            if (roles.contains(EventRole.EventTreasurer) || roles.contains(EventRole.HeadOfOrganizer)) {
+                return;
+            }
+        }
+
+        throw new AccessDeniedException("Access denied: Only Clan Head, Admin, Head of Organizer, or Event Treasurer can manage in-kind lifecycle status or check pre-closure status");
     }
 
     private String generateUniqueAssetId() {
