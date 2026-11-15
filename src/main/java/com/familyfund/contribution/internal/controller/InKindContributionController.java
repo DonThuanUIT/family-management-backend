@@ -68,7 +68,7 @@ public class InKindContributionController {
      * Transitions status to Consumed, Returned, or AddedToCommonAssets (registering CLAN_ASSET).
      */
     @PutMapping({"/{contributionId}/status", "/{contributionId}/lifecycle"})
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @contributionSecurity.hasContributionRole(#contributionId, 'EventTreasurer', 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<ProcessInKindLifecycleResponse>> processLifecycle(
             @PathVariable String contributionId,
             @Valid @RequestBody ProcessInKindLifecycleRequest request) {
@@ -92,7 +92,7 @@ public class InKindContributionController {
      * Pre-closure audit check verifying all in-kind contributions are processed prior to event closure (US-51 / US-57, Task #180).
      */
     @GetMapping("/events/{eventId}/pending-check")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @eventSecurity.hasContextualRole(#eventId, 'HeadOfOrganizer', 'EventTreasurer')")
     public ResponseEntity<ApiResponse<EventPendingInKindCheckResponse>> checkPendingInKindContributions(
             @PathVariable String eventId) {
         EventPendingInKindCheckResponse response = inKindContributionService.checkPendingInKindContributions(eventId);
