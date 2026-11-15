@@ -8,6 +8,16 @@ public record WebhookPaymentResultResponse(
         String message,
         String referenceCode,
         String contributionId,
-        String receiptNumber
+        String receiptNumber,
+        ElectronicReceiptResponse receipt
 ) {
+    public WebhookPaymentResultResponse(
+            boolean success,
+            String message,
+            String referenceCode,
+            String contributionId,
+            String receiptNumber
+    ) {
+        this(success, message, referenceCode, contributionId, receiptNumber, null);
+    }
 }
