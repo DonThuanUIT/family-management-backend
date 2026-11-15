@@ -1,7 +1,10 @@
 package com.familyfund.contribution.internal.controller;
 
+import com.familyfund.contribution.internal.dto.request.ReconcileContributionRequest;
 import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
 import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
+import com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse;
+import com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse;
 import com.familyfund.contribution.internal.service.CashContributionService;
 import com.familyfund.core.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -11,8 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
- * REST Controller for cash & bank-transfer contributions and electronic receipts (US-09).
+ * REST Controller for cash & bank-transfer contributions, electronic receipts (US-09),
+ * and bank transfer reconciliation (US-50, Task #177).
  */
 @RestController
 @RequestMapping("/api/v1/contributions/cash")
@@ -49,9 +55,32 @@ public class CashContributionController {
      */
     @GetMapping("/events/{eventId}")
     @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<java.util.List<ElectronicReceiptResponse>>> getCashContributionsByEvent(
+    public ResponseEntity<ApiResponse<List<ElectronicReceiptResponse>>> getCashContributionsByEvent(
             @PathVariable String eventId) {
-        java.util.List<ElectronicReceiptResponse> response = cashContributionService.getCashContributionsByEvent(eventId);
+        List<ElectronicReceiptResponse> response = cashContributionService.getCashContributionsByEvent(eventId);
         return ResponseEntity.ok(ApiResponse.success(response, "Cash contributions retrieved successfully"));
+    }
+
+    /**
+     * Filter and list bank-transfer contributions not yet matched / reconciled with bank statements (US-50, Task #177).
+     */
+    @GetMapping({"/unreconciled", "/reconcile/pending"})
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or (#eventId != null and @eventSecurity.hasContextualRole(#eventId, 'EventTreasurer', 'HeadOfOrganizer'))")
+    public ResponseEntity<ApiResponse<List<UnreconciledContributionResponse>>> getUnreconciledContributions(
+            @RequestParam(required = false) String eventId) {
+        List<UnreconciledContributionResponse> response = cashContributionService.getUnreconciledContributions(eventId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Unreconciled bank transfer contributions retrieved successfully"));
+    }
+
+    /**
+     * Confirm reconciliation of a bank-transfer contribution with bank statement transaction code & proof (US-50, Task #177).
+     */
+    @PutMapping("/{contributionId}/reconcile")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @contributionSecurity.hasContributionRole(#contributionId, 'EventTreasurer', 'HeadOfOrganizer')")
+    public ResponseEntity<ApiResponse<ReconcileContributionResponse>> reconcileContribution(
+            @PathVariable String contributionId,
+            @Valid @RequestBody ReconcileContributionRequest request) {
+        ReconcileContributionResponse response = cashContributionService.reconcileContribution(contributionId, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Bank transfer contribution reconciled successfully"));
     }
 }
