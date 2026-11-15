@@ -16,6 +16,8 @@ import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.event.api.EventQueryService;
+import com.familyfund.core.security.SystemRoles;
+import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
@@ -26,11 +28,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -105,6 +109,7 @@ class ReconcileCashContributionServiceImplTest {
 
         Object[] pair = new Object[]{contribution, cashContribution};
         List<Object[]> pairs = java.util.Collections.singletonList(pair);
+        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
         when(cashContributionRepository.findUnreconciledBankTransfers(null)).thenReturn(pairs);
         when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ Khánh Thành", EventStatus.Draft, Instant.now())));
         when(genealogyQueryService.findMemberSummary("MEM_01")).thenReturn(Optional.of(new MemberSummaryDto("MEM_01", "Trần Văn B", clanId, "BR_01")));
@@ -140,6 +145,7 @@ class ReconcileCashContributionServiceImplTest {
         when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
         when(cashContributionRepository.findById(contributionId)).thenReturn(Optional.of(cashContribution));
         when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ Khánh Thành", EventStatus.Draft, Instant.now())));
+        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
         when(cashContributionRepository.findByBankTransactionCode("TXN_123456")).thenReturn(Optional.empty());
         when(currentUserProvider.currentAccountId()).thenReturn(Optional.of("ACC_AUDITOR"));
 
@@ -205,5 +211,73 @@ class ReconcileCashContributionServiceImplTest {
         assertThatThrownBy(() -> cashContributionService.reconcileContribution(contributionId, request))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Only contributions made via BankTransfer");
+    }
+
+    @Test
+    @DisplayName("reconcileContribution - throws AccessDeniedException if regular member without event treasurer role")
+    void reconcileContribution_unauthorizedMember_throwsAccessDenied() {
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(eventId)
+                .build();
+
+        CashContribution cashContribution = CashContribution.builder()
+                .contributionId(contributionId)
+                .paymentMethod(PaymentMethod.BankTransfer)
+                .isReconciled(false)
+                .build();
+
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(cashContributionRepository.findById(contributionId)).thenReturn(Optional.of(cashContribution));
+        when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ", EventStatus.Draft, Instant.now())));
+        when(currentUserProvider.hasAuthority(SystemRoles.ADMIN)).thenReturn(false);
+        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(false);
+        when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("REGULAR_MEM"));
+        when(eventQueryService.getMemberRolesInEvent(eventId, "REGULAR_MEM")).thenReturn(Set.of());
+
+        ReconcileContributionRequest request = new ReconcileContributionRequest("TXN_123", null, null);
+
+        assertThatThrownBy(() -> cashContributionService.reconcileContribution(contributionId, request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("You do not have treasury permission");
+    }
+
+    @Test
+    @DisplayName("reconcileContribution - success if member has EventTreasurer contextual role")
+    void reconcileContribution_eventTreasurerMember_success() {
+        Contribution contribution = Contribution.builder()
+                .contributionId(contributionId)
+                .eventId(eventId)
+                .payerMemberId("MEM_01")
+                .receiverAccountId("ACC_01")
+                .contributionType(ContributionType.Cash)
+                .totalMonetaryValue(new BigDecimal("2000000.00"))
+                .build();
+
+        CashContribution cashContribution = CashContribution.builder()
+                .contributionId(contributionId)
+                .amount(new BigDecimal("2000000.00"))
+                .paymentMethod(PaymentMethod.BankTransfer)
+                .receiptNumber("PT-20261109-99999")
+                .isReconciled(false)
+                .build();
+
+        when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
+        when(cashContributionRepository.findById(contributionId)).thenReturn(Optional.of(cashContribution));
+        when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ", EventStatus.Draft, Instant.now())));
+        when(currentUserProvider.hasAuthority(SystemRoles.ADMIN)).thenReturn(false);
+        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(false);
+        when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("TREASURER_MEM"));
+        when(eventQueryService.getMemberRolesInEvent(eventId, "TREASURER_MEM")).thenReturn(Set.of(EventRole.EventTreasurer));
+        when(cashContributionRepository.findByBankTransactionCode("TXN_999")).thenReturn(Optional.empty());
+        when(currentUserProvider.currentAccountId()).thenReturn(Optional.of("ACC_TREASURER"));
+
+        ReconcileContributionRequest request = new ReconcileContributionRequest("TXN_999", null, null);
+
+        ReconcileContributionResponse response = cashContributionService.reconcileContribution(contributionId, request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isReconciled()).isTrue();
+        assertThat(response.reconciledBy()).isEqualTo("ACC_TREASURER");
     }
 }

@@ -1,10 +1,14 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.dto.ContributionType;
+import com.familyfund.contribution.api.dto.PaymentMethod;
 import com.familyfund.contribution.internal.dto.request.MemberAllocationRequest;
+import com.familyfund.contribution.internal.dto.request.ReconcileContributionRequest;
 import com.familyfund.contribution.internal.dto.request.RecordCashContributionRequest;
 import com.familyfund.contribution.internal.dto.response.ElectronicReceiptResponse;
 import com.familyfund.contribution.internal.dto.response.MemberAllocationResponse;
+import com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse;
+import com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse;
 import com.familyfund.contribution.internal.entity.CashContribution;
 import com.familyfund.contribution.internal.entity.Contribution;
 import com.familyfund.contribution.internal.entity.ContributionMemberDetail;
@@ -17,14 +21,17 @@ import com.familyfund.contribution.internal.util.ReceiptNumberGenerator;
 import com.familyfund.core.exception.BusinessRuleException;
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
+import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.EventQueryService;
+import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -200,8 +207,14 @@ public class CashContributionServiceImpl implements CashContributionService {
         Contribution contribution = contributionRepository.findById(cashContribution.getContributionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Contribution information not found for receipt: " + receiptNumber));
 
+        String currentClanId = TenantContext.getClanId();
         EventSummaryDto eventSummary = eventQueryService.findEventSummary(contribution.getEventId())
                 .orElse(new EventSummaryDto(contribution.getEventId(), null, "Event", null, null));
+
+        if (currentClanId != null && !currentClanId.isBlank() && eventSummary.clanId() != null
+                && !currentClanId.equals(eventSummary.clanId())) {
+            throw new ResourceNotFoundException("Receipt not found with number: " + receiptNumber);
+        }
 
         MemberSummaryDto payerMember = genealogyQueryService.findMemberSummary(contribution.getPayerMemberId())
                 .orElse(new MemberSummaryDto(contribution.getPayerMemberId(), "Member", null, null));
@@ -285,7 +298,7 @@ public class CashContributionServiceImpl implements CashContributionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse> getUnreconciledContributions(String eventId) {
+    public List<UnreconciledContributionResponse> getUnreconciledContributions(String eventId) {
         String currentClanId = TenantContext.getClanId();
         if (eventId != null && !eventId.isBlank()) {
             EventSummaryDto eventSummary = eventQueryService.findEventSummary(eventId)
@@ -293,24 +306,29 @@ public class CashContributionServiceImpl implements CashContributionService {
             if (currentClanId != null && !currentClanId.isBlank() && !currentClanId.equals(eventSummary.clanId())) {
                 throw new BusinessRuleException("Event does not belong to the current clan");
             }
+            validateTreasuryPermission(eventId);
+        } else {
+            if (!currentUserProvider.hasAuthority(SystemRoles.ADMIN) && !currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)) {
+                throw new AccessDeniedException("Access denied: Viewing clan-wide unreconciled bank transfers requires Clan Head or Admin role");
+            }
         }
 
         List<Object[]> rawList = cashContributionRepository.findUnreconciledBankTransfers(eventId);
         Map<String, String> eventNameCache = new HashMap<>();
         Map<String, String> memberNameCache = new HashMap<>();
-        List<com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse> result = new ArrayList<>();
+        List<UnreconciledContributionResponse> result = new ArrayList<>();
 
         for (Object[] pair : rawList) {
             Contribution c = (Contribution) pair[0];
             CashContribution cc = (CashContribution) pair[1];
 
             String eventName = eventNameCache.computeIfAbsent(c.getEventId(), id ->
-                    eventQueryService.findEventSummary(id).map(EventSummaryDto::eventName).orElse("Sự kiện " + id));
+                    eventQueryService.findEventSummary(id).map(EventSummaryDto::eventName).orElse("Event " + id));
 
             String payerName = memberNameCache.computeIfAbsent(c.getPayerMemberId(), id ->
-                    genealogyQueryService.findMemberSummary(id).map(MemberSummaryDto::fullName).orElse("Thành viên " + id));
+                    genealogyQueryService.findMemberSummary(id).map(MemberSummaryDto::fullName).orElse("Member " + id));
 
-            result.add(new com.familyfund.contribution.internal.dto.response.UnreconciledContributionResponse(
+            result.add(new UnreconciledContributionResponse(
                     c.getContributionId(),
                     cc.getReceiptNumber(),
                     c.getEventId(),
@@ -331,9 +349,9 @@ public class CashContributionServiceImpl implements CashContributionService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse reconcileContribution(
+    public ReconcileContributionResponse reconcileContribution(
             String contributionId,
-            com.familyfund.contribution.internal.dto.request.ReconcileContributionRequest request) {
+            ReconcileContributionRequest request) {
         log.info("Processing bank transfer reconciliation for contribution {}", contributionId);
 
         Contribution contribution = contributionRepository.findById(contributionId)
@@ -350,7 +368,9 @@ public class CashContributionServiceImpl implements CashContributionService {
             throw new BusinessRuleException("Contribution does not belong to the current clan");
         }
 
-        if (cashContribution.getPaymentMethod() != com.familyfund.contribution.api.dto.PaymentMethod.BankTransfer) {
+        validateTreasuryPermission(contribution.getEventId());
+
+        if (cashContribution.getPaymentMethod() != PaymentMethod.BankTransfer) {
             throw new BusinessRuleException("Only contributions made via BankTransfer can be reconciled with bank statements");
         }
 
@@ -374,7 +394,7 @@ public class CashContributionServiceImpl implements CashContributionService {
 
         cashContributionRepository.save(cashContribution);
 
-        return new com.familyfund.contribution.internal.dto.response.ReconcileContributionResponse(
+        return new ReconcileContributionResponse(
                 contributionId,
                 cashContribution.getReceiptNumber(),
                 cashContribution.getBankTransactionCode(),
@@ -384,6 +404,23 @@ public class CashContributionServiceImpl implements CashContributionService {
                 auditorAccountId,
                 "Bank transfer contribution successfully reconciled with bank statement"
         );
+    }
+
+    private void validateTreasuryPermission(String eventId) {
+        if (currentUserProvider.hasAuthority(SystemRoles.ADMIN)
+                || currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)) {
+            return;
+        }
+
+        String memberId = currentUserProvider.currentMemberId().orElse(null);
+        if (memberId != null && eventId != null && !eventId.isBlank()) {
+            Set<EventRole> roles = eventQueryService.getMemberRolesInEvent(eventId, memberId);
+            if (roles.contains(EventRole.EventTreasurer) || roles.contains(EventRole.HeadOfOrganizer)) {
+                return;
+            }
+        }
+
+        throw new AccessDeniedException("Access denied: You do not have treasury permission to manage event contributions or reconcile finances");
     }
 
     private String generateUniqueContributionId() {
