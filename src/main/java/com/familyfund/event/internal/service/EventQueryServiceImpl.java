@@ -4,11 +4,13 @@ import com.familyfund.event.api.EventQueryService;
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventStatus;
 import com.familyfund.event.api.dto.EventSummaryDto;
+import com.familyfund.event.api.dto.EventTaskSummaryDto;
 import com.familyfund.event.api.dto.RegistrationSummaryDto;
 import com.familyfund.event.internal.entity.EventPersonnel;
 import com.familyfund.event.internal.mapper.RegistrationMapper;
 import com.familyfund.event.internal.repository.EventPersonnelRepository;
 import com.familyfund.event.internal.repository.EventRepository;
+import com.familyfund.event.internal.repository.EventTaskRepository;
 import com.familyfund.event.internal.repository.FamilyRegistrationRepository;
 import com.familyfund.event.internal.repository.RegistrationAggregateProjection;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ public class EventQueryServiceImpl implements EventQueryService {
     private final EventRepository eventRepository;
     private final EventPersonnelRepository eventPersonnelRepository;
     private final FamilyRegistrationRepository familyRegistrationRepository;
+    private final EventTaskRepository eventTaskRepository;
     private final RegistrationMapper registrationMapper;
 
     @Override
@@ -65,5 +68,25 @@ public class EventQueryServiceImpl implements EventQueryService {
                             familyRegistrationRepository.getAggregateSummary(eventId, e.getClanId());
                     return registrationMapper.toSummaryDto(eventId, projection);
                 });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EventTaskSummaryDto> findTaskSummary(String taskId) {
+        if (taskId == null || taskId.isBlank()) {
+            return Optional.empty();
+        }
+        return eventTaskRepository.findById(taskId.trim())
+                .flatMap(task -> eventRepository.findById(task.getEventId())
+                        .map(event -> new EventTaskSummaryDto(
+                                task.getTaskId(),
+                                task.getEventId(),
+                                event.getClanId(),
+                                task.getTaskName(),
+                                task.getAdvanceBudget(),
+                                task.getDeadline(),
+                                task.getStatus(),
+                                task.getAssignedMemberId(),
+                                task.getAssignedBranchId())));
     }
 }

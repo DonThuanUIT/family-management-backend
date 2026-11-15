@@ -111,4 +111,11 @@ public class EventSecurity {
                 .toArray(String[]::new);
         return hasContextualRole(eventId, stringRoles);
     }
+
+    /**
+     * Alias for contextual RBAC checking matching the Vietnamese domain name convention.
+     */
+    public boolean xacThucQuyenTheoNguCanh(String eventId, String... roles) {
+        return hasContextualRole(eventId, roles);
+    }
 }
