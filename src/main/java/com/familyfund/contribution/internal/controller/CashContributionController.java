@@ -65,7 +65,7 @@ public class CashContributionController {
      * Filter and list bank-transfer contributions not yet matched / reconciled with bank statements (US-50, Task #177).
      */
     @GetMapping({"/unreconciled", "/reconcile/pending"})
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or (#eventId != null and @eventSecurity.hasContextualRole(#eventId, 'EventTreasurer', 'HeadOfOrganizer'))")
     public ResponseEntity<ApiResponse<List<UnreconciledContributionResponse>>> getUnreconciledContributions(
             @RequestParam(required = false) String eventId) {
         List<UnreconciledContributionResponse> response = cashContributionService.getUnreconciledContributions(eventId);
@@ -76,7 +76,7 @@ public class CashContributionController {
      * Confirm reconciliation of a bank-transfer contribution with bank statement transaction code & proof (US-50, Task #177).
      */
     @PutMapping("/{contributionId}/reconcile")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN', 'BRANCH_HEAD', 'MEMBER')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or @contributionSecurity.hasContributionRole(#contributionId, 'EventTreasurer', 'HeadOfOrganizer')")
     public ResponseEntity<ApiResponse<ReconcileContributionResponse>> reconcileContribution(
             @PathVariable String contributionId,
             @Valid @RequestBody ReconcileContributionRequest request) {
