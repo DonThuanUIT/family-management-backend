@@ -31,6 +31,20 @@ public class CurrentUserProvider {
     }
 
     /**
+     * Checks if caller has the given role (accepts with or without "ROLE_" prefix).
+     *
+     * @param role role name, e.g. "CLAN_HEAD" or {@link SystemRoles#CLAN_HEAD}
+     * @return true if caller has the role
+     */
+    public boolean hasRole(String role) {
+        if (role == null || role.isBlank()) {
+            return false;
+        }
+        String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return hasAuthority(authority);
+    }
+
+    /**
      * @return the user_accounts.account_id linked to the caller, or empty when unauthenticated.
      */
     public Optional<String> currentAccountId() {
