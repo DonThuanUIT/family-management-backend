@@ -26,7 +26,8 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class ReceiptPdfService {
+public class
+ReceiptPdfService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
             .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -66,7 +67,7 @@ public class ReceiptPdfService {
                 receipt.payerMemberName(),
                 receipt.payerMemberId(),
                 receipt.receiverAccountId(),
-                "Tiền mặt / Chuyển khoản (" + (receipt.paymentMethod() != null ? receipt.paymentMethod().name() : "Cash") + ")",
+                "Cash / Bank Transfer (" + (receipt.paymentMethod() != null ? receipt.paymentMethod().name() : "Cash") + ")",
                 receipt.amount(),
                 receipt.amountInWords(),
                 null, // No in-kind details
@@ -76,10 +77,10 @@ public class ReceiptPdfService {
     }
 
     public byte[] generateInKindReceiptPdf(InKindElectronicReceiptResponse receipt, String clanName) {
-        String inKindDesc = String.format("%s - %s %s (Quy đổi: %s)",
+        String inKindDesc = String.format("%s - %s %s (Converted: %s)",
                 receipt.itemName(),
                 receipt.quantity() != null ? receipt.quantity().stripTrailingZeros().toPlainString() : "1",
-                receipt.unit() != null ? receipt.unit() : "món",
+                receipt.unit() != null ? receipt.unit() : "item(s)",
                 receipt.conversionMethod() != null ? receipt.conversionMethod().name() : "N/A"
         );
 
@@ -90,7 +91,7 @@ public class ReceiptPdfService {
                 receipt.payerMemberName(),
                 receipt.payerMemberId(),
                 receipt.receiverAccountId(),
-                "Hiện vật cúng tiến",
+                "In-Kind Contribution",
                 receipt.convertedMonetaryValue(),
                 receipt.convertedMonetaryValueInWords(),
                 inKindDesc,
@@ -127,25 +128,25 @@ public class ReceiptPdfService {
             Font italicFont = new Font(baseFont, 8, Font.ITALIC, Color.GRAY);
 
             // Clan Header
-            String displayClan = (clanName != null && !clanName.isBlank()) ? clanName.toUpperCase() : "DÒNG HỌ GIA TỘC";
+            String displayClan = (clanName != null && !clanName.isBlank()) ? clanName.toUpperCase() : "FAMILY CLAN MANAGEMENT";
             Paragraph clanHeader = new Paragraph(displayClan, titleFont);
             clanHeader.setAlignment(Element.ALIGN_CENTER);
             document.add(clanHeader);
 
-            Paragraph nationalMotto = new Paragraph("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc", subTitleFont);
+            Paragraph nationalMotto = new Paragraph("FAMILY CLAN & COMMUNITY FUND\nTransparency - Integrity - Solidarity", subTitleFont);
             nationalMotto.setAlignment(Element.ALIGN_CENTER);
             document.add(nationalMotto);
 
             document.add(new Paragraph("----------------------------------------", subTitleFont));
 
             // Receipt Title
-            Paragraph receiptTitle = new Paragraph("PHIẾU THU ĐIỆN TỬ", titleFont);
+            Paragraph receiptTitle = new Paragraph("ELECTRONIC RECEIPT", titleFont);
             receiptTitle.setAlignment(Element.ALIGN_CENTER);
             receiptTitle.setSpacingBefore(5);
             receiptTitle.setSpacingAfter(3);
             document.add(receiptTitle);
 
-            Paragraph codePara = new Paragraph("Mã phiếu thu: " + receiptNumber, boldFont);
+            Paragraph codePara = new Paragraph("Receipt No: " + receiptNumber, boldFont);
             codePara.setAlignment(Element.ALIGN_CENTER);
             codePara.setSpacingAfter(10);
             document.add(codePara);
@@ -155,27 +156,27 @@ public class ReceiptPdfService {
             table.setWidthPercentage(100);
             table.setWidths(new float[]{35f, 65f});
 
-            addTableRow(table, "Sự kiện:", eventName != null ? eventName : "Sự kiện chung", boldFont, regularFont);
-            addTableRow(table, "Người nộp:", (payerName != null ? payerName : "N/A") + " (Mã: " + payerMemberId + ")", boldFont, regularFont);
-            addTableRow(table, "Hình thức:", contributionCategory, boldFont, regularFont);
+            addTableRow(table, "Event:", eventName != null ? eventName : "General Event", boldFont, regularFont);
+            addTableRow(table, "Contributor / Payer:", (payerName != null ? payerName : "N/A") + " (ID: " + payerMemberId + ")", boldFont, regularFont);
+            addTableRow(table, "Contribution Form:", contributionCategory, boldFont, regularFont);
 
             if (inKindDetails != null) {
-                addTableRow(table, "Chi tiết hiện vật:", inKindDetails, boldFont, regularFont);
+                addTableRow(table, "In-Kind Details:", inKindDetails, boldFont, regularFont);
             }
 
-            String formattedAmount = (amount != null ? CURRENCY_FORMATTER.format(amount) : "0") + " VNĐ";
-            addTableRow(table, "Giá trị đóng góp:", formattedAmount, boldFont, boldFont);
-            addTableRow(table, "Bằng chữ:", amountInWords != null ? amountInWords : "N/A", boldFont, regularFont);
+            String formattedAmount = (amount != null ? CURRENCY_FORMATTER.format(amount) : "0") + " VND";
+            addTableRow(table, "Contribution Value:", formattedAmount, boldFont, boldFont);
+            addTableRow(table, "In Words:", amountInWords != null ? amountInWords : "N/A", boldFont, regularFont);
 
             String formattedDate = contributionDate != null ? DATE_FORMATTER.format(contributionDate) : "N/A";
-            addTableRow(table, "Thời gian ghi nhận:", formattedDate, boldFont, regularFont);
-            addTableRow(table, "Thủ quỹ tiếp nhận:", receiverAccountId != null ? receiverAccountId : "Hệ thống", boldFont, regularFont);
+            addTableRow(table, "Recorded Date:", formattedDate, boldFont, regularFont);
+            addTableRow(table, "Received by (Treasurer):", receiverAccountId != null ? receiverAccountId : "System", boldFont, regularFont);
 
             document.add(table);
 
             // Allocations (if any)
             if (allocations != null && !allocations.isEmpty()) {
-                Paragraph allocTitle = new Paragraph("\nPhân bổ công đức thành viên trong gia đình:", sectionFont);
+                Paragraph allocTitle = new Paragraph("\nFamily Member Allocations:", sectionFont);
                 allocTitle.setSpacingAfter(5);
                 document.add(allocTitle);
 
@@ -183,24 +184,24 @@ public class ReceiptPdfService {
                 allocTable.setWidthPercentage(100);
                 allocTable.setWidths(new float[]{30f, 40f, 30f});
 
-                addCellHeader(allocTable, "Mã TV", boldFont);
-                addCellHeader(allocTable, "Họ và tên", boldFont);
-                addCellHeader(allocTable, "Số tiền phân bổ", boldFont);
+                addCellHeader(allocTable, "Member ID", boldFont);
+                addCellHeader(allocTable, "Full Name", boldFont);
+                addCellHeader(allocTable, "Allocated Amount", boldFont);
 
                 for (MemberAllocationResponse alloc : allocations) {
                     addCell(allocTable, alloc.memberId(), regularFont);
                     addCell(allocTable, alloc.memberName() != null ? alloc.memberName() : "N/A", regularFont);
-                    addCell(allocTable, (alloc.recordedAmount() != null ? CURRENCY_FORMATTER.format(alloc.recordedAmount()) : "0") + " VNĐ", regularFont);
+                    addCell(allocTable, (alloc.recordedAmount() != null ? CURRENCY_FORMATTER.format(alloc.recordedAmount()) : "0") + " VND", regularFont);
                 }
                 document.add(allocTable);
             }
 
             // Signature block
-            Paragraph signPara = new Paragraph("\nNgày cấp phiếu: " + DATE_FORMATTER.format(Instant.now()), italicFont);
+            Paragraph signPara = new Paragraph("\nIssued Date: " + DATE_FORMATTER.format(Instant.now()), italicFont);
             signPara.setAlignment(Element.ALIGN_RIGHT);
             document.add(signPara);
 
-            Paragraph footerThanks = new Paragraph("\nBan Quản lý Dòng họ xin chân thành cảm tạ tấm lòng công đức của quý thành viên!", italicFont);
+            Paragraph footerThanks = new Paragraph("\nThe Clan Management Board sincerely appreciates your generous contribution!", italicFont);
             footerThanks.setAlignment(Element.ALIGN_CENTER);
             document.add(footerThanks);
 

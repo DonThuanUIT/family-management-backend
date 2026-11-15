@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * REST Controller for member contribution history and electronic receipt PDF downloads (US-49, Task #174).
  */
 @RestController
+@RequestMapping({"/api/v1/contributions", "/api/contributions"})
 @RequiredArgsConstructor
 public class ContributionHistoryController {
 
@@ -22,7 +23,7 @@ public class ContributionHistoryController {
     /**
      * Retrieve personal and household contribution history (Task #174).
      */
-    @GetMapping({"/api/v1/contributions/my-history", "/api/contributions/my-history"})
+    @GetMapping("/my-history")
     @PreAuthorize("hasAnyRole('MEMBER', 'BRANCH_HEAD', 'CLAN_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<MemberContributionHistoryResponse>> getMyContributionHistory(
             @RequestParam(defaultValue = "false") boolean includeFamily) {
@@ -33,7 +34,7 @@ public class ContributionHistoryController {
     /**
      * Download an electronic receipt in PDF format (Task #174).
      */
-    @GetMapping({"/api/v1/contributions/receipts/{receiptNumber}/pdf", "/api/contributions/receipts/{receiptNumber}/pdf"})
+    @GetMapping("/receipts/{receiptNumber}/pdf")
     @PreAuthorize("hasAnyRole('MEMBER', 'BRANCH_HEAD', 'CLAN_HEAD', 'ADMIN')")
     public ResponseEntity<byte[]> downloadReceiptPdf(@PathVariable String receiptNumber) {
         byte[] pdfBytes = contributionHistoryService.downloadReceiptPdf(receiptNumber);

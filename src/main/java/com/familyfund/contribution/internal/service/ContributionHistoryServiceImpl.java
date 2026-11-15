@@ -1,6 +1,7 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.dto.ContributionType;
+import com.familyfund.contribution.api.dto.PaymentMethod;
 import com.familyfund.contribution.internal.dto.response.*;
 import com.familyfund.contribution.internal.entity.CashContribution;
 import com.familyfund.contribution.internal.entity.Contribution;
@@ -108,7 +109,7 @@ public class ContributionHistoryServiceImpl implements ContributionHistoryServic
             String itemName = null;
             BigDecimal quantity = null;
             String unit = null;
-            com.familyfund.contribution.api.dto.PaymentMethod paymentMethod = null;
+            PaymentMethod paymentMethod = null;
             String status = "Completed";
 
             if (c.getContributionType() == ContributionType.Cash) {
