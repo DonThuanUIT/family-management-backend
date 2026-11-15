@@ -52,7 +52,7 @@ public class PositionLinkController {
      * @return {@code 201 Created} with the profile and its position link code
      */
     @PostMapping("/api/v1/branches/{branchId}/virtual-members")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN') or (hasRole('BRANCH_HEAD') and @genealogySecurity.isBranchRepresentative(#branchId))")
     public ResponseEntity<ApiResponse<CreateVirtualMemberResponse>> createVirtualMemberWithPositionLink(
             @PathVariable String branchId,
             @Valid @RequestBody CreateVirtualMemberRequest request) {

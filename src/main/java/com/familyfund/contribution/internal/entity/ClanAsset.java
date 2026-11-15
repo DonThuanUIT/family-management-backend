@@ -10,6 +10,7 @@ import java.time.Instant;
 /**
  * Entity mapping table `clan_assets`.
  * Represents accumulated clan assets stored at the ancestral hall, transitioned from in-kind contributions after events.
+ * Expanded with condition and audit tracking (US-52).
  */
 @Entity
 @Table(name = "clan_assets")
@@ -46,6 +47,16 @@ public class ClanAsset {
     @Column(name = "clan_id", length = 20, nullable = false)
     private String clanId;
 
+    @Column(name = "current_condition", length = 50)
+    @Builder.Default
+    private String currentCondition = "Good";
+
+    @Column(name = "last_audited_at")
+    private Instant lastAuditedAt;
+
+    @Column(name = "last_audited_by", length = 20)
+    private String lastAuditedBy;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
@@ -54,6 +65,9 @@ public class ClanAsset {
     public void prePersist() {
         if (createdAt == null) {
             createdAt = Instant.now();
+        }
+        if (currentCondition == null) {
+            currentCondition = "Good";
         }
     }
 }

@@ -2,10 +2,12 @@ package com.familyfund.genealogy.internal.service;
 
 import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.core.utils.BankBinDirectory;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.OnboardingBranchTreeNode;
 import com.familyfund.genealogy.api.dto.BranchHierarchyNodeDto;
 import com.familyfund.genealogy.api.dto.BranchSummaryDto;
+import com.familyfund.genealogy.api.dto.ClanBankingInfoDto;
 import com.familyfund.genealogy.api.dto.DeceasedMemberDto;
 import com.familyfund.genealogy.api.dto.MemberProfileDetailsDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
@@ -317,6 +319,23 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
             return false;
         }
         return !familyBranchRepository.findByClanIdAndRepresentative_MemberId(clanId.trim(), memberId.trim()).isEmpty();
+    }
+
+    @Override
+    public Optional<ClanBankingInfoDto> getClanBankingInfo(String clanId) {
+        if (clanId == null || clanId.isBlank()) {
+            return Optional.empty();
+        }
+        return clanRepository.findById(clanId.trim())
+                .map(clan -> new ClanBankingInfoDto(
+                        clan.getClanId(),
+                        clan.getClanName(),
+                        clan.getBankBin(),
+                        BankBinDirectory.lookupBankName(clan.getBankBin()),
+                        clan.getBankAccountNumber(),
+                        clan.getBankAccountName(),
+                        clan.getQrTemplate() != null ? clan.getQrTemplate() : "compact2"
+                ));
     }
 
     @Override

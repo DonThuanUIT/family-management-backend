@@ -43,8 +43,8 @@ server:
 
 app:
   storage:
-    supabase-url: ${SUPABASE_URL:}
-    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    supabase-url: ${SUPABASE_URL:https://storage.example.invalid}
+    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:sb_secret_local_dev}
     bucket: ${APP_STORAGE_BUCKET:member-media}
     quota-bytes: ${APP_STORAGE_QUOTA_BYTES:524288000}
     max-attachments: ${APP_STORAGE_MAX_ATTACHMENTS:20}
@@ -58,6 +58,11 @@ app:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:3600000}
     refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  vietqr:
+    bank-bin: ${VIETQR_BANK_BIN:970436}
+    account-number: ${VIETQR_ACCOUNT_NUMBER:1023456789}
+    account-name: ${VIETQR_ACCOUNT_NAME:QUY DONG HO GIA TOC}
+    template: ${VIETQR_TEMPLATE:compact2}
   task:
       deadline-warning:
         # US-08: background worker scanning unfinished tasks whose deadline is 24h away or less

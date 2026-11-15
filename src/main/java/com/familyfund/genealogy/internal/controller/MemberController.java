@@ -78,7 +78,7 @@ public class MemberController {
     }
 
     @PutMapping("/api/v1/members/{memberId}/assign-branch")
-    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> assignMemberToBranch(
             @PathVariable String memberId,
             @Valid @RequestBody AssignMemberRequest request) {

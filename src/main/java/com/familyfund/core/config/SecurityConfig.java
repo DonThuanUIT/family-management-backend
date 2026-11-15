@@ -49,6 +49,8 @@ public class SecurityConfig {
                         // Public: previewing and redeeming a one-time position link code (US-19)
                         .requestMatchers(HttpMethod.GET, "/api/v1/position-links/{inviteCode}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/position-links/{inviteCode}/claim").permitAll()
+                        // Public: Payment Webhook for VietQR payments (US-53)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/contributions/vietqr/webhook", "/api/contributions/vietqr/webhook").permitAll()
                         // Join requests management (US-17 Tasks 3 & 5)
                         .requestMatchers("/api/v1/join-requests/**").authenticated()
                         // Swagger & Documentation

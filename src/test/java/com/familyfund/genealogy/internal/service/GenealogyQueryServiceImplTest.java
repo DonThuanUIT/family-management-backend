@@ -279,6 +279,40 @@ class GenealogyQueryServiceImplTest {
     }
 
     @Test
+    @DisplayName("getClanBankingInfo returns clan banking details when clan exists")
+    void testGetClanBankingInfo_Success() {
+        Clan clan = Clan.builder()
+                .clanId("CLAN_01")
+                .clanName("Họ Nguyễn")
+                .bankBin("970422")
+                .bankAccountNumber("0987654321")
+                .bankAccountName("NGUYEN VAN THU QUY")
+                .qrTemplate("compact2")
+                .build();
+        when(clanRepository.findById("CLAN_01")).thenReturn(Optional.of(clan));
+
+        Optional<com.familyfund.genealogy.api.dto.ClanBankingInfoDto> result = genealogyQueryService.getClanBankingInfo("CLAN_01");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().clanId()).isEqualTo("CLAN_01");
+        assertThat(result.get().clanName()).isEqualTo("Họ Nguyễn");
+        assertThat(result.get().bankBin()).isEqualTo("970422");
+        assertThat(result.get().bankName()).isEqualTo("MBBank");
+        assertThat(result.get().bankAccountNumber()).isEqualTo("0987654321");
+        assertThat(result.get().bankAccountName()).isEqualTo("NGUYEN VAN THU QUY");
+    }
+
+    @Test
+    @DisplayName("getClanBankingInfo returns empty when clan not found or clanId is blank")
+    void testGetClanBankingInfo_NotFoundOrBlank() {
+        when(clanRepository.findById("CLAN_99")).thenReturn(Optional.empty());
+
+        assertThat(genealogyQueryService.getClanBankingInfo("CLAN_99")).isEmpty();
+        assertThat(genealogyQueryService.getClanBankingInfo(null)).isEmpty();
+        assertThat(genealogyQueryService.getClanBankingInfo("   ")).isEmpty();
+    }
+
+    @Test
     @DisplayName("findMemberProfileDetails returns full demographic when member found")
     void testFindMemberProfileDetails_Success() {
         FamilyBranch branch = FamilyBranch.builder()
@@ -307,5 +341,6 @@ class GenealogyQueryServiceImplTest {
         assertThat(result.get().clanId()).isEqualTo(CLAN_A);
         assertThat(result.get().branchId()).isEqualTo("BR_001");
         assertThat(result.get().branchName()).isEqualTo("Chi 1 (Đại Tôn)");
+    }
     }
 }

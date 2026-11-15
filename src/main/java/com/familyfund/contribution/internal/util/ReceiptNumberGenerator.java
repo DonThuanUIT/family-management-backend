@@ -28,9 +28,18 @@ public class ReceiptNumberGenerator {
      * E.g. {@code PT-20261029-A7K9M2} (18 chars &le; 30).
      */
     public String generate() {
+        return generate(PREFIX);
+    }
+
+    /**
+     * Generates a candidate electronic receipt number with custom prefix.
+     * E.g. {@code HV-20261029-A7K9M2} for in-kind contributions.
+     */
+    public String generate(String prefix) {
         String datePart = LocalDate.now().format(DATE_FORMATTER);
         String suffix = randomSuffix();
-        return PREFIX + datePart + "-" + suffix;
+        String resolvedPrefix = (prefix != null && !prefix.isBlank()) ? prefix : PREFIX;
+        return resolvedPrefix + datePart + "-" + suffix;
     }
 
     private String randomSuffix() {

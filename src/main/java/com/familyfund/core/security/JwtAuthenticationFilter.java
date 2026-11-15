@@ -64,9 +64,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Task #9: Automatically synchronize active clan tenancy from JWT claims
                 String clanId = jwtTokenProvider.getClanId(jwt);
                 if (StringUtils.hasText(clanId)) {
-                    String currentTenant = TenantContext.getClanId();
-                    if (currentTenant == null || "CLAN_DEFAULT".equals(currentTenant)) {
+                    // Non-admin callers are strictly locked to their authenticated JWT clan to prevent tenant spoofing
+                    if (!roles.contains(SystemRoles.ADMIN)) {
                         TenantContext.setClanId(clanId);
+                    } else {
+                        String currentTenant = TenantContext.getClanId();
+                        if (currentTenant == null || "CLAN_DEFAULT".equals(currentTenant)) {
+                            TenantContext.setClanId(clanId);
+                        }
                     }
                 }
 
