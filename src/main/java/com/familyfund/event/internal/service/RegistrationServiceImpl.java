@@ -17,6 +17,10 @@ import com.familyfund.event.internal.dto.request.RegisterAttendeesRequest;
 import com.familyfund.event.internal.dto.request.RequestCancelRegistrationRequest;
 import com.familyfund.event.internal.dto.request.RequestModifyRegistrationRequest;
 import com.familyfund.event.internal.dto.request.ReviewRegistrationRequest;
+import com.familyfund.event.internal.dto.request.UpdateRegistrationRequest;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse.BranchOption;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse.HouseholdLogisticsItem;
 import com.familyfund.event.internal.dto.response.RegistrationMemberDetailResponse;
 import com.familyfund.event.internal.dto.response.RegistrationResponse;
 import com.familyfund.event.internal.dto.response.RegistrationSummaryResponse;
@@ -31,6 +35,7 @@ import com.familyfund.event.internal.repository.RegistrationAggregateProjection;
 import com.familyfund.event.internal.repository.RegistrationMemberDetailRepository;
 import com.familyfund.event.internal.util.RegistrationIdGenerator;
 import com.familyfund.genealogy.api.GenealogyQueryService;
+import com.familyfund.genealogy.api.dto.BranchSummaryDto;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,6 +86,12 @@ public class RegistrationServiceImpl implements RegistrationService {
                     event.getEventName(), event.getStatus()));
         }
 
+        // 2b. US-43: Enforce registration deadline if configured
+        if (event.getRegistrationDeadline() != null && Instant.now().isAfter(event.getRegistrationDeadline())) {
+            throw new BusinessRuleException(
+                    "Đã hết hạn đăng ký tham dự sự kiện. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
+        }
+
         // 3. Resolve representative member ID based on caller roles
         String callerMemberId = currentUserProvider.currentMemberId().orElse(null);
         boolean isPrivileged = isPrivilegedOrganizer(eventId, callerMemberId);
@@ -105,6 +116,17 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         // 5. Invariant: Total meals must not exceed total attendees
         int totalAttendees = request.totalAttendees();
+
+        // 5b. US-43: Enforce max capacity if configured
+        if (event.getMaxCapacity() != null) {
+            long currentAttendees = eventRepository.sumActiveAttendeesByEventIdAndClanId(eventId, clanId);
+            if (currentAttendees + totalAttendees > event.getMaxCapacity()) {
+                long remaining = Math.max(0, event.getMaxCapacity() - currentAttendees);
+                throw new BusinessRuleException(String.format(
+                        "Sự kiện đã đạt giới hạn sức chứa tối đa (%d/%d người, còn lại %d chỗ).",
+                        currentAttendees, event.getMaxCapacity(), remaining));
+            }
+        }
         int vegMeals = request.vegetarianMeals() != null ? request.vegetarianMeals() : 0;
         int savMeals = request.savoryMeals() != null ? request.savoryMeals() : 0;
         if (vegMeals + savMeals > totalAttendees) {
@@ -156,6 +178,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
 
         // 8. Build and persist FamilyRegistration entity
+        String trimmedTransport = request.transportationNotes() != null ? request.transportationNotes().trim() : null;
+        int shuttleSeats = ShuttleSeatParser.resolveSeats(null, trimmedTransport, totalAttendees);
         FamilyRegistration registration = FamilyRegistration.builder()
                 .registrationId(registrationId)
                 .eventId(eventId)
@@ -164,7 +188,8 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .vegetarianMeals(vegMeals)
                 .savoryMeals(savMeals)
                 .dietaryRequirements(request.dietaryRequirements() != null ? request.dietaryRequirements().trim() : null)
-                .transportationNotes(request.transportationNotes() != null ? request.transportationNotes().trim() : null)
+                .transportationNotes(trimmedTransport)
+                .shuttleSeats(shuttleSeats)
                 .registrationDate(Instant.now())
                 .status(RegistrationStatus.Confirmed)
                 .build();
@@ -204,6 +229,106 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         RegistrationAggregateProjection projection = familyRegistrationRepository.getAggregateSummary(eventId, clanId);
         return registrationMapper.toSummaryResponse(eventId, projection);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventLogisticsSummaryResponse getEventLogisticsSummary(String eventId, String branchId) {
+        String clanId = TenantContext.getClanId();
+        Event event = eventRepository.findByEventIdAndClanId(eventId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + eventId));
+
+        String normalizedBranchId = (branchId != null && !branchId.isBlank()) ? branchId.trim() : null;
+
+        List<BranchSummaryDto> clanBranches = genealogyQueryService.findAllBranchesByClanId(clanId);
+        Map<String, String> branchNameById = new LinkedHashMap<>();
+        for (BranchSummaryDto branch : clanBranches) {
+            branchNameById.put(branch.branchId(), branch.branchName());
+        }
+
+        String selectedBranchName = null;
+        if (normalizedBranchId != null) {
+            selectedBranchName = branchNameById.get(normalizedBranchId);
+            if (selectedBranchName == null) {
+                BranchSummaryDto branch = genealogyQueryService.findBranchByIdAndClanId(normalizedBranchId, clanId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi/nhánh với mã: " + normalizedBranchId));
+                selectedBranchName = branch.branchName();
+                branchNameById.put(branch.branchId(), branch.branchName());
+            }
+        }
+
+        List<FamilyRegistration> allRegistrations =
+                familyRegistrationRepository.findAllByEvent_EventIdAndEvent_ClanIdOrderByRegistrationDateDesc(eventId, clanId);
+
+        Map<String, MemberSummaryDto> memberCache = new HashMap<>();
+        List<HouseholdLogisticsItem> items = new ArrayList<>();
+        long totalRegistrations = 0;
+        long totalAttendees = 0;
+        long totalSavoryMeals = 0;
+        long totalVegetarianMeals = 0;
+        long totalShuttleSeats = 0;
+
+        for (FamilyRegistration reg : allRegistrations) {
+            if (reg.getStatus() == RegistrationStatus.Cancelled) {
+                continue;
+            }
+            String repId = reg.getRepresentativeMemberId();
+            MemberSummaryDto repSummary = memberCache.computeIfAbsent(
+                    repId,
+                    id -> genealogyQueryService.findMemberSummary(id).orElse(null)
+            );
+            String repBranchId = repSummary != null ? repSummary.branchId() : null;
+            if (normalizedBranchId != null && !normalizedBranchId.equals(repBranchId)) {
+                continue;
+            }
+
+            String repName = repSummary != null ? repSummary.fullName() : repId;
+            String repBranchName = repBranchId != null ? branchNameById.getOrDefault(repBranchId, repBranchId) : "";
+            int attendees = reg.getTotalAttendees() != null ? reg.getTotalAttendees() : 0;
+            int savory = reg.getSavoryMeals() != null ? reg.getSavoryMeals() : 0;
+            int veg = reg.getVegetarianMeals() != null ? reg.getVegetarianMeals() : 0;
+            int seats = ShuttleSeatParser.resolveSeats(reg.getShuttleSeats(), reg.getTransportationNotes(), attendees);
+
+            totalRegistrations++;
+            totalAttendees += attendees;
+            totalSavoryMeals += savory;
+            totalVegetarianMeals += veg;
+            totalShuttleSeats += seats;
+
+            items.add(new HouseholdLogisticsItem(
+                    reg.getRegistrationId(),
+                    repId,
+                    repName,
+                    repBranchId,
+                    repBranchName,
+                    attendees,
+                    savory,
+                    veg,
+                    seats,
+                    reg.getDietaryRequirements(),
+                    reg.getTransportationNotes(),
+                    reg.getStatus(),
+                    reg.getRegistrationDate()
+            ));
+        }
+
+        List<BranchOption> availableBranches = branchNameById.entrySet().stream()
+                .map(entry -> new BranchOption(entry.getKey(), entry.getValue()))
+                .toList();
+
+        return new EventLogisticsSummaryResponse(
+                event.getEventId(),
+                event.getEventName(),
+                normalizedBranchId,
+                selectedBranchName,
+                totalRegistrations,
+                totalAttendees,
+                totalSavoryMeals,
+                totalVegetarianMeals,
+                totalShuttleSeats,
+                availableBranches,
+                items
+        );
     }
 
     @Override
@@ -458,6 +583,110 @@ public class RegistrationServiceImpl implements RegistrationService {
                 registrationId, request.approved(), reviewerAccountId);
 
         return enrichRegistration(saved);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationResponse updateRegistration(String registrationId, UpdateRegistrationRequest request) {
+        FamilyRegistration registration = loadAndAuthorizeOpenRegistration(registrationId);
+
+        int totalAttendees = request.totalAttendees();
+        int vegMeals = request.vegetarianMeals() != null ? request.vegetarianMeals() : 0;
+        int savMeals = request.savoryMeals() != null ? request.savoryMeals() : 0;
+        if (vegMeals + savMeals > totalAttendees) {
+            throw new BusinessRuleException(String.format(
+                    "Tổng số suất ăn đăng ký (%d) không được vượt quá tổng số người tham dự (%d)",
+                    vegMeals + savMeals, totalAttendees));
+        }
+
+        // US-43: Enforce max capacity on direct update if configured
+        Event event = eventRepository.findByEventIdAndClanId(registration.getEventId(), TenantContext.getClanId())
+                .orElse(null);
+        if (event != null && event.getMaxCapacity() != null) {
+            long currentAttendees = eventRepository.sumActiveAttendeesByEventIdAndClanId(
+                    event.getEventId(), event.getClanId());
+            int oldAttendees = registration.getTotalAttendees() != null ? registration.getTotalAttendees() : 0;
+            long projectedTotal = currentAttendees - oldAttendees + totalAttendees;
+            if (projectedTotal > event.getMaxCapacity()) {
+                long remainingForIncrease = Math.max(0, event.getMaxCapacity() - (currentAttendees - oldAttendees));
+                throw new BusinessRuleException(String.format(
+                        "Số lượng cập nhật vượt quá sức chứa tối đa của sự kiện (tối đa %d chỗ, hộ của bạn có thể đăng ký tối đa %d người).",
+                        event.getMaxCapacity(), remainingForIncrease));
+            }
+        }
+
+        registration.setTotalAttendees(totalAttendees);
+        registration.setVegetarianMeals(vegMeals);
+        registration.setSavoryMeals(savMeals);
+        registration.setDietaryRequirements(trimToNull(request.dietaryRequirements()));
+        registration.setTransportationNotes(trimToNull(request.transportationNotes()));
+        registration.setShuttleSeats(ShuttleSeatParser.resolveSeats(
+                null,
+                registration.getTransportationNotes(),
+                registration.getTotalAttendees()
+        ));
+        registration.setStatus(RegistrationStatus.Confirmed);
+        registration.setUpdatedAt(Instant.now());
+
+        FamilyRegistration saved = familyRegistrationRepository.save(registration);
+        log.info("Registration {} directly updated before close (US-41)", registrationId);
+        return enrichRegistration(saved);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationResponse cancelRegistration(String registrationId) {
+        FamilyRegistration registration = loadAndAuthorizeOpenRegistration(registrationId);
+
+        registration.setStatus(RegistrationStatus.Cancelled);
+        registration.setUpdatedAt(Instant.now());
+
+        FamilyRegistration saved = familyRegistrationRepository.save(registration);
+        log.info("Registration {} directly cancelled before close (US-41)", registrationId);
+        return enrichRegistration(saved);
+    }
+
+    private FamilyRegistration loadAndAuthorizeOpenRegistration(String registrationId) {
+        String clanId = TenantContext.getClanId();
+        FamilyRegistration registration = familyRegistrationRepository
+                .findByRegistrationIdAndEvent_ClanId(registrationId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lượt đăng ký: " + registrationId));
+
+        Event event = eventRepository.findByEventIdAndClanId(registration.getEventId(), clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + registration.getEventId()));
+
+        String callerMemberId = currentUserProvider.currentMemberId().orElse(null);
+        if (!canModifyRegistration(registration, callerMemberId, event.getEventId())) {
+            throw new AccessDeniedException("Bạn không có quyền chỉnh sửa hoặc hủy lượt đăng ký này");
+        }
+
+        if (event.getStatus() == EventStatus.RegistrationClosed) {
+            throw new BusinessRuleException(
+                    "Danh sách tham dự đã được Ban tổ chức chốt. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
+        }
+        if (event.getStatus() != EventStatus.RegistrationOpen) {
+            throw new BusinessRuleException(String.format(
+                    "Sự kiện '%s' hiện không ở trạng thái mở đăng ký (trạng thái: %s). Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.",
+                    event.getEventName(), event.getStatus()));
+        }
+
+        if (event.getRegistrationDeadline() != null && Instant.now().isAfter(event.getRegistrationDeadline())) {
+            throw new BusinessRuleException(
+                    "Đã hết hạn đăng ký tham dự sự kiện. Vui lòng liên hệ trực tiếp Ban tổ chức sự kiện để được hỗ trợ.");
+        }
+
+        if (registration.getStatus() == RegistrationStatus.Cancelled) {
+            throw new BusinessRuleException("Lượt đăng ký này đã bị hủy trước đó");
+        }
+        return registration;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isPrivilegedOrganizer(String eventId, String callerMemberId) {

@@ -129,7 +129,7 @@ Xem toàn bộ cây thư viện phụ thuộc và kiểm tra phiên bản:
 
 ```text
 family-management-backend/
-├── .env                       # Biến môi trường kết nối Neon Cloud & Docker
+├── .env                       # Biến môi trường kết nối Neon Cloud, Supabase & Docker
 ├── .env.example               # Mẫu cấu hình biến môi trường
 ├── docker-compose.yml         # Khởi tạo Swagger UI (:8082) & Adminer (:8088)
 ├── docker/
@@ -150,7 +150,12 @@ family-management-backend/
 │   │   ├── US-04-child-branches-and-hierarchy.md # Đặc tả US-04 Quản lý chi phái phả hệ
 │   │   ├── US-16-general-clan-invite.md          # Đặc tả US-16 Mã mời chung dòng họ
 │   │   ├── US-18-create-virtual-member-and-generate-position-link-code.md # Đặc tả US-18 Hồ sơ ảo & mã liên kết vị trí
-│   │   └── US-19-enter-position-link-code-and-join-automatically.md # Đặc tả US-19 Nhập mã liên kết khi đăng ký & tự động gia nhập
+│   │   ├── US-19-enter-position-link-code-and-join-automatically.md # Đặc tả US-19 Nhập mã liên kết khi đăng ký & tự động gia nhập
+│   │   ├── US-39-notification-service-fcm-and-read-state.md # Đặc tả US-39 Hộp thư 3 nhóm, push FCM & đánh dấu đã đọc
+│   │   ├── US-40-daily-death-anniversary-reminder-and-event-suggestion.md # Đặc tả US-40 Cron nhắc giỗ âm lịch & gợi ý sự kiện Đám giỗ
+│   │   ├── US-46-event-advance-voucher-management.md # Đặc tả US-46 Lập phiếu tạm ứng & xác nhận giao tiền
+│   │   ├── US-47-task-overdue-12h-escalation.md # Đặc tả US-47 Leo thang cảnh báo công việc quá hạn 12h
+│   │   └── US-48-advance-voucher-overdue-job.md # Đặc tả US-48 Job quét phiếu tạm ứng quá hạn & cảnh báo đồng thời
 │   └── guidelines/            # Quy chuẩn phát triển & coding conventions
 │       ├── development-guide.md
 │       └── modulith-rules.md

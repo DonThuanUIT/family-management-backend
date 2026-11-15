@@ -19,6 +19,29 @@ public record EventResponse(
         String description,
         EventStatus status,
         String createdBy,
-        Instant closedAt
+        Instant closedAt,
+        Instant registrationDeadline,
+        Integer maxCapacity,
+        Integer currentAttendees,
+        Integer remainingSlots
 ) {
+    public EventResponse(
+            String eventId,
+            String clanId,
+            String eventName,
+            Instant eventDatetime,
+            String eventDateLunar,
+            String location,
+            BigDecimal estimatedBudget,
+            String description,
+            EventStatus status,
+            String createdBy,
+            Instant closedAt
+    ) {
+        this(
+                eventId, clanId, eventName, eventDatetime, eventDateLunar,
+                location, estimatedBudget, description, status, createdBy, closedAt,
+                null, null, 0, null
+        );
+    }
 }

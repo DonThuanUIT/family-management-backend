@@ -122,6 +122,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Malformed JSON request body"));
     }
 
+    // Multipart resolution can fail before Spring selects a controller, so this must be global.
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(413)
+                .body(ApiResponse.errorWithCode("FILE_TOO_LARGE", "Tệp vượt dung lượng cho phép"));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
         log.warn("No handler for request: {}", ex.getResourcePath());

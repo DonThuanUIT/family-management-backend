@@ -1,7 +1,6 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.ContributionQueryService;
-import com.familyfund.contribution.api.dto.ContributionType;
 import com.familyfund.contribution.api.dto.MemberContributionDetailDto;
 import com.familyfund.contribution.internal.entity.Contribution;
 import com.familyfund.contribution.internal.entity.ContributionMemberDetail;
@@ -21,6 +20,7 @@ public class ContributionQueryServiceImpl implements ContributionQueryService {
 
     private final ContributionMemberDetailRepository detailRepository;
     private final ContributionRepository contributionRepository;
+    private final BranchContributionService branchContributionService;
 
     @Override
     public List<MemberContributionDetailDto> findDetailsByMemberIds(Collection<String> memberIds) {
@@ -59,5 +59,10 @@ public class ContributionQueryServiceImpl implements ContributionQueryService {
         return details.stream()
                 .map(ContributionMemberDetail::getRecordedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    @Override
+    public BigDecimal tinhTongDongGopDeQuy(String branchId, String maSuKien) {
+        return branchContributionService.tinhTongDongGopDeQuy(branchId, maSuKien);
     }
 }

@@ -13,8 +13,18 @@ import java.util.Optional;
 @Repository
 public interface MemberRepository extends JpaRepository<Member, String> {
 
+    /**
+     * Every member whose life status is {@code Deceased} and who carries a lunar anniversary string — the input of
+     * the daily death-anniversary job (US-40) and of the "upcoming anniversaries" API.
+     */
+    List<Member> findAllByStatusAndDeathDateLunarIsNotNull(String status);
+
+
     // Global uniqueness guard for MemberIdGenerator: members.member_id is a clan-agnostic PRIMARY KEY
     boolean existsByMemberId(String memberId);
+
+    @Query("SELECT m.memberId FROM Member m WHERE m.memberId IN :memberIds")
+    List<String> findExistingMemberIds(@Param("memberIds") java.util.Collection<String> memberIds);
 
     // Multi-tenant scoped queries
     Optional<Member> findByBranch_ClanIdAndMemberId(String clanId, String memberId);

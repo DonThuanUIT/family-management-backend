@@ -1,6 +1,10 @@
 spring:
   application:
     name: familyfund-api
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   autoconfigure:
     exclude:
       - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
@@ -38,6 +42,14 @@ server:
   port: 8080
 
 app:
+  storage:
+    supabase-url: ${SUPABASE_URL:}
+    supabase-service-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    bucket: ${APP_STORAGE_BUCKET:member-media}
+    quota-bytes: ${APP_STORAGE_QUOTA_BYTES:524288000}
+    max-attachments: ${APP_STORAGE_MAX_ATTACHMENTS:20}
+    timeout-seconds: 60
+    cleanup-enabled: ${APP_STORAGE_CLEANUP_ENABLED:true}
   invitation:
     base-url: ${APP_INVITE_BASE_URL:http://localhost:3000/join}
     # US-18: redemption link of a one-time PositionLinkCode
@@ -51,3 +63,45 @@ app:
     account-number: ${VIETQR_ACCOUNT_NUMBER:1023456789}
     account-name: ${VIETQR_ACCOUNT_NAME:QUY DONG HO GIA TOC}
     template: ${VIETQR_TEMPLATE:compact2}
+  task:
+      deadline-warning:
+        # US-08: background worker scanning unfinished tasks whose deadline is 24h away or less
+        enabled: ${APP_TASK_DEADLINE_WARNING_ENABLED:true}
+        interval-ms: ${APP_TASK_DEADLINE_WARNING_INTERVAL_MS:900000}
+        initial-delay-ms: ${APP_TASK_DEADLINE_WARNING_INITIAL_DELAY_MS:60000}
+      deadline-overdue:
+        # US-08 escalation: scanning unfinished tasks overdue by 12h or more (alert to the branch representative)
+        interval-ms: ${APP_TASK_DEADLINE_OVERDUE_INTERVAL_MS:900000}
+        initial-delay-ms: ${APP_TASK_DEADLINE_OVERDUE_INITIAL_DELAY_MS:120000}
+  notification:
+    # US-39: personal inbox (3 categories) + push delivery
+    inbox:
+      # Mirror event/task domain events into the inbox of every concerned account
+      enabled: ${APP_NOTIFICATION_INBOX_ENABLED:true}
+    push:
+      # log = no Firebase project needed (payload is written to the application log); fcm = Firebase Cloud Messaging HTTP v1
+      provider: ${APP_NOTIFICATION_PUSH_PROVIDER:log}
+      project-id: ${APP_NOTIFICATION_FCM_PROJECT_ID:}
+      service-account-path: ${APP_NOTIFICATION_FCM_SERVICE_ACCOUNT_PATH:}
+      token-uri: ${APP_NOTIFICATION_FCM_TOKEN_URI:https://oauth2.googleapis.com/token}
+      base-url: ${APP_NOTIFICATION_FCM_BASE_URL:https://fcm.googleapis.com}
+  death-anniversary:
+    # US-40: cron job đối chiếu ngày giỗ âm lịch với lịch hiện tại
+    enabled: ${APP_DEATH_ANNIVERSARY_ENABLED:true}
+    # Mỗi ngày 07:00 giờ Việt Nam (Spring 6-field cron: giây phút giờ ngày tháng thứ)
+    cron: ${APP_DEATH_ANNIVERSARY_CRON:0 0 7 * * *}
+    zone: ${APP_DEATH_ANNIVERSARY_ZONE:Asia/Ho_Chi_Minh}
+    # Các mốc nhắc (số ngày trước ngày giỗ)
+    milestones: ${APP_DEATH_ANNIVERSARY_MILESTONES:14,3}
+    # Cửa sổ mặc định của API xem trước
+    window-days: ${APP_DEATH_ANNIVERSARY_WINDOW_DAYS:30}
+    # Giờ bắt đầu gợi ý cho sự kiện "Đám giỗ" và dự toán gợi ý (bỏ trống default-budget = để người dùng tự nhập)
+    reminder-time: ${APP_DEATH_ANNIVERSARY_REMINDER_TIME:08:00}
+    default-budget: ${APP_DEATH_ANNIVERSARY_DEFAULT_BUDGET:}
+    event-name-template: "${APP_DEATH_ANNIVERSARY_EVENT_NAME:Đám giỗ {name} ({lunar})}"
+  finance:
+    advance-overdue:
+      # US-48: background job scanning advance vouchers past settlement deadline
+      enabled: ${APP_FINANCE_ADVANCE_OVERDUE_ENABLED:true}
+      interval-ms: ${APP_FINANCE_ADVANCE_OVERDUE_INTERVAL_MS:900000}
+      initial-delay-ms: ${APP_FINANCE_ADVANCE_OVERDUE_INITIAL_DELAY_MS:60000}

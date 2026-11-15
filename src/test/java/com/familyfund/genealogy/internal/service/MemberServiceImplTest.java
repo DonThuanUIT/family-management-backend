@@ -7,15 +7,20 @@ import com.familyfund.core.exception.ResourceNotFoundException;
 import com.familyfund.core.security.CurrentUserProvider;
 import com.familyfund.core.security.SystemRoles;
 import com.familyfund.core.tenant.TenantContext;
+import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
+import com.familyfund.genealogy.internal.dto.response.FieldVisibility;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
+import com.familyfund.genealogy.internal.entity.MemberPrivacySetting;
 import com.familyfund.genealogy.internal.mapper.MemberMapper;
 import com.familyfund.genealogy.internal.repository.ClanRepository;
 import com.familyfund.genealogy.internal.repository.FamilyBranchRepository;
+import com.familyfund.genealogy.internal.repository.MemberPrivacySettingRepository;
 import com.familyfund.genealogy.internal.repository.MemberRepository;
+import com.familyfund.genealogy.internal.security.MemberPrivacyPolicy;
 import com.familyfund.genealogy.internal.util.MemberIdGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +77,12 @@ class MemberServiceImplTest {
     private MemberMapper memberMapper = Mappers.getMapper(MemberMapper.class);
     @Spy
     private MemberIdGenerator memberIdGenerator = new MemberIdGenerator();
+    @Mock
+    private MemberPrivacySettingRepository privacySettingRepository;
+    @Spy
+    private MemberPrivacyPolicy memberPrivacyPolicy = new MemberPrivacyPolicy();
+    @Mock
+    private GenealogyQueryService genealogyQueryService;
 
     @InjectMocks
     private MemberServiceImpl memberService;
@@ -283,6 +294,95 @@ class MemberServiceImplTest {
             when(clanRepository.findByIdForUpdate("CLAN_OTHER")).thenReturn(Optional.of(Clan.builder().clanId("CLAN_OTHER").build()));
             when(branchRepository.findByClanIdAndBranchId(eq("CLAN_OTHER"), anyString())).thenReturn(Optional.empty());
             assertThrows(ResourceNotFoundException.class, () -> memberService.createMember(MY_BRANCH, request()));
+        }
+    }
+
+    @Nested
+    @DisplayName("Privacy and Read Operations (US-25)")
+    class PrivacyReadOperations {
+
+        @Test
+        @DisplayName("getMembersByClan: Applies privacy policy to nullify dateOfBirth for regular members when owner has not consented")
+        void shouldNullifyDateOfBirthWhenNotConsented() {
+            actAs(SystemRoles.MEMBER);
+            when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("MEM_CALLER"));
+
+            Member target = Member.builder()
+                    .memberId("MEM_TARGET")
+                    .fullName("Target Member")
+                    .dateOfBirth(LocalDate.of(1992, 3, 15))
+                    .gender("Male")
+                    .generation(3)
+                    .branch(branch(MY_BRANCH))
+                    .build();
+
+            when(memberRepository.findByBranch_ClanId(CLAN)).thenReturn(java.util.List.of(target));
+            when(privacySettingRepository.findByMemberIdIn(java.util.List.of("MEM_TARGET"))).thenReturn(java.util.List.of());
+
+            java.util.List<MemberResponse> responses = memberService.getMembersByClan();
+
+            assertEquals(1, responses.size());
+            MemberResponse res = responses.get(0);
+            assertEquals("MEM_TARGET", res.memberId());
+            org.junit.jupiter.api.Assertions.assertNull(res.dateOfBirth(), "Date of birth must be nullified");
+            assertEquals(FieldVisibility.RESTRICTED, res.fieldVisibility().dateOfBirth());
+        }
+
+        @Test
+        @DisplayName("getMembersByClan: Retains dateOfBirth when owner has consented to share")
+        void shouldRetainDateOfBirthWhenOwnerConsented() {
+            actAs(SystemRoles.MEMBER);
+            when(currentUserProvider.currentMemberId()).thenReturn(Optional.of("MEM_CALLER"));
+
+            Member target = Member.builder()
+                    .memberId("MEM_TARGET")
+                    .fullName("Target Member")
+                    .dateOfBirth(LocalDate.of(1992, 3, 15))
+                    .gender("Male")
+                    .generation(3)
+                    .branch(branch(MY_BRANCH))
+                    .build();
+
+            MemberPrivacySetting setting = MemberPrivacySetting.builder()
+                    .memberId("MEM_TARGET")
+                    .shareDateOfBirth(true)
+                    .build();
+
+            when(memberRepository.findByBranch_ClanId(CLAN)).thenReturn(java.util.List.of(target));
+            when(privacySettingRepository.findByMemberIdIn(java.util.List.of("MEM_TARGET"))).thenReturn(java.util.List.of(setting));
+
+            java.util.List<MemberResponse> responses = memberService.getMembersByClan();
+
+            assertEquals(1, responses.size());
+            MemberResponse res = responses.get(0);
+            assertEquals(LocalDate.of(1992, 3, 15), res.dateOfBirth(), "Date of birth must be visible");
+            assertEquals(FieldVisibility.VISIBLE, res.fieldVisibility().dateOfBirth());
+        }
+
+        @Test
+        @DisplayName("getMembersByClan: Retains dateOfBirth for Clan Head regardless of consent")
+        void shouldRetainDateOfBirthForClanHead() {
+            actAs(SystemRoles.CLAN_HEAD);
+            when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
+
+            Member target = Member.builder()
+                    .memberId("MEM_TARGET")
+                    .fullName("Target Member")
+                    .dateOfBirth(LocalDate.of(1992, 3, 15))
+                    .gender("Male")
+                    .generation(3)
+                    .branch(branch(MY_BRANCH))
+                    .build();
+
+            when(memberRepository.findByBranch_ClanId(CLAN)).thenReturn(java.util.List.of(target));
+            when(privacySettingRepository.findByMemberIdIn(java.util.List.of("MEM_TARGET"))).thenReturn(java.util.List.of());
+
+            java.util.List<MemberResponse> responses = memberService.getMembersByClan();
+
+            assertEquals(1, responses.size());
+            MemberResponse res = responses.get(0);
+            assertEquals(LocalDate.of(1992, 3, 15), res.dateOfBirth(), "Clan head must see date of birth");
+            assertEquals(FieldVisibility.VISIBLE, res.fieldVisibility().dateOfBirth());
         }
     }
 }

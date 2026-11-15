@@ -235,6 +235,67 @@ paths:
         '200':
           description: Danh sách thành viên
 
+  /members/{memberId}/life-status:
+    put:
+      summary: Cập nhật tình trạng sống / đã mất, ngày mất và tính ngày giỗ âm lịch (US-27)
+      description: |
+        Cho phép Trưởng tộc / Trưởng chi cập nhật tình trạng thành viên (sống hoặc đã mất).
+        Khi cập nhật `Deceased` (Đã mất):
+        - Bắt buộc nhập `deathDate` (Dương lịch).
+        - Hệ thống tự động chuyển đổi sang ngày âm lịch tương ứng và lưu vào `death_date_lunar`.
+        - Tự động phát Domain Event khóa tài khoản đăng nhập (nếu có).
+        - Giữ nguyên 100% vị trí nút trên cây phả hệ và toàn bộ lịch sử đóng góp tài chính.
+      tags:
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          description: Mã thành viên cần cập nhật
+          schema:
+            type: string
+            example: MEM_001
+        - name: X-Clan-Id
+          in: header
+          required: false
+          description: Mã dòng họ hiện hành (multi-tenant)
+          schema:
+            type: string
+            example: CLAN_DEFAULT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLifeStatusRequest'
+      responses:
+        '200':
+          description: Cập nhật tình trạng thành viên thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMember'
+        '400':
+          description: Ngày mất không hợp lệ (nằm trong tương lai hoặc trước ngày sinh)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '403':
+          description: Không có quyền (chỉ Trưởng tộc hoặc Trưởng chi quản lý chi của thành viên)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+        '404':
+          description: Không tìm thấy thành viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+
   /branches/{branchId}/members:
     post:
       summary: Tạo hồ sơ thành viên mới trong một chi/nhánh (US-03)
@@ -549,6 +610,103 @@ paths:
         '201':
           description: Tạo sự kiện thành công
 
+
+  /events/death-anniversaries:
+    get:
+      summary: Ngày giỗ sắp tới kèm payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      description: |
+        Đối chiếu ngày giỗ âm lịch (members.death_date_lunar, US-27) với lịch hiện tại và trả về các ngày giỗ
+        rơi vào cửa sổ N ngày tới. Mỗi phần tử có sẵn `suggestion.requestBody` — gửi nguyên văn tới
+        POST /api/v1/events để tạo sự kiện Đám giỗ mà không cần client tự quy đổi âm lịch.
+        Khi sự kiện cho ngày giỗ đó đã tồn tại (trùng ngày hoặc trùng nhãn âm lịch trong năm), `suggestion` là null.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Ngày bắt đầu cửa sổ (yyyy-MM-dd). Bỏ trống = hôm nay (giờ Việt Nam).
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+        - name: days
+          in: query
+          required: false
+          description: Độ dài cửa sổ tính bằng ngày. Bỏ trống hoặc 0 = cấu hình app.death-anniversary.window-days.
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Danh sách ngày giỗ trong cửa sổ, sắp theo ngày
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryListEnvelope"
+        '400':
+          description: Tham số from sai định dạng yyyy-MM-dd
+        '401':
+          description: Chưa xác thực
+
+  /events/death-anniversaries/{memberId}/reminders:
+    get:
+      summary: Lịch sử nhắc giỗ đã gửi cho một thành viên (US-40)
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Các vết nhắc giỗ đã ghi (mới nhất trước)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryReminderListEnvelope"
+        '404':
+          description: Không tìm thấy thành viên trong dòng họ hiện hành
+
+  /events/death-anniversaries/scan:
+    post:
+      summary: Chạy ngay lượt đối chiếu ngày giỗ (Trưởng tộc / Admin) (US-40)
+      description: |
+        Cùng code path với cron job hằng ngày (idempotent theo mốc đã gửi), dùng để chạy bù một lượt bị lỡ
+        hoặc để kiểm chứng tính năng mà không phải chờ 07:00.
+      tags:
+        - Events & Registration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: Ngày mốc để đối chiếu (yyyy-MM-dd). Bỏ trống = hôm nay.
+          schema:
+            type: string
+            format: date
+            example: "2026-03-20"
+      responses:
+        '200':
+          description: Số nhắc giỗ đã gửi trong lượt chạy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathAnniversaryScanEnvelope"
+        '400':
+          description: Tham số date sai định dạng yyyy-MM-dd
+        '403':
+          description: Không có quyền (chỉ ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+
   /events/{eventId}:
     get:
       summary: Xem chi tiết sự kiện và ban tổ chức (US-21)
@@ -696,6 +854,46 @@ paths:
       responses:
         '200':
           description: Danh sách thông báo sự kiện
+
+  /events/{eventId}/budget-summary:
+    get:
+      summary: Tổng hợp ngân sách sự kiện và cảnh báo vượt dự toán (US-37)
+      description: |
+        Tổng hợp và so sánh `estimated_budget` của sự kiện với:
+        - Tổng `advance_budget` của tất cả hạng mục công việc (`event_tasks`)
+        - Tổng `advance_amount` của tất cả phiếu tạm ứng (`advance_vouchers`)
+        - Tổng `actual_expense_amount` của tất cả phiếu quyết toán (`expense_settlement_vouchers`)
+        
+        Bật cờ cảnh báo `isOverBudget = true` ngay khi tổng tạm ứng (`totalAdvanceAmount`) hoặc tổng thực chi (`totalActualExpenseAmount`) vượt `estimatedBudget`. Hỗ trợ alias `GET /api/v1/events/{eventId}/budget`.
+      tags:
+        - Events & Registration
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: EVT_2026_01
+      responses:
+        '200':
+          description: Báo cáo tổng hợp ngân sách sự kiện và trạng thái cảnh báo vượt dự toán
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    nullable: true
+                  data:
+                    $ref: '#/components/schemas/EventBudgetSummaryResponse'
+        '403':
+          description: Sự kiện thuộc dòng họ khác (chặn cô lập đa dòng họ)
+        '404':
+          description: Không tìm thấy sự kiện
 
   /events/{eventId}/registrations:
     post:
@@ -922,6 +1120,187 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseRegistration'
+
+  /advances:
+    post:
+      summary: Lập phiếu tạm ứng mới cho hạng mục sự kiện (US-46)
+      description: |
+        Ban tổ chức sự kiện (Trưởng ban, Thành viên BTC, Thủ quỹ) hoặc Trưởng tộc/Admin lập phiếu tạm ứng
+        gắn với một hạng mục công việc (event_tasks). Hệ thống tự sinh mã phiếu `ADV...`, khởi tạo trạng thái `ChoGiaoTien`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Mã dòng họ (Tenant ID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdvanceVoucherRequest'
+      responses:
+        '201':
+          description: Lập phiếu tạm ứng thành công (trạng thái ChoGiaoTien)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Danh sách phiếu tạm ứng có bộ lọc (US-46)
+      description: Tra cứu danh sách phiếu tạm ứng trong dòng họ, hỗ trợ lọc theo eventId, taskId, recipientMemberId, status.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: recipientMemberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
+      responses:
+        '200':
+          description: Danh sách phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherListEnvelope'
+
+  /advances/{id}:
+    get:
+      summary: Xem chi tiết phiếu tạm ứng (US-46)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết phiếu tạm ứng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/{id}/disburse:
+    post:
+      summary: Thủ quỹ xác nhận đã giao tiền tạm ứng (US-46)
+      description: |
+        Chỉ Thủ quỹ sự kiện (EventTreasurer) hoặc Trưởng tộc/Admin mới có quyền gọi.
+        Xác nhận tiền mặt/chuyển khoản đã được giao thực tế cho người nhận tạm ứng,
+        chuyển trạng thái phiếu từ `ChoGiaoTien` sang `ChuaTatToan`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Clan-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmDisbursementRequest'
+      responses:
+        '200':
+          description: Xác nhận giao tiền thành công (trạng thái ChuaTatToan)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceVoucherEnvelope'
+        '400':
+          description: Phiếu không ở trạng thái ChoGiaoTien hoặc dữ liệu không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Không có quyền Thủ quỹ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/scan-overdue:
+    post:
+      summary: Quét và cập nhật trạng thái phiếu tạm ứng quá hạn (US-48)
+      description: |
+        Job / API quét các phiếu trong ADVANCE_VOUCHER đang ở trạng thái chưa quyết toán (ChuaTatToan)
+        mà thời gian thực tế đã vượt quá hạn nộp chứng từ (settlement_deadline). Tự động đổi trạng thái
+        sang QuaHan ('Quá hạn quyết toán') và gửi cảnh báo đồng thời cho người nhận tiền và Ban tổ chức.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Kết quả quét và chuyển đổi phiếu quá hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverdueScanSummaryEnvelope'
+        '403':
+          description: Yêu cầu quyền CLAN_HEAD hoặc ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /events/{eventId}/advance-vouchers:
     post:
@@ -1719,6 +2098,115 @@ paths:
         '404':
           description: Tài sản không tồn tại
 
+  /contributions/branches/{branchId}/recursive-total:
+    get:
+      summary: Tính tổng mức đóng góp đệ quy của nhánh gia phả (US-11)
+      description: |
+        Cộng dồn toàn bộ đóng góp từ CONTRIBUTION_MEMBER_DETAIL của nhánh đang xét và tất cả các nhánh con bên dưới.
+        Sử dụng kết hợp PostgreSQL Recursive CTE và phương thức đệ quy trên thực thể FamilyBranch (NhanhGiaDinh).
+        Tự động loại trừ các hiện vật cho mượn đã hoàn trả gia chủ (processing_status = 'Returned').
+      tags:
+        - Contributions & Fund
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "BR_ROOT"
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: maSuKien
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Tính tổng đóng góp đệ quy thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Branch recursive contribution total calculated successfully
+                  data:
+                    type: number
+                    format: decimal
+                    example: 35000000.00
+
+  /contributions/branches/{branchId}/recursive-summary:
+    get:
+      summary: Báo cáo phân rã chi tiết mức đóng góp đệ quy của nhánh gia phả (US-11)
+      description: |
+        Xem chi tiết mức đóng góp của nhánh bất kỳ kèm cấu trúc cây nhánh con, hiển thị tách bạch:
+        Đóng góp trực tiếp của nhánh vs. Tổng cộng từ các nhánh con, phân tách Tiền mặt vs. Hiện vật quy đổi.
+      tags:
+        - Contributions & Fund
+        - Clan & Family Tree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "BR_ROOT"
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: maSuKien
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Tra cứu báo cáo đệ quy chi tiết thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Branch recursive contribution summary retrieved successfully
+                  data:
+                    $ref: '#/components/schemas/BranchRecursiveContributionResponse'
+
   /roles/assign:
     post:
       summary: Chỉ định vai trò Trưởng nhánh hoặc nhân sự sự kiện (US-03)
@@ -1858,6 +2346,606 @@ paths:
         '200':
           description: Tổng quan phân quyền nhánh và thành viên
 
+  "/members/{memberId}":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+    get:
+      summary: "Hồ sơ chi tiết đã lọc US-25 và quyền xem tiểu sử"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaDetailEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+  "/members/{memberId}/avatar":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+    put:
+      summary: "Thay avatar bằng ảnh vuông, chuẩn hóa JPEG 512 px"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      requestBody:
+        required: true
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              required: ["file", "expectedMediaVersion"]
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+                  description: "JPEG/PNG vuông tối thiểu 128 px, tối đa 5 MiB"
+                expectedMediaVersion:
+                  type: "integer"
+                  format: "int64"
+                  minimum: 0
+    delete:
+      summary: "Xóa ảnh đại diện"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      parameters:
+        -
+          name: "expectedMediaVersion"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 0
+  "/members/{memberId}/avatar/content":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+    get:
+      summary: "Đọc avatar private"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Nội dung private; kiểm tra quyền mỗi request. PDF luôn tải xuống."
+          headers:
+            "Cache-Control":
+              schema:
+                type: "string"
+              example: "no-store, private"
+            "X-Content-Type-Options":
+              schema:
+                type: "string"
+              example: "nosniff"
+            "Content-Disposition":
+              schema:
+                type: "string"
+          content:
+            "image/jpeg":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/png":
+              schema:
+                type: "string"
+                format: "binary"
+            "application/pdf":
+              schema:
+                type: "string"
+                format: "binary"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+  "/members/{memberId}/biography":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+    put:
+      summary: "Cập nhật tiểu sử Quill Delta và quyền xem"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/MemberBiographyRequest"
+  "/members/{memberId}/attachments":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+    get:
+      summary: "Danh sách tư liệu; lọc quyền trước phân trang và đếm"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberAttachmentPageEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      parameters:
+        -
+          name: "page"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 0
+            maximum: 1000000
+            default: 0
+        -
+          name: "size"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 20
+            default: 10
+    post:
+      summary: "Tải tư liệu private; retry cùng key không tạo bản trùng"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "201":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberAttachmentEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      requestBody:
+        required: true
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              required: ["file", "title"]
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+                  description: "PDF/JPEG/PNG tối đa 10 MiB"
+                title:
+                  type: "string"
+                  minLength: 1
+                  maxLength: 150
+                description:
+                  type: "string"
+                  maxLength: 1000
+                visibility:
+                  $ref: "#/components/schemas/MemberMediaVisibility"
+                  description: "Mặc định RESTRICTED"
+      parameters:
+        -
+          name: "Idempotency-Key"
+          in: "header"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+  "/members/{memberId}/attachments/{id}":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+      -
+        name: "id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          format: "uuid"
+    get:
+      summary: "Metadata của tư liệu được phép xem"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberAttachmentEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+    patch:
+      summary: "Sửa tiêu đề, mô tả hoặc phạm vi; cần ít nhất một trường"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Thành công"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberAttachmentEnvelope"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/MemberAttachmentPatch"
+    delete:
+      summary: "Ẩn tư liệu và ghi tác vụ xóa file bền vững"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "204":
+          description: "Tư liệu đã ẩn; file được xóa bất đồng bộ."
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      parameters:
+        -
+          name: "expectedVersion"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 0
+  "/members/{memberId}/attachments/{id}/content":
+    parameters:
+      -
+        name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          maxLength: 20
+      -
+        name: "id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+          format: "uuid"
+    get:
+      summary: "Tải nội dung tư liệu sau kiểm tra quyền"
+      tags: ["Member Media (US-32)"]
+      security:
+        -
+          BearerAuth: []
+      responses:
+        "200":
+          description: "Nội dung private; kiểm tra quyền mỗi request. PDF luôn tải xuống."
+          headers:
+            "Cache-Control":
+              schema:
+                type: "string"
+              example: "no-store, private"
+            "X-Content-Type-Options":
+              schema:
+                type: "string"
+              example: "nosniff"
+            "Content-Disposition":
+              schema:
+                type: "string"
+          content:
+            "image/jpeg":
+              schema:
+                type: "string"
+                format: "binary"
+            "image/png":
+              schema:
+                type: "string"
+                format: "binary"
+            "application/pdf":
+              schema:
+                type: "string"
+                format: "binary"
+        default:
+          description: "Lỗi xác thực, phạm vi, dữ liệu, phiên bản, hạn mức hoặc dịch vụ lưu trữ; xem code trong JSON."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/MemberMediaError"
+      parameters:
+        -
+          name: "disposition"
+          in: "query"
+          schema:
+            type: "string"
+            enum: ["attachment", "inline"]
+            default: "attachment"
+
+
+  /notifications:
+    get:
+      summary: Hộp thư thông báo của người dùng đang đăng nhập (US-39)
+      description: |
+        Trả về thông báo của **chính người gọi**, mới nhất trước. Danh tính lấy từ JWT — không có tham số
+        accountId, nên không thể đọc hộp thư của tài khoản khác. size bị chặn tối đa 100.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Lọc theo nhóm thông báo; giá trị lạ trả 400.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+        - name: isRead
+          in: query
+          required: false
+          description: "false = chỉ thông báo chưa đọc, true = chỉ đã đọc, bỏ trống = tất cả."
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Trang thông báo của người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPageEnvelope"
+        '400':
+          description: Tham số không hợp lệ (ví dụ category=Bogus)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/unread-count:
+    get:
+      summary: Số thông báo chưa đọc của người gọi, tổng và theo nhóm (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Badge chưa đọc
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationUnreadCountEnvelope"
+        '401':
+          description: Chưa xác thực
+
+  /notifications/{notificationId}/read:
+    patch:
+      summary: Đánh dấu một thông báo là đã đọc (is_read = true) (US-39)
+      description: |
+        Idempotent: gọi lại trên thông báo đã đọc giữ nguyên read_at. Thông báo của tài khoản khác trả 404
+        (không phải 403) để không thể dò id.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Thông báo sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEnvelope"
+        '404':
+          description: Không tìm thấy thông báo thuộc về người gọi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+
+  /notifications/read-all:
+    patch:
+      summary: Đánh dấu tất cả thông báo chưa đọc của người gọi (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Chỉ đánh dấu trong một nhóm; bỏ trống = cả ba nhóm.
+          schema:
+            type: string
+            enum: ["Event", "Task", "Finance"]
+      responses:
+        '200':
+          description: Số thông báo đã cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationMarkAllEnvelope"
+
+  /notifications/device-tokens:
+    post:
+      summary: Đăng ký thiết bị nhận push notification (FCM registration token) (US-39)
+      description: |
+        fcm_token là UNIQUE: đăng ký lại một token đã tồn tại sẽ chuyển quyền sở hữu sang tài khoản đang
+        đăng nhập (thiết bị dùng chung / đăng nhập lại) thay vì tạo bản ghi trùng.
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationDeviceTokenRequest"
+      responses:
+        '201':
+          description: Đã đăng ký thiết bị
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationDeviceTokenEnvelope"
+        '400':
+          description: Token rỗng/quá 255 ký tự hoặc platform ngoài Android/IOS/Web
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationError"
+    delete:
+      summary: Huỷ đăng ký thiết bị (gọi khi logout) (US-39)
+      tags:
+        - Notification Inbox (US-39)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fcmToken
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Token đã bị vô hiệu hoá (is_active = false)
+        '400':
+          description: Thiếu fcmToken
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1869,6 +2957,257 @@ components:
         Token tự động đính kèm quyền hạn ROLE_CLAN_HEAD và clanId cho người tạo cây.
 
   schemas:
+    EventBudgetSummaryResponse:
+      type: object
+      description: Báo cáo tổng hợp và cảnh báo vượt ngân sách sự kiện (US-37)
+      properties:
+        eventId:
+          type: string
+          example: "EVT_2026_01"
+        eventName:
+          type: string
+          example: "Giỗ Tổ Xuân 2026"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventStatus:
+          type: string
+          example: "Ongoing"
+        estimatedBudget:
+          type: number
+          format: double
+          example: 50000000.00
+        totalTaskAdvanceBudget:
+          type: number
+          format: double
+          example: 45000000.00
+        totalAdvanceAmount:
+          type: number
+          format: double
+          example: 52000000.00
+        totalActualExpenseAmount:
+          type: number
+          format: double
+          example: 48000000.00
+        verifiedActualExpenseAmount:
+          type: number
+          format: double
+          example: 30000000.00
+        remainingBudgetByAdvance:
+          type: number
+          format: double
+          example: -2000000.00
+        remainingBudgetByActualExpense:
+          type: number
+          format: double
+          example: 2000000.00
+        overrunAmount:
+          type: number
+          format: double
+          example: 2000000.00
+        advanceUtilizationPercent:
+          type: number
+          format: double
+          example: 104.00
+        actualExpenseUtilizationPercent:
+          type: number
+          format: double
+          example: 96.00
+        isOverBudget:
+          type: boolean
+          description: True ngay khi totalAdvanceAmount > estimatedBudget HOẶC totalActualExpenseAmount > estimatedBudget
+          example: true
+        isAdvanceOverEstimated:
+          type: boolean
+          example: true
+        isActualExpenseOverEstimated:
+          type: boolean
+          example: false
+        isTaskBudgetOverEstimated:
+          type: boolean
+          example: false
+        hasTaskOverBudget:
+          type: boolean
+          example: true
+        warningLevel:
+          type: string
+          enum: [NORMAL, TASK_PLAN_EXCEEDED, TASK_OVERRUN, OVER_BUDGET]
+          example: "OVER_BUDGET"
+        warningMessages:
+          type: array
+          items:
+            type: string
+        totalTasksCount:
+          type: integer
+          example: 3
+        totalAdvanceVouchersCount:
+          type: integer
+          example: 4
+        totalSettlementVouchersCount:
+          type: integer
+          example: 2
+        taskBreakdowns:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskBudgetBreakdownResponse'
+
+    TaskBudgetBreakdownResponse:
+      type: object
+      description: Chi tiết ngân sách, tạm ứng và thực chi theo từng hạng mục công việc (US-37)
+      properties:
+        taskId:
+          type: string
+          example: "TSK_001"
+        taskName:
+          type: string
+          example: "Đặt mâm cỗ mặn & chay"
+        status:
+          type: string
+          example: "InProgress"
+        assignedBranchId:
+          type: string
+          nullable: true
+          example: "BR_ROOT"
+        assignedMemberId:
+          type: string
+          nullable: true
+          example: "MEM_001"
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        advanceBudget:
+          type: number
+          format: double
+          example: 30000000.00
+        totalAdvanceAmount:
+          type: number
+          format: double
+          example: 35000000.00
+        totalActualExpenseAmount:
+          type: number
+          format: double
+          example: 32000000.00
+        verifiedActualExpenseAmount:
+          type: number
+          format: double
+          example: 30000000.00
+        advanceVouchersCount:
+          type: integer
+          example: 2
+        settlementVouchersCount:
+          type: integer
+          example: 1
+        isTaskAdvanceOverBudget:
+          type: boolean
+          example: true
+        isTaskActualOverBudget:
+          type: boolean
+          example: true
+        isTaskOverBudget:
+          type: boolean
+          example: true
+        taskOverrunAmount:
+          type: number
+          format: double
+          example: 5000000.00
+
+    BranchRecursiveContributionResponse:
+      type: object
+      description: Báo cáo phân rã đóng góp đệ quy của nhánh gia phả (US-11)
+      properties:
+        branchId:
+          type: string
+          example: "BR_ROOT"
+        branchName:
+          type: string
+          example: "Đại Tôn Nguyễn Tộc"
+        generationLevel:
+          type: integer
+          example: 1
+        parentBranchId:
+          type: string
+          nullable: true
+          example: null
+        representativeId:
+          type: string
+          nullable: true
+          example: "MEM_TRUONG_TOC"
+        representativeName:
+          type: string
+          nullable: true
+          example: "Nguyễn Trọng Hoàng"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        eventName:
+          type: string
+          nullable: true
+          example: "Đại Lễ Giỗ Tổ Thủy Tộc Xuân Bính Ngọ 2026"
+        year:
+          type: integer
+          nullable: true
+          example: 2026
+        directMemberCount:
+          type: integer
+          example: 4
+        totalRecursiveMemberCount:
+          type: integer
+          example: 18
+        directContributingMemberCount:
+          type: integer
+          example: 1
+        totalRecursiveContributingMemberCount:
+          type: integer
+          example: 5
+        directContributionCount:
+          type: integer
+          example: 1
+        directCashAmount:
+          type: number
+          format: decimal
+          example: 5000000.00
+        directInKindAmount:
+          type: number
+          format: decimal
+          example: 0.00
+        directTotalAmount:
+          type: number
+          format: decimal
+          example: 5000000.00
+        descendantsCashAmount:
+          type: number
+          format: decimal
+          example: 9000000.00
+        descendantsInKindAmount:
+          type: number
+          format: decimal
+          example: 21000000.00
+        descendantsTotalAmount:
+          type: number
+          format: decimal
+          example: 30000000.00
+        totalRecursiveCashAmount:
+          type: number
+          format: decimal
+          example: 14000000.00
+        totalRecursiveInKindAmount:
+          type: number
+          format: decimal
+          example: 21000000.00
+        totalRecursiveAmount:
+          type: number
+          format: decimal
+          example: 35000000.00
+        totalRecursiveAmountInWords:
+          type: string
+          example: "Ba mươi lăm triệu đồng chẵn"
+        childBranches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchRecursiveContributionResponse'
+
     UpdateInvitationRequest:
       type: object
       description: |
@@ -1942,6 +3281,30 @@ components:
           type: string
           format: date-time
 
+    UpdateLifeStatusRequest:
+      type: object
+      description: |
+        Payload cập nhật tình trạng sinh/tử của thành viên (US-27).
+        Khi chọn `Deceased`, trường `deathDate` là bắt buộc và phải là ngày trong quá khứ hoặc hiện tại.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [Living, Deceased]
+          description: Tình trạng thành viên (Living hoặc Deceased)
+          example: Deceased
+        deathDate:
+          type: string
+          format: date
+          description: Ngày mất Dương lịch (bắt buộc khi status là Deceased, <= ngày hiện tại và >= ngày sinh)
+          example: '2024-03-24'
+        burialPlace:
+          type: string
+          maxLength: 255
+          description: Nơi an táng, phần mộ hoặc nghĩa trang yên nghỉ
+          example: 'Khu lăng mộ tổ họ Nguyễn, xã Đông Kết, Khoái Châu, Hưng Yên'
+
     CreateMemberRequest:
       type: object
       description: |
@@ -1988,6 +3351,10 @@ components:
       type: object
       description: Read model của bảng `members`; `branchName` và `clanId` phân giải qua `family_branches`.
       properties:
+        avatarUrl:
+          type: string
+          nullable: true
+          description: Đường dẫn API ảnh đại diện; tải bytes bằng Authorization header (US-32).
         memberId:
           type: string
           maxLength: 20
@@ -2011,10 +3378,21 @@ components:
           type: string
           enum: [Living, Deceased]
           example: Living
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+          description: Ngày mất Dương lịch (US-27)
+          example: "2024-03-24"
         deathDateLunar:
           type: string
           nullable: true
-          example: "15/08 Âm lịch"
+          example: "15/02 Giáp Thìn"
+        burialPlace:
+          type: string
+          nullable: true
+          description: Nơi an táng, phần mộ (US-27)
+          example: "Khu lăng mộ tổ họ Nguyễn"
         branchId:
           type: string
           example: BR_CHILD_1
@@ -2539,3 +3917,750 @@ components:
         timestamp:
           type: string
           format: date-time
+
+    MemberMediaVisibility:
+      type: "string"
+      enum: ["CLAN", "BRANCH", "RESTRICTED"]
+      description: "Cùng dòng họ / nhánh và nhánh con / chính chủ và người quản lý. Không public Internet."
+    MemberBiographyDelta:
+      type: "object"
+      required: ["ops"]
+      additionalProperties: false
+      properties:
+        ops:
+          type: "array"
+          minItems: 1
+          items:
+            type: "object"
+            required: ["insert"]
+            additionalProperties: false
+            properties:
+              insert:
+                type: "string"
+              attributes:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  bold:
+                    type: "boolean"
+                  italic:
+                    type: "boolean"
+                  underline:
+                    type: "boolean"
+                  header:
+                    type: "integer"
+                    minimum: 1
+                    maximum: 3
+                  list:
+                    type: "string"
+                    enum: ["ordered", "bullet"]
+                  blockquote:
+                    type: "boolean"
+                  link:
+                    type: "string"
+                    format: "uri"
+                    description: "Chỉ HTTPS"
+      description: "Document hoàn chỉnh, tối đa 20.000 ký tự và 100 KiB JSON. Không embed/retain/delete; block attributes chỉ trên newline."
+    MemberBiographyRequest:
+      type: "object"
+      required: ["expectedMediaVersion", "biography", "visibility"]
+      properties:
+        expectedMediaVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        biography:
+          $ref: "#/components/schemas/MemberBiographyDelta"
+        visibility:
+          $ref: "#/components/schemas/MemberMediaVisibility"
+    MemberAttachmentPatch:
+      type: "object"
+      required: ["expectedVersion"]
+      minProperties: 2
+      additionalProperties: false
+      properties:
+        expectedVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        title:
+          type: "string"
+          minLength: 1
+          maxLength: 150
+        description:
+          type: "string"
+          maxLength: 1000
+          nullable: true
+        visibility:
+          $ref: "#/components/schemas/MemberMediaVisibility"
+    MemberMediaError:
+      type: "object"
+      properties:
+        success:
+          type: "boolean"
+          enum: [false]
+        code:
+          type: "string"
+          example: "MEDIA_VERSION_CONFLICT"
+        message:
+          type: "string"
+        timestamp:
+          type: "string"
+          format: "date-time"
+    MemberMediaEnvelope:
+      type: "object"
+      properties:
+        success:
+          type: "boolean"
+        message:
+          type: "string"
+        data:
+          type: "object"
+          additionalProperties: true
+        timestamp:
+          type: "string"
+          format: "date-time"
+    MemberAttachment:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        memberId:
+          type: "string"
+        title:
+          type: "string"
+        description:
+          type: "string"
+          nullable: true
+        originalFilename:
+          type: "string"
+        mimeType:
+          type: "string"
+        sizeBytes:
+          type: "integer"
+          format: "int64"
+        visibility:
+          $ref: "#/components/schemas/MemberMediaVisibility"
+        version:
+          type: "integer"
+          format: "int64"
+        createdAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+        contentUrl:
+          type: "string"
+        canEdit:
+          type: "boolean"
+        canDelete:
+          type: "boolean"
+    MemberMediaDetailEnvelope:
+      allOf:
+        -
+          $ref: "#/components/schemas/MemberMediaEnvelope"
+        -
+          type: "object"
+          properties:
+            data:
+              type: "object"
+              description: "Kế thừa hồ sơ thành viên đã lọc ngày sinh, SĐT, email theo US-25."
+              properties:
+                memberId:
+                  type: "string"
+                avatarUrl:
+                  type: "string"
+                  nullable: true
+                biography:
+                  $ref: "#/components/schemas/MemberBiographyDelta"
+                  nullable: true
+                biographyVisibility:
+                  $ref: "#/components/schemas/MemberMediaVisibility"
+                biographyAccess:
+                  type: "string"
+                  enum: ["VISIBLE", "RESTRICTED"]
+                mediaVersion:
+                  type: "integer"
+                  format: "int64"
+                capabilities:
+                  type: "object"
+                  properties:
+                    canEditMedia:
+                      type: "boolean"
+                    canUploadAttachment:
+                      type: "boolean"
+    MemberAttachmentEnvelope:
+      allOf:
+        -
+          $ref: "#/components/schemas/MemberMediaEnvelope"
+        -
+          type: "object"
+          properties:
+            data:
+              $ref: "#/components/schemas/MemberAttachment"
+    MemberAttachmentPageEnvelope:
+      allOf:
+        -
+          $ref: "#/components/schemas/MemberMediaEnvelope"
+        -
+          type: "object"
+          properties:
+            data:
+              type: "object"
+              properties:
+                items:
+                  type: "array"
+                  items:
+                    $ref: "#/components/schemas/MemberAttachment"
+                page:
+                  type: "integer"
+                size:
+                  type: "integer"
+                totalElements:
+                  type: "integer"
+                  format: "int64"
+                totalPages:
+                  type: "integer"
+
+    NotificationCategory:
+      type: string
+      description: Ba nhóm thông báo của hộp thư (US-39), trùng ràng buộc CHECK của bảng notifications.
+      enum: ["Event", "Task", "Finance"]
+
+    Notification:
+      type: object
+      description: Một thông báo trong hộp thư cá nhân (US-39)
+      properties:
+        notificationId:
+          type: string
+          maxLength: 20
+          example: "NTC00K3F2A9Z8Y7"
+        clanId:
+          type: string
+          maxLength: 20
+          example: "CLAN_DEFAULT"
+        category:
+          $ref: "#/components/schemas/NotificationCategory"
+        title:
+          type: string
+          maxLength: 200
+          example: "Bạn được giao việc: Chuẩn bị mâm cỗ"
+        content:
+          type: string
+          example: "Sự kiện Giỗ tổ: công việc Chuẩn bị mâm cỗ, hạn chót 20/04/2026 10:00."
+        referenceType:
+          type: string
+          maxLength: 30
+          nullable: true
+          example: "TASK"
+        referenceId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "TSK00K3F2A9Z8Y7"
+        isRead:
+          type: boolean
+          example: false
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    NotificationPageData:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+
+    NotificationPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Lấy danh sách thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationPageData"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Đã đánh dấu thông báo là đã đọc"
+        data:
+          $ref: "#/components/schemas/Notification"
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationUnreadCount:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 4
+        byCategory:
+          type: object
+          properties:
+            event:
+              type: integer
+              format: int64
+            task:
+              type: integer
+              format: int64
+            finance:
+              type: integer
+              format: int64
+
+    NotificationUnreadCountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/NotificationUnreadCount"
+
+    NotificationMarkAllEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đã đánh dấu tất cả thông báo là đã đọc"
+        data:
+          type: object
+          properties:
+            markedCount:
+              type: integer
+              example: 9
+
+    NotificationDeviceTokenRequest:
+      type: object
+      required: ["fcmToken"]
+      properties:
+        fcmToken:
+          type: string
+          maxLength: 255
+          example: "fcm-demo-token-001"
+        platform:
+          type: string
+          enum: ["Android", "IOS", "Web"]
+          default: "Android"
+
+    NotificationDeviceTokenResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          maxLength: 20
+          example: "DVT00K3F2A9Z8Y7"
+        platform:
+          type: string
+          example: "Android"
+
+    NotificationDeviceTokenEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Đăng ký thiết bị nhận thông báo thành công"
+        data:
+          $ref: "#/components/schemas/NotificationDeviceTokenResponse"
+
+    NotificationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          nullable: true
+
+    DeathAnniversary:
+      type: object
+      description: Một ngày giỗ của thành viên đã mất, nhìn từ một ngày mốc (US-40)
+      properties:
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        memberFullName:
+          type: string
+          example: "Cụ Nguyễn Văn An"
+        generation:
+          type: integer
+          example: 2
+        branchId:
+          type: string
+          example: "BR_CHI_1"
+        branchName:
+          type: string
+          nullable: true
+          example: "Chi Một"
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+          example: "2020-01-08"
+        deathDateLunar:
+          type: string
+          description: Chuỗi ngày giỗ âm lịch đã lưu (US-27)
+          example: "15/02 Bính Ngọ"
+        lunarDay:
+          type: integer
+          example: 15
+        lunarMonth:
+          type: integer
+          example: 2
+        leapMonth:
+          type: boolean
+          example: false
+        anniversaryYear:
+          type: integer
+          example: 2026
+        anniversaryDate:
+          type: string
+          format: date
+          description: Ngày Dương lịch của lần giỗ năm nay
+          example: "2026-04-02"
+        daysRemaining:
+          type: integer
+          format: int64
+          description: Số ngày từ ngày mốc tới ngày giỗ (0 = hôm nay là ngày giỗ)
+          example: 14
+        milestoneDays:
+          type: integer
+          nullable: true
+          description: Mốc nhắc khớp (14 hoặc 3), null khi ngày mốc không phải mốc nhắc
+          example: 14
+        reminderTriggered:
+          type: boolean
+          example: true
+        alreadyReminded:
+          type: boolean
+          example: true
+        suggestion:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/EventSuggestion"
+        computedAt:
+          type: string
+          format: date-time
+
+    EventSuggestion:
+      type: object
+      description: Payload gợi ý tạo sự kiện "Đám giỗ" (US-40)
+      properties:
+        suggestionId:
+          type: string
+          description: Id tổng hợp cho client (không lưu CSDL)
+          example: "GSU00K3F2A9Z8Y7"
+        memberId:
+          type: string
+          example: "MEMGIO12345678901"
+        eventName:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (15/02 Bính Ngọ)"
+        eventDatetime:
+          type: string
+          format: date-time
+          example: "2026-04-02T01:00:00Z"
+        eventDateLunar:
+          type: string
+          example: "15/02 Bính Ngọ"
+        location:
+          type: string
+          example: "Chi Một"
+        estimatedBudget:
+          type: number
+          format: double
+          nullable: true
+          example: 5000000
+        description:
+          type: string
+          example: "Đám giỗ Cụ Nguyễn Văn An (đời thứ 2) — giỗ năm 2026, 15/02 Bính Ngọ, chi/nhánh Chi Một."
+        daysRemaining:
+          type: integer
+          format: int64
+          example: 14
+        requestBody:
+          type: object
+          description: Body gửi thẳng tới POST /api/v1/events (cùng tên trường với CreateEventRequest)
+          properties:
+            eventName:
+              type: string
+            eventDatetime:
+              type: string
+              format: date-time
+            eventDateLunar:
+              type: string
+            location:
+              type: string
+            estimatedBudget:
+              type: number
+              format: double
+              nullable: true
+            description:
+              type: string
+
+    DeathAnniversaryListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Lấy danh sách ngày giỗ sắp tới thành công"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversary"
+
+    DeathAnniversaryReminder:
+      type: object
+      description: Vết đã gửi nhắc giỗ (US-40)
+      properties:
+        reminderId:
+          type: string
+          example: "GIO00K3F2A9Z8Y7"
+        memberId:
+          type: string
+        anniversaryYear:
+          type: integer
+          example: 2026
+        lunarYear:
+          type: integer
+          example: 2026
+        milestoneDays:
+          type: integer
+          example: 14
+        anniversaryDate:
+          type: string
+          format: date
+        triggerDate:
+          type: string
+          format: date
+        recipientCount:
+          type: integer
+          example: 3
+
+    DeathAnniversaryReminderListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeathAnniversaryReminder"
+
+    DeathAnniversaryScanEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Chạy đối chiếu ngày giỗ thành công"
+        data:
+          type: object
+          properties:
+            remindersSent:
+              type: integer
+              example: 2
+            referenceDate:
+              type: string
+              format: date
+
+    CreateAdvanceVoucherRequest:
+      type: object
+      required:
+        - taskId
+        - recipientMemberId
+        - advanceAmount
+        - receivedDate
+        - settlementDeadline
+      properties:
+        taskId:
+          type: string
+          example: "TSK_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        advanceAmount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+          example: "2026-04-01T08:00:00Z"
+        settlementDeadline:
+          type: string
+          format: date-time
+          example: "2026-04-10T17:00:00Z"
+        commitmentNotes:
+          type: string
+          example: "Cam kết chi tiêu đúng dự toán mâm cỗ"
+
+    ConfirmDisbursementRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          example: "Đã giao tiền mặt 5.000.000đ tại từ đường"
+
+    AdvanceVoucherResponse:
+      type: object
+      properties:
+        advanceVoucherId:
+          type: string
+          example: "ADV_01HX4A7B2C"
+        taskId:
+          type: string
+          example: "TSK_001"
+        taskName:
+          type: string
+          example: "Chuẩn bị mâm cỗ"
+        eventId:
+          type: string
+          example: "EVT_001"
+        clanId:
+          type: string
+          example: "CLAN_001"
+        recipientMemberId:
+          type: string
+          example: "MEM_002"
+        recipientName:
+          type: string
+          example: "Nguyễn Văn A"
+        advanceAmount:
+          type: number
+          format: double
+          example: 5000000.00
+        receivedDate:
+          type: string
+          format: date-time
+        settlementDeadline:
+          type: string
+          format: date-time
+        commitmentNotes:
+          type: string
+        createdByAccountId:
+          type: string
+        status:
+          type: string
+          enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
+          example: "ChoGiaoTien"
+        treasurerAccountId:
+          type: string
+          nullable: true
+        disbursedAt:
+          type: string
+          format: date-time
+          nullable: true
+        overdueAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-04-20T10:00:00Z"
+        disbursementNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdvanceVoucherEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    AdvanceVoucherListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    OverdueScanSummary:
+      type: object
+      properties:
+        scannedCount:
+          type: integer
+          example: 10
+        overdueTransitionedCount:
+          type: integer
+          example: 2
+        notificationsSentCount:
+          type: integer
+          example: 4
+        referenceTime:
+          type: string
+          format: date-time
+          example: "2026-04-20T10:00:00Z"
+
+    OverdueScanSummaryEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Quét và xử lý phiếu tạm ứng quá hạn thành công"
+        data:
+          $ref: '#/components/schemas/OverdueScanSummary'

@@ -2,6 +2,7 @@ package com.familyfund.genealogy.internal.service;
 
 import com.familyfund.genealogy.internal.dto.request.CreateMemberRequest;
 import com.familyfund.genealogy.internal.dto.request.MemberSearchCriteria;
+import com.familyfund.genealogy.internal.dto.request.UpdateLifeStatusRequest;
 import com.familyfund.genealogy.internal.dto.response.MemberResponse;
 
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.List;
  * Application service for genealogy member profiles (table `members`).
  */
 public interface MemberService {
+
+    MemberResponse getMember(String memberId);
 
     /**
      * Creates a placeholder member profile (is_placeholder = true) in a branch of the current clan.
@@ -48,4 +51,14 @@ public interface MemberService {
      * @return matching member profiles
      */
     List<MemberResponse> searchMembers(MemberSearchCriteria criteria);
+
+    /**
+     * Updates life status (Living/Deceased) of a member, calculates lunar anniversary,
+     * and publishes domain event to lock account if deceased (US-27).
+     *
+     * @param memberId target member ID
+     * @param request  status update payload
+     * @return updated member profile
+     */
+    MemberResponse updateLifeStatus(String memberId, UpdateLifeStatusRequest request);
 }

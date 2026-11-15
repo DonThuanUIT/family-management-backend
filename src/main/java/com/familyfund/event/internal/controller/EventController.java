@@ -5,6 +5,7 @@ import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
+import com.familyfund.event.internal.dto.response.EventBudgetSummaryResponse;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
 import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
@@ -21,7 +22,7 @@ import java.util.List;
 
 /**
  * REST Controller for managing family events, status transitions, personnel assignments,
- * and event notifications / schedule updates.
+ * event notifications / schedule updates, and budget comparison / overrun warnings.
  */
 @RestController
 @RequestMapping("/api/v1/events")
@@ -106,5 +107,25 @@ public class EventController {
             @PathVariable String eventId) {
         List<EventNotificationResponse> response = eventService.getEventNotifications(eventId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * Tổng hợp và so sánh {@code estimated_budget} của sự kiện với tổng {@code advance_budget} (công việc),
+     * tổng {@code advance_amount} (tạm ứng) và {@code actual_expense_amount} (thực chi);
+     * trả về cờ cảnh báo ngay khi tổng tạm ứng/thực chi vượt mức dự kiến (US-37).
+     */
+    @GetMapping({
+            "/{eventId}/budget-summary",
+            "/{eventId}/budget"
+    })
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'BRANCH_HEAD', 'MEMBER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<EventBudgetSummaryResponse>> getEventBudgetSummary(
+            @PathVariable String eventId
+    ) {
+        EventBudgetSummaryResponse response = eventService.getEventBudgetSummary(eventId);
+        return ResponseEntity.ok(ApiResponse.success(
+                response,
+                "Tổng hợp và so sánh ngân sách sự kiện thành công"
+        ));
     }
 }

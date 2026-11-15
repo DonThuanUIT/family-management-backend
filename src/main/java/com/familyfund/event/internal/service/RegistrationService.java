@@ -4,6 +4,8 @@ import com.familyfund.event.internal.dto.request.RegisterAttendeesRequest;
 import com.familyfund.event.internal.dto.request.RequestCancelRegistrationRequest;
 import com.familyfund.event.internal.dto.request.RequestModifyRegistrationRequest;
 import com.familyfund.event.internal.dto.request.ReviewRegistrationRequest;
+import com.familyfund.event.internal.dto.request.UpdateRegistrationRequest;
+import com.familyfund.event.internal.dto.response.EventLogisticsSummaryResponse;
 import com.familyfund.event.internal.dto.response.RegistrationResponse;
 import com.familyfund.event.internal.dto.response.RegistrationSummaryResponse;
 import org.springframework.data.domain.Page;
@@ -61,5 +63,21 @@ public interface RegistrationService {
      * Ban tổ chức phê duyệt (chấp thuận hoặc từ chối) yêu cầu sửa/hủy.
      */
     RegistrationResponse reviewRegistrationRequest(String eventId, String registrationId, ReviewRegistrationRequest request);
+
+    /**
+     * Đại diện hộ gia đình cập nhật trực tiếp đăng ký khi sự kiện đang ở trạng thái RegistrationOpen (US-41).
+     */
+    RegistrationResponse updateRegistration(String registrationId, UpdateRegistrationRequest request);
+
+    /**
+     * Đại diện hộ gia đình hủy trực tiếp đăng ký khi sự kiện đang ở trạng thái RegistrationOpen (US-41).
+     */
+    RegistrationResponse cancelRegistration(String registrationId);
+
+    /**
+     * Tổng hợp tức thời cho Ban tổ chức: số hộ gia đình, cá nhân, cỗ mặn, cỗ chay, chỗ ngồi xe đưa đón,
+     * hỗ trợ lọc theo chi/nhánh gia đình (US-42).
+     */
+    EventLogisticsSummaryResponse getEventLogisticsSummary(String eventId, String branchId);
 }
 

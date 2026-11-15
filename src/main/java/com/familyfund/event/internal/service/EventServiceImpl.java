@@ -16,10 +16,12 @@ import com.familyfund.event.internal.dto.request.AssignPersonnelRequest;
 import com.familyfund.event.internal.dto.request.CreateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventRequest;
 import com.familyfund.event.internal.dto.request.UpdateEventStatusRequest;
+import com.familyfund.event.internal.dto.response.EventBudgetSummaryResponse;
 import com.familyfund.event.internal.dto.response.EventDetailResponse;
 import com.familyfund.event.internal.dto.response.EventNotificationResponse;
 import com.familyfund.event.internal.dto.response.EventPersonnelResponse;
 import com.familyfund.event.internal.dto.response.EventResponse;
+import com.familyfund.event.internal.dto.response.TaskBudgetBreakdownResponse;
 import com.familyfund.event.internal.entity.Event;
 import com.familyfund.event.internal.entity.EventNotification;
 import com.familyfund.event.internal.entity.EventPersonnel;
@@ -27,22 +29,24 @@ import com.familyfund.event.internal.mapper.EventMapper;
 import com.familyfund.event.internal.repository.EventNotificationRepository;
 import com.familyfund.event.internal.repository.EventPersonnelRepository;
 import com.familyfund.event.internal.repository.EventRepository;
+import com.familyfund.event.internal.repository.EventTaskRepository;
+import com.familyfund.event.internal.repository.EventTaskRepository.TaskBudgetAggregateProjection;
 import com.familyfund.event.internal.util.EventIdGenerator;
 import com.familyfund.genealogy.api.GenealogyQueryService;
 import com.familyfund.genealogy.api.dto.MemberSummaryDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
@@ -53,6 +57,53 @@ public class EventServiceImpl implements EventService {
     private final CurrentUserProvider currentUserProvider;
     private final GenealogyQueryService genealogyQueryService;
     private final ApplicationEventPublisher eventPublisher;
+    private final EventTaskRepository eventTaskRepository;
+
+    @Autowired
+    public EventServiceImpl(
+            EventRepository eventRepository,
+            EventPersonnelRepository eventPersonnelRepository,
+            EventNotificationRepository eventNotificationRepository,
+            EventMapper eventMapper,
+            EventIdGenerator eventIdGenerator,
+            CurrentUserProvider currentUserProvider,
+            GenealogyQueryService genealogyQueryService,
+            ApplicationEventPublisher eventPublisher,
+            EventTaskRepository eventTaskRepository
+    ) {
+        this.eventRepository = eventRepository;
+        this.eventPersonnelRepository = eventPersonnelRepository;
+        this.eventNotificationRepository = eventNotificationRepository;
+        this.eventMapper = eventMapper;
+        this.eventIdGenerator = eventIdGenerator;
+        this.currentUserProvider = currentUserProvider;
+        this.genealogyQueryService = genealogyQueryService;
+        this.eventPublisher = eventPublisher;
+        this.eventTaskRepository = eventTaskRepository;
+    }
+
+    public EventServiceImpl(
+            EventRepository eventRepository,
+            EventPersonnelRepository eventPersonnelRepository,
+            EventNotificationRepository eventNotificationRepository,
+            EventMapper eventMapper,
+            EventIdGenerator eventIdGenerator,
+            CurrentUserProvider currentUserProvider,
+            GenealogyQueryService genealogyQueryService,
+            ApplicationEventPublisher eventPublisher
+    ) {
+        this(
+                eventRepository,
+                eventPersonnelRepository,
+                eventNotificationRepository,
+                eventMapper,
+                eventIdGenerator,
+                currentUserProvider,
+                genealogyQueryService,
+                eventPublisher,
+                null
+        );
+    }
 
     @Override
     @Transactional
@@ -78,13 +129,15 @@ public class EventServiceImpl implements EventService {
                 .location(request.location().trim())
                 .estimatedBudget(estimatedBudget)
                 .description(request.description() != null ? request.description().trim() : null)
+                .registrationDeadline(request.registrationDeadline())
+                .maxCapacity(request.maxCapacity())
                 .status(EventStatus.Draft)
                 .createdBy(createdByAccountId)
                 .build();
 
         Event saved = eventRepository.saveAndFlush(event);
         log.info("Created event {} ({}) for clan {} by user {}", eventId, saved.getEventName(), clanId, createdByAccountId);
-        return eventMapper.toResponse(saved);
+        return toEnrichedEventResponse(saved);
     }
 
     @Override
@@ -147,10 +200,12 @@ public class EventServiceImpl implements EventService {
         event.setLocation(request.location().trim());
         event.setEstimatedBudget(estimatedBudget);
         event.setDescription(request.description() != null ? request.description().trim() : null);
+        event.setRegistrationDeadline(request.registrationDeadline());
+        event.setMaxCapacity(request.maxCapacity());
 
         Event updated = eventRepository.saveAndFlush(event);
         log.info("Event {} updated by clan {}", eventId, clanId);
-        return eventMapper.toResponse(updated);
+        return toEnrichedEventResponse(updated);
     }
 
     @Override
@@ -197,7 +252,7 @@ public class EventServiceImpl implements EventService {
         event.setStatus(targetStatus);
         Event updated = eventRepository.saveAndFlush(event);
         log.info("Event {} status updated: {} -> {}", eventId, currentStatus, targetStatus);
-        return eventMapper.toResponse(updated);
+        return toEnrichedEventResponse(updated);
     }
 
     @Override
@@ -299,7 +354,8 @@ public class EventServiceImpl implements EventService {
                 })
                 .toList();
 
-        return eventMapper.toDetailResponse(event, personnelResponses);
+        int currentAttendees = (int) eventRepository.sumActiveAttendeesByEventIdAndClanId(eventId, clanId);
+        return eventMapper.toDetailResponse(event, personnelResponses, currentAttendees);
     }
 
     @Override
@@ -307,7 +363,15 @@ public class EventServiceImpl implements EventService {
     public List<EventResponse> listEvents() {
         String clanId = TenantContext.getClanId();
         List<Event> events = eventRepository.findAllByClanIdOrderByEventDatetimeDesc(clanId);
-        return eventMapper.toResponseList(events);
+        return events.stream()
+                .map(this::toEnrichedEventResponse)
+                .toList();
+    }
+
+    private EventResponse toEnrichedEventResponse(Event event) {
+        int currentAttendees = (int) eventRepository.sumActiveAttendeesByEventIdAndClanId(
+                event.getEventId(), event.getClanId());
+        return eventMapper.toResponse(event, currentAttendees);
     }
 
     @Override
@@ -320,6 +384,183 @@ public class EventServiceImpl implements EventService {
 
         List<EventNotification> notifications = eventNotificationRepository.findAllByEventIdOrderBySentTimeDesc(eventId);
         return eventMapper.toNotificationResponseList(notifications);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventBudgetSummaryResponse getEventBudgetSummary(String eventId) {
+        String clanId = TenantContext.getClanId();
+        if (eventId == null || eventId.isBlank()) {
+            throw new BadRequestException("Mã sự kiện không được để trống");
+        }
+        String normalizedEventId = eventId.trim();
+
+        Event event = eventRepository.findByEventIdAndClanId(normalizedEventId, clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự kiện với mã: " + normalizedEventId));
+
+        BigDecimal estimatedBudget = event.getEstimatedBudget() != null
+                ? event.getEstimatedBudget()
+                : BigDecimal.ZERO;
+
+        List<TaskBudgetAggregateProjection> projections = (eventTaskRepository != null)
+                ? eventTaskRepository.aggregateTaskBudgetsByEventId(normalizedEventId)
+                : Collections.emptyList();
+
+        BigDecimal totalAdvanceBudget = BigDecimal.ZERO;
+        BigDecimal totalAdvanceAmount = BigDecimal.ZERO;
+        BigDecimal totalActualExpenseAmount = BigDecimal.ZERO;
+        BigDecimal verifiedActualExpenseAmount = BigDecimal.ZERO;
+
+        int totalAdvanceVoucherCount = 0;
+        int totalSettlementVoucherCount = 0;
+        int needsExplanationVoucherCount = 0;
+        boolean hasTaskOverBudget = false;
+
+        List<TaskBudgetBreakdownResponse> taskBreakdowns = new ArrayList<>();
+        for (TaskBudgetAggregateProjection p : projections) {
+            BigDecimal taskBudget = p.getAdvanceBudget() != null ? p.getAdvanceBudget() : BigDecimal.ZERO;
+            BigDecimal taskAdvance = p.getTotalAdvanceAmount() != null ? p.getTotalAdvanceAmount() : BigDecimal.ZERO;
+            BigDecimal taskActual = p.getTotalActualExpenseAmount() != null ? p.getTotalActualExpenseAmount() : BigDecimal.ZERO;
+            BigDecimal taskVerifiedActual = p.getVerifiedActualExpenseAmount() != null ? p.getVerifiedActualExpenseAmount() : BigDecimal.ZERO;
+
+            int advCount = p.getAdvanceVoucherCount() != null ? p.getAdvanceVoucherCount() : 0;
+            int setCount = p.getSettlementVoucherCount() != null ? p.getSettlementVoucherCount() : 0;
+            int expCount = p.getNeedsExplanationCount() != null ? p.getNeedsExplanationCount() : 0;
+
+            BigDecimal advanceVariance = taskBudget.subtract(taskAdvance);
+            BigDecimal actualVariance = taskBudget.subtract(taskActual);
+
+            boolean isAdvOverTask = taskAdvance.compareTo(taskBudget) > 0;
+            boolean isActOverTask = taskActual.compareTo(taskBudget) > 0;
+            boolean isTaskOver = isAdvOverTask || isActOverTask;
+            if (isTaskOver) {
+                hasTaskOverBudget = true;
+            }
+
+            taskBreakdowns.add(new TaskBudgetBreakdownResponse(
+                    p.getTaskId(),
+                    p.getTaskName(),
+                    p.getTaskStatus(),
+                    p.getAssignedMemberId(),
+                    p.getAssignedBranchId(),
+                    taskBudget,
+                    taskAdvance,
+                    taskActual,
+                    taskVerifiedActual,
+                    advCount,
+                    setCount,
+                    expCount,
+                    advanceVariance,
+                    actualVariance,
+                    isAdvOverTask,
+                    isActOverTask,
+                    isTaskOver
+            ));
+
+            totalAdvanceBudget = totalAdvanceBudget.add(taskBudget);
+            totalAdvanceAmount = totalAdvanceAmount.add(taskAdvance);
+            totalActualExpenseAmount = totalActualExpenseAmount.add(taskActual);
+            verifiedActualExpenseAmount = verifiedActualExpenseAmount.add(taskVerifiedActual);
+            totalAdvanceVoucherCount += advCount;
+            totalSettlementVoucherCount += setCount;
+            needsExplanationVoucherCount += expCount;
+        }
+
+        BigDecimal unallocatedBudget = estimatedBudget.subtract(totalAdvanceBudget);
+        BigDecimal remainingBudgetByAdvance = estimatedBudget.subtract(totalAdvanceAmount);
+        BigDecimal remainingBudgetByActualExpense = estimatedBudget.subtract(totalActualExpenseAmount);
+
+        boolean isAdvanceOverEstimated = totalAdvanceAmount.compareTo(estimatedBudget) > 0;
+        boolean isActualExpenseOverEstimated = totalActualExpenseAmount.compareTo(estimatedBudget) > 0;
+        boolean isTaskBudgetOverEstimated = totalAdvanceBudget.compareTo(estimatedBudget) > 0;
+        boolean isOverBudget = isAdvanceOverEstimated || isActualExpenseOverEstimated;
+
+        BigDecimal maxSpentOrAdvanced = totalAdvanceAmount.max(totalActualExpenseAmount);
+        BigDecimal overrunAmount = maxSpentOrAdvanced.compareTo(estimatedBudget) > 0
+                ? maxSpentOrAdvanced.subtract(estimatedBudget)
+                : BigDecimal.ZERO;
+
+        BigDecimal taskBudgetUtilizationPercent = calculateUtilizationPercent(totalAdvanceBudget, estimatedBudget);
+        BigDecimal advanceUtilizationPercent = calculateUtilizationPercent(totalAdvanceAmount, estimatedBudget);
+        BigDecimal actualExpenseUtilizationPercent = calculateUtilizationPercent(totalActualExpenseAmount, estimatedBudget);
+
+        List<String> warningMessages = new ArrayList<>();
+        if (isAdvanceOverEstimated) {
+            warningMessages.add(String.format(
+                    "Cảnh báo: Tổng tiền tạm ứng (%s VNĐ) đã vượt ngân sách dự kiến của sự kiện (%s VNĐ) một khoản là %s VNĐ.",
+                    totalAdvanceAmount.toPlainString(),
+                    estimatedBudget.toPlainString(),
+                    totalAdvanceAmount.subtract(estimatedBudget).toPlainString()
+            ));
+        }
+        if (isActualExpenseOverEstimated) {
+            warningMessages.add(String.format(
+                    "Cảnh báo: Tổng tiền thực chi quyết toán (%s VNĐ) đã vượt ngân sách dự kiến của sự kiện (%s VNĐ) một khoản là %s VNĐ.",
+                    totalActualExpenseAmount.toPlainString(),
+                    estimatedBudget.toPlainString(),
+                    totalActualExpenseAmount.subtract(estimatedBudget).toPlainString()
+            ));
+        }
+        if (isTaskBudgetOverEstimated) {
+            warningMessages.add(String.format(
+                    "Lưu ý: Tổng dự toán phân bổ cho các hạng mục công việc (%s VNĐ) đang vượt ngân sách dự kiến của sự kiện (%s VNĐ).",
+                    totalAdvanceBudget.toPlainString(),
+                    estimatedBudget.toPlainString()
+            ));
+        }
+        if (hasTaskOverBudget) {
+            warningMessages.add("Lưu ý: Có hạng mục công việc phát sinh tạm ứng hoặc thực chi vượt mức ngân sách dự kiến của hạng mục đó.");
+        }
+
+        String warningLevel;
+        if (isOverBudget) {
+            warningLevel = "OVERRUN_WARNING";
+        } else if (isTaskBudgetOverEstimated || hasTaskOverBudget) {
+            warningLevel = "ALLOCATION_EXCEEDED";
+        } else {
+            warningLevel = "NORMAL";
+        }
+
+        return new EventBudgetSummaryResponse(
+                event.getEventId(),
+                event.getEventName(),
+                event.getStatus(),
+                estimatedBudget,
+                totalAdvanceBudget,
+                totalAdvanceAmount,
+                totalActualExpenseAmount,
+                verifiedActualExpenseAmount,
+                unallocatedBudget,
+                remainingBudgetByAdvance,
+                remainingBudgetByActualExpense,
+                overrunAmount,
+                taskBudgetUtilizationPercent,
+                advanceUtilizationPercent,
+                actualExpenseUtilizationPercent,
+                isOverBudget,
+                isAdvanceOverEstimated,
+                isActualExpenseOverEstimated,
+                isTaskBudgetOverEstimated,
+                hasTaskOverBudget,
+                warningLevel,
+                warningMessages,
+                taskBreakdowns.size(),
+                totalAdvanceVoucherCount,
+                totalSettlementVoucherCount,
+                needsExplanationVoucherCount,
+                taskBreakdowns
+        );
+    }
+
+    private BigDecimal calculateUtilizationPercent(BigDecimal amount, BigDecimal estimatedBudget) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return new BigDecimal("0.00");
+        }
+        if (estimatedBudget == null || estimatedBudget.compareTo(BigDecimal.ZERO) <= 0) {
+            return new BigDecimal("100.00");
+        }
+        return amount.multiply(BigDecimal.valueOf(100))
+                .divide(estimatedBudget, 2, RoundingMode.HALF_UP);
     }
 
     private String generateUniqueEventId() {
