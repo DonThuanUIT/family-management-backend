@@ -342,5 +342,4 @@ class GenealogyQueryServiceImplTest {
         assertThat(result.get().branchId()).isEqualTo("BR_001");
         assertThat(result.get().branchName()).isEqualTo("Chi 1 (Đại Tôn)");
     }
-    }
 }

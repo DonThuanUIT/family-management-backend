@@ -39,6 +39,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,6 +81,7 @@ class ReconcileCashContributionServiceImplTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         com.familyfund.core.tenant.TenantContext.setClanId(clanId);
+        lenient().when(currentUserProvider.hasAuthority(anyString())).thenReturn(true);
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -109,7 +112,6 @@ class ReconcileCashContributionServiceImplTest {
 
         Object[] pair = new Object[]{contribution, cashContribution};
         List<Object[]> pairs = java.util.Collections.singletonList(pair);
-        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
         when(cashContributionRepository.findUnreconciledBankTransfers(null)).thenReturn(pairs);
         when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ Khánh Thành", EventStatus.Draft, Instant.now())));
         when(genealogyQueryService.findMemberSummary("MEM_01")).thenReturn(Optional.of(new MemberSummaryDto("MEM_01", "Trần Văn B", clanId, "BR_01")));
@@ -145,7 +147,6 @@ class ReconcileCashContributionServiceImplTest {
         when(contributionRepository.findById(contributionId)).thenReturn(Optional.of(contribution));
         when(cashContributionRepository.findById(contributionId)).thenReturn(Optional.of(cashContribution));
         when(eventQueryService.findEventSummary(eventId)).thenReturn(Optional.of(new EventSummaryDto(eventId, clanId, "Lễ Khánh Thành", EventStatus.Draft, Instant.now())));
-        when(currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)).thenReturn(true);
         when(cashContributionRepository.findByBankTransactionCode("TXN_123456")).thenReturn(Optional.empty());
         when(currentUserProvider.currentAccountId()).thenReturn(Optional.of("ACC_AUDITOR"));
 

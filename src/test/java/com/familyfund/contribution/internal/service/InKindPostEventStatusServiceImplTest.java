@@ -1,6 +1,7 @@
 package com.familyfund.contribution.internal.service;
 
 import com.familyfund.contribution.api.dto.InKindProcessingStatus;
+import com.familyfund.contribution.internal.dto.request.ProcessInKindLifecycleRequest;
 import com.familyfund.contribution.internal.dto.response.EventPendingInKindCheckResponse;
 import com.familyfund.contribution.internal.dto.response.InKindContributionDetailResponse;
 import com.familyfund.contribution.internal.entity.Contribution;
@@ -30,8 +31,10 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
