@@ -3,6 +3,7 @@ package com.familyfund.contribution.internal.dto.request;
 import com.fasterxml.jackson.annotation.JsonAlias;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Inbound webhook payload for bank payment notifications (US-53 Task #186).
@@ -18,6 +19,7 @@ public record VietQrWebhookPayload(
         @JsonAlias({"transferAmount", "amount"})
         BigDecimal transferAmount,
         @JsonAlias({"referenceCode", "refCode", "transactionId"})
-        String referenceCode
+        String referenceCode,
+        List<MemberAllocationRequest> allocations
 ) {
 }

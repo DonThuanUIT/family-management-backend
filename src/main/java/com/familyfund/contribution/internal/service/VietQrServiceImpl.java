@@ -217,7 +217,7 @@ public class VietQrServiceImpl implements VietQrService {
                     memberId,
                     amount,
                     PaymentMethod.BankTransfer,
-                    null // no split allocations specified
+                    payload.allocations() != null && !payload.allocations().isEmpty() ? payload.allocations() : null
             );
 
             ElectronicReceiptResponse receipt = cashContributionService.recordCashContribution(contributionRequest);
