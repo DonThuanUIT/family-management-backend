@@ -1190,7 +1190,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy]
+            enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
       responses:
         '200':
           description: Danh sách phiếu tạm ứng
@@ -1276,6 +1276,31 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           $ref: '#/components/schemas/ErrorResponse'
+
+  /advances/scan-overdue:
+    post:
+      summary: Quét và cập nhật trạng thái phiếu tạm ứng quá hạn (US-48)
+      description: |
+        Job / API quét các phiếu trong ADVANCE_VOUCHER đang ở trạng thái chưa quyết toán (ChuaTatToan)
+        mà thời gian thực tế đã vượt quá hạn nộp chứng từ (settlement_deadline). Tự động đổi trạng thái
+        sang QuaHan ('Quá hạn quyết toán') và gửi cảnh báo đồng thời cho người nhận tiền và Ban tổ chức.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Kết quả quét và chuyển đổi phiếu quá hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverdueScanSummaryEnvelope'
+        '403':
+          description: Yêu cầu quyền CLAN_HEAD hoặc ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /events/{eventId}/advance-vouchers:
     post:
@@ -4565,7 +4590,7 @@ components:
           type: string
         status:
           type: string
-          enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy]
+          enum: [ChoGiaoTien, ChuaTatToan, DaTatToan, DaHuy, QuaHan]
           example: "ChoGiaoTien"
         treasurerAccountId:
           type: string
@@ -4574,6 +4599,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        overdueAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-04-20T10:00:00Z"
         disbursementNotes:
           type: string
           nullable: true
@@ -4605,3 +4635,32 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdvanceVoucherResponse'
+
+    OverdueScanSummary:
+      type: object
+      properties:
+        scannedCount:
+          type: integer
+          example: 10
+        overdueTransitionedCount:
+          type: integer
+          example: 2
+        notificationsSentCount:
+          type: integer
+          example: 4
+        referenceTime:
+          type: string
+          format: date-time
+          example: "2026-04-20T10:00:00Z"
+
+    OverdueScanSummaryEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Quét và xử lý phiếu tạm ứng quá hạn thành công"
+        data:
+          $ref: '#/components/schemas/OverdueScanSummary'

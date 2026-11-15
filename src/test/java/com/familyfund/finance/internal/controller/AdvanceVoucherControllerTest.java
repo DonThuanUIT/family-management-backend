@@ -41,6 +41,9 @@ class AdvanceVoucherControllerTest {
     @Mock
     private AdvanceVoucherService advanceVoucherService;
 
+    @Mock
+    private com.familyfund.finance.api.AdvanceVoucherOverdueService advanceVoucherOverdueService;
+
     @InjectMocks
     private AdvanceVoucherController controller;
 
@@ -64,7 +67,7 @@ class AdvanceVoucherControllerTest {
                 "ADV001", "TSK_01", "Đặt cỗ", "EVT_01", "Lễ Giỗ", "CLN_01",
                 "MEM_01", "Nguyễn Văn A", new BigDecimal("5000000.00"),
                 now, deadline, "Cam kết hoá đơn", "ACC_01", "ACC_01",
-                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, now, now
+                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, null, now, now
         );
 
         when(advanceVoucherService.createAdvanceVoucher(any(CreateAdvanceVoucherRequest.class))).thenReturn(response);
@@ -101,7 +104,7 @@ class AdvanceVoucherControllerTest {
                 "ADV002", "TSK_01", "Đặt cỗ", "EVT_01", "Lễ Giỗ", "CLN_01",
                 "MEM_01", "Nguyễn Văn A", new BigDecimal("3000000.00"),
                 now, deadline, "Cam kết", "ACC_01", "ACC_01",
-                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, now, now
+                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, null, now, now
         );
 
         when(advanceVoucherService.createAdvanceVoucher(any(CreateAdvanceVoucherRequest.class))).thenReturn(response);
@@ -147,7 +150,7 @@ class AdvanceVoucherControllerTest {
                 "ADV001", "TSK_01", "Đặt cỗ", "EVT_01", "Lễ Giỗ", "CLN_01",
                 "MEM_01", "Nguyễn Văn A", new BigDecimal("5000000.00"),
                 now, now.plusSeconds(86400), "Cam kết hoá đơn", "ACC_01", "ACC_01",
-                AdvanceVoucherStatus.ChuaTatToan, "ACC_TREASURER", "ACC_TREASURER", now, "Đã giao tiền", now, now
+                AdvanceVoucherStatus.ChuaTatToan, "ACC_TREASURER", "ACC_TREASURER", now, "Đã giao tiền", null, now, now
         );
 
         when(advanceVoucherService.confirmDisbursement(eq("ADV001"), any())).thenReturn(response);
@@ -169,7 +172,7 @@ class AdvanceVoucherControllerTest {
                 "ADV001", "TSK_01", "Đặt cỗ", "EVT_01", "Lễ Giỗ", "CLN_01",
                 "MEM_01", "Nguyễn Văn A", new BigDecimal("5000000.00"),
                 now, now.plusSeconds(86400), "Cam kết hoá đơn", "ACC_01", "ACC_01",
-                AdvanceVoucherStatus.ChuaTatToan, "ACC_TREASURER", "ACC_TREASURER", now, null, now, now
+                AdvanceVoucherStatus.ChuaTatToan, "ACC_TREASURER", "ACC_TREASURER", now, null, null, now, now
         );
 
         when(advanceVoucherService.confirmDisbursement(eq("ADV001"), any())).thenReturn(response);
@@ -187,7 +190,7 @@ class AdvanceVoucherControllerTest {
                 "ADV001", "TSK_01", "Đặt cỗ", "EVT_01", "Lễ Giỗ", "CLN_01",
                 "MEM_01", "Nguyễn Văn A", new BigDecimal("5000000.00"),
                 now, now.plusSeconds(86400), "Cam kết", "ACC_01", "ACC_01",
-                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, now, now
+                AdvanceVoucherStatus.ChoGiaoTien, null, null, null, null, null, now, now
         );
 
         when(advanceVoucherService.getAdvanceVoucherById("ADV001")).thenReturn(response);
@@ -206,5 +209,22 @@ class AdvanceVoucherControllerTest {
         mockMvc.perform(get("/api/v1/advances/ADV_UNKNOWN"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/advances/scan-overdue: Quét và cập nhật phiếu quá hạn thành công (US-48)")
+    void scanOverdueVouchers_returns200() throws Exception {
+        Instant now = Instant.now();
+        com.familyfund.finance.api.dto.OverdueScanSummary summary =
+                new com.familyfund.finance.api.dto.OverdueScanSummary(3, 2, 4, now);
+
+        when(advanceVoucherOverdueService.scanAndProcessOverdueVouchers(any())).thenReturn(summary);
+
+        mockMvc.perform(post("/api/v1/advances/scan-overdue"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.scannedCount").value(3))
+                .andExpect(jsonPath("$.data.overdueTransitionedCount").value(2))
+                .andExpect(jsonPath("$.data.notificationsSentCount").value(4));
     }
 }

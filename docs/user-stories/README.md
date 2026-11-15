@@ -37,6 +37,7 @@ Thư mục này lưu trữ toàn bộ các tài liệu đặc tả kỹ thuật 
 | **US-39** | **NotificationService Đa Nhóm (Events/Tasks/Finance), Push FCM & API Đánh Dấu Đã Đọc** | `com.familyfund.notification` | ✅ **Đã hoàn thành (Backend)** | [`US-39-notification-service-fcm-and-read-state.md`](./US-39-notification-service-fcm-and-read-state.md) |
 | **US-40** | **Cron Job Hằng Ngày Đối Chiếu Ngày Giỗ Âm Lịch & Gợi Ý Sự Kiện "Đám Giỗ"** | `com.familyfund.event` & `genealogy` | ✅ **Đã hoàn thành (Backend)** | [`US-40-daily-death-anniversary-reminder-and-event-suggestion.md`](./US-40-daily-death-anniversary-reminder-and-event-suggestion.md) |
 | **US-46** | **Quản Lý Phiếu Tạm Ứng Sự Kiện (BTC Lập Phiếu & Thủ Quỹ Xác Nhận Giao Tiền)** | `com.familyfund.finance` | ✅ **Đã hoàn thành (Backend)** | [`US-46-event-advance-voucher-management.md`](./US-46-event-advance-voucher-management.md) |
+| **US-48** | **Background Job Quét Phiếu Tạm Ứng Quá Hạn & Cảnh Báo Đồng Thời (Người Nhận & BTC)** | `com.familyfund.finance` | ✅ **Đã hoàn thành (Backend)** | [`US-48-advance-voucher-overdue-job.md`](./US-48-advance-voucher-overdue-job.md) |
 
 ---
 

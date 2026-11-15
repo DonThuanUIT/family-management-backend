@@ -28,6 +28,7 @@ public record AdvanceVoucherResponse(
         String treasurerName,
         Instant disbursedAt,
         String disbursementNotes,
+        Instant overdueAt,
         Instant createdAt,
         Instant updatedAt
 ) {}

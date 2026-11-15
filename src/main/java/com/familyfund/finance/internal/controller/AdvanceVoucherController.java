@@ -1,7 +1,9 @@
 package com.familyfund.finance.internal.controller;
 
 import com.familyfund.core.dto.ApiResponse;
+import com.familyfund.finance.api.AdvanceVoucherOverdueService;
 import com.familyfund.finance.api.dto.AdvanceVoucherStatus;
+import com.familyfund.finance.api.dto.OverdueScanSummary;
 import com.familyfund.finance.internal.dto.request.ConfirmDisbursementRequest;
 import com.familyfund.finance.internal.dto.request.CreateAdvanceVoucherRequest;
 import com.familyfund.finance.internal.dto.response.AdvanceVoucherResponse;
@@ -19,10 +21,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
- * REST Controller for managing event advance vouchers (US-46).
+ * REST Controller for managing event advance vouchers (US-46, US-48).
  *
  * <p>Supports both canonical {@code /api/v1/advances} and standard {@code /api/advances} routes.</p>
  */
@@ -32,6 +35,7 @@ import java.util.List;
 public class AdvanceVoucherController {
 
     private final AdvanceVoucherService advanceVoucherService;
+    private final AdvanceVoucherOverdueService advanceVoucherOverdueService;
 
     /**
      * API cho BTC lập phiếu tạm ứng kinh phí (US-46).
@@ -80,5 +84,15 @@ public class AdvanceVoucherController {
             @RequestParam(required = false) AdvanceVoucherStatus status) {
         List<AdvanceVoucherResponse> response = advanceVoucherService.searchAdvanceVouchers(eventId, taskId, recipientMemberId, status);
         return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách phiếu tạm ứng thành công"));
+    }
+
+    /**
+     * API quét và cập nhật các phiếu tạm ứng quá hạn quyết toán sang QuaHan (US-48).
+     */
+    @PostMapping("/scan-overdue")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<OverdueScanSummary>> scanOverdueVouchers() {
+        OverdueScanSummary summary = advanceVoucherOverdueService.scanAndProcessOverdueVouchers(Instant.now());
+        return ResponseEntity.ok(ApiResponse.success(summary, "Quét và xử lý phiếu tạm ứng quá hạn thành công"));
     }
 }

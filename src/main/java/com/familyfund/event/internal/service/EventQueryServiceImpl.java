@@ -89,4 +89,16 @@ public class EventQueryServiceImpl implements EventQueryService {
                                 task.getAssignedMemberId(),
                                 task.getAssignedBranchId())));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> findOrganizerMemberIds(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            return Set.of();
+        }
+        return eventPersonnelRepository.findAllByEventId(eventId.trim()).stream()
+                .map(EventPersonnel::getMemberId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
 }
