@@ -82,7 +82,7 @@ class GenealogyRootBranchTest {
                 .build();
 
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
+        when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         BranchDetailResponse response = genealogyService.updateRootBranch(request);
@@ -118,7 +118,7 @@ class GenealogyRootBranchTest {
                     .build();
 
             when(clanRepository.findById("CLAN_TRAN")).thenReturn(Optional.of(tranClan));
-            when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_TRAN")).thenReturn(Optional.of(tranRoot));
+            when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_TRAN")).thenReturn(Optional.of(tranRoot));
             when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             BranchDetailResponse response = genealogyService.updateRootBranch(request);
@@ -161,7 +161,7 @@ class GenealogyRootBranchTest {
                 .build();
 
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
+        when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
         when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_001")).thenReturn(Optional.of(mockRep));
         when(branchRepository.save(any(FamilyBranch.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -182,7 +182,7 @@ class GenealogyRootBranchTest {
                 .build();
 
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
+        when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
         when(memberRepository.findByBranch_ClanIdAndMemberId("CLAN_DEFAULT", "MEM_NON_EXIST")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.updateRootBranch(request));
@@ -193,7 +193,7 @@ class GenealogyRootBranchTest {
     @DisplayName("Get root branch successfully")
     void testGetRootBranch_Success() {
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
+        when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_DEFAULT")).thenReturn(Optional.of(mockRootBranch));
 
         BranchDetailResponse response = genealogyService.getRootBranch();
 
@@ -215,7 +215,7 @@ class GenealogyRootBranchTest {
     @DisplayName("Throws ResourceNotFoundException when root branch does not exist")
     void testGetRootBranch_NotFound_ThrowsException() {
         when(clanRepository.findById("CLAN_DEFAULT")).thenReturn(Optional.of(mockClan));
-        when(branchRepository.findByClanIdAndParentBranchIsNull("CLAN_DEFAULT")).thenReturn(Optional.empty());
+        when(branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc("CLAN_DEFAULT")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> genealogyService.getRootBranch());
     }
