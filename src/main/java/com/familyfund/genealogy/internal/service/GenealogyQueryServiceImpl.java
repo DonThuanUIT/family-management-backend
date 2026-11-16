@@ -330,6 +330,10 @@ public class GenealogyQueryServiceImpl implements GenealogyQueryService {
                 .map(clan -> new ClanBankingInfoDto(
                         clan.getClanId(),
                         clan.getClanName(),
+                        clan.getAncestorName(),
+                        clan.getOriginLocation(),
+                        clan.getEstablishedYear(),
+                        clan.getDescription(),
                         clan.getBankBin(),
                         BankBinDirectory.lookupBankName(clan.getBankBin()),
                         clan.getBankAccountNumber(),

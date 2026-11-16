@@ -22,4 +22,16 @@ public record VietQrWebhookPayload(
         String referenceCode,
         List<MemberAllocationRequest> allocations
 ) {
+    public VietQrWebhookPayload(
+            String gateway,
+            String transactionDate,
+            String accountNumber,
+            String code,
+            String content,
+            String transferType,
+            BigDecimal transferAmount,
+            String referenceCode
+    ) {
+        this(gateway, transactionDate, accountNumber, code, content, transferType, transferAmount, referenceCode, null);
+    }
 }

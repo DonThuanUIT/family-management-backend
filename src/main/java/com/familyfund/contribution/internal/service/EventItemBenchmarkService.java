@@ -11,5 +11,7 @@ public interface EventItemBenchmarkService {
 
     List<EventItemBenchmarkResponse> getBenchmarksByEvent(String eventId);
 
+    List<EventItemBenchmarkResponse> getAllBenchmarks();
+
     void deleteBenchmark(String eventId, String benchmarkId);
 }
