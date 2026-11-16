@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
 public class VietQrServiceImpl implements VietQrService {
 
     private static final Pattern TRANSFER_CONTENT_PATTERN =
-            Pattern.compile("(?i)FFUND\\s+([A-Za-z0-9_]+)\\s+([A-Za-z0-9_]+)");
+            Pattern.compile("(?i)FFUND\\s+(\\S+)\\s+(\\S+)");
 
     @Value("${app.vietqr.bank-bin:970436}")
     private String bankBin;
@@ -157,12 +157,23 @@ public class VietQrServiceImpl implements VietQrService {
             PaymentWebhook existing = existingWebhook.get();
             log.info("Duplicate webhook received for refCode: {}, returning existing contribution {}",
                     refCode, existing.getContributionId());
+            ElectronicReceiptResponse existingReceipt = null;
+            if (existing.getContributionId() != null) {
+                Optional<CashContribution> cashOpt = cashContributionRepository.findById(existing.getContributionId());
+                if (cashOpt.isPresent() && cashOpt.get().getReceiptNumber() != null) {
+                    try {
+                        existingReceipt = cashContributionService.getReceiptByReceiptNumber(cashOpt.get().getReceiptNumber());
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
             return new WebhookPaymentResultResponse(
                     true,
                     "Webhook transaction already processed (idempotent)",
                     refCode,
                     existing.getContributionId(),
-                    null
+                    existingReceipt != null ? existingReceipt.receiptNumber() : null,
+                    existingReceipt
             );
         }
 
@@ -217,7 +228,7 @@ public class VietQrServiceImpl implements VietQrService {
                     memberId,
                     amount,
                     PaymentMethod.BankTransfer,
-                    null // no split allocations specified
+                    payload.allocations() != null && !payload.allocations().isEmpty() ? payload.allocations() : null
             );
 
             ElectronicReceiptResponse receipt = cashContributionService.recordCashContribution(contributionRequest);
@@ -241,7 +252,8 @@ public class VietQrServiceImpl implements VietQrService {
                     "Payment verified, cash contribution recorded and electronic receipt issued successfully",
                     refCode,
                     receipt.contributionId(),
-                    receipt.receiptNumber()
+                    receipt.receiptNumber(),
+                    receipt
             );
         } finally {
             if (originalClanId != null) {

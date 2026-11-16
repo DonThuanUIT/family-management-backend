@@ -17,5 +17,14 @@ public record UpdateClanBankingRequest(
         @NotBlank(message = "Tên chủ tài khoản không được để trống")
         String bankAccountName,
 
-        String qrTemplate
-) {}
+        String qrTemplate,
+        String clanName,
+        String ancestorName,
+        String originLocation,
+        Integer establishedYear,
+        String description
+) {
+    public UpdateClanBankingRequest(String bankBin, String bankAccountNumber, String bankAccountName, String qrTemplate) {
+        this(bankBin, bankAccountNumber, bankAccountName, qrTemplate, null, null, null, null, null);
+    }
+}

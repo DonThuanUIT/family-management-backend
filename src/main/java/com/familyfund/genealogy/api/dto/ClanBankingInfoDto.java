@@ -7,9 +7,25 @@ package com.familyfund.genealogy.api.dto;
 public record ClanBankingInfoDto(
         String clanId,
         String clanName,
+        String ancestorName,
+        String originLocation,
+        Integer establishedYear,
+        String description,
         String bankBin,
         String bankName,
         String bankAccountNumber,
         String bankAccountName,
         String qrTemplate
-) {}
+) {
+    public ClanBankingInfoDto(
+            String clanId,
+            String clanName,
+            String bankBin,
+            String bankName,
+            String bankAccountNumber,
+            String bankAccountName,
+            String qrTemplate
+    ) {
+        this(clanId, clanName, null, null, null, null, bankBin, bankName, bankAccountNumber, bankAccountName, qrTemplate);
+    }
+}

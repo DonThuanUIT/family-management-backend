@@ -12,6 +12,8 @@ public interface EventItemBenchmarkRepository extends JpaRepository<EventItemBen
 
     List<EventItemBenchmark> findByEventIdOrderByCreatedAtAsc(String eventId);
 
+    List<EventItemBenchmark> findByClanIdOrderByCreatedAtDesc(String clanId);
+
     Optional<EventItemBenchmark> findByBenchmarkIdAndEventId(String benchmarkId, String eventId);
 
     boolean existsByEventIdAndItemNameIgnoreCase(String eventId, String itemName);

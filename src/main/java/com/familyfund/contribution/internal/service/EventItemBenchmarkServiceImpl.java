@@ -87,6 +87,19 @@ public class EventItemBenchmarkServiceImpl implements EventItemBenchmarkService 
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<EventItemBenchmarkResponse> getAllBenchmarks() {
+        String currentClanId = TenantContext.getClanId();
+        List<EventItemBenchmark> list;
+        if (currentClanId != null && !currentClanId.isBlank()) {
+            list = benchmarkRepository.findByClanIdOrderByCreatedAtDesc(currentClanId);
+        } else {
+            list = benchmarkRepository.findAll();
+        }
+        return list.stream().map(this::toResponse).toList();
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBenchmark(String eventId, String benchmarkId) {
         EventItemBenchmark benchmark = benchmarkRepository.findByBenchmarkIdAndEventId(benchmarkId, eventId)

@@ -45,6 +45,21 @@ public class ClanServiceImpl implements ClanService {
         if (request.qrTemplate() != null && !request.qrTemplate().isBlank()) {
             clan.setQrTemplate(request.qrTemplate().trim());
         }
+        if (request.clanName() != null && !request.clanName().isBlank()) {
+            clan.setClanName(request.clanName().trim());
+        }
+        if (request.ancestorName() != null) {
+            clan.setAncestorName(request.ancestorName().trim());
+        }
+        if (request.originLocation() != null) {
+            clan.setOriginLocation(request.originLocation().trim());
+        }
+        if (request.establishedYear() != null) {
+            clan.setEstablishedYear(request.establishedYear());
+        }
+        if (request.description() != null) {
+            clan.setDescription(request.description().trim());
+        }
 
         Clan updatedClan = clanRepository.save(clan);
         return toBankingInfoDto(updatedClan);
@@ -54,6 +69,10 @@ public class ClanServiceImpl implements ClanService {
         return new ClanBankingInfoDto(
                 clan.getClanId(),
                 clan.getClanName(),
+                clan.getAncestorName(),
+                clan.getOriginLocation(),
+                clan.getEstablishedYear(),
+                clan.getDescription(),
                 clan.getBankBin(),
                 BankBinDirectory.lookupBankName(clan.getBankBin()),
                 clan.getBankAccountNumber(),
