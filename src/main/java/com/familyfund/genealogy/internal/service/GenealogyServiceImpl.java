@@ -50,7 +50,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         Clan clan = clanRepository.findById(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId));
 
-        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
+        FamilyBranch rootBranch = branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Root branch not found for clan: " + clanId));
         return branchMapper.toDetailResponse(rootBranch, clan.getClanName());
     }
@@ -63,7 +63,7 @@ public class GenealogyServiceImpl implements GenealogyService {
         Clan clan = clanRepository.findById(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan not found with ID: " + clanId + ". Please create clan first."));
 
-        FamilyBranch rootBranch = branchRepository.findByClanIdAndParentBranchIsNull(clanId)
+        FamilyBranch rootBranch = branchRepository.findFirstByClanIdAndParentBranchIsNullOrderByGenerationLevelAscBranchIdAsc(clanId)
                 .orElseGet(() -> FamilyBranch.builder()
                         .branchId(branchIdGenerator.generate())
                         .clanId(clanId)
