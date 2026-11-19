@@ -1423,6 +1423,87 @@ paths:
         '200':
           description: Danh sách các bút toán sổ cái bất biến
 
+  /ledger/propose-adjustment:
+    post:
+      summary: Đề xuất bù trừ sai sót giao dịch Sổ cái bất biến (US-15)
+      description: |
+        Tạo bản ghi đề xuất bù trừ (`LEDGER_ADJUSTMENT_REQUEST`) ở trạng thái `Pending` liên kết tới
+        `original_transaction_id` trong sổ cái bất biến (`IMMUTABLE_LEDGER`), kèm số tiền bù trừ (`+` hoặc `-`, khác `0`),
+        lý do giải trình và đường dẫn bằng chứng tùy chọn.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposeLedgerAdjustmentRequest'
+      responses:
+        '201':
+          description: Tạo đề xuất điều chỉnh bù trừ sổ cái thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestEnvelope'
+        '400':
+          description: Số tiền bằng 0, dữ liệu không hợp lệ hoặc giao dịch gốc đang có đề xuất Pending
+        '403':
+          description: Không có quyền (chỉ EventTreasurer, HeadOfOrganizer của sự kiện liên quan, ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Không tìm thấy giao dịch sổ cái gốc trong dòng họ hiện tại
+
+  /ledger/adjustments:
+    get:
+      summary: Tra cứu danh sách đề xuất điều chỉnh bù trừ sổ cái (US-15)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: originalTransactionId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Approved, Rejected]
+      responses:
+        '200':
+          description: Danh sách đề xuất điều chỉnh sổ cái
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestListEnvelope'
+
+  /ledger/adjustments/{requestId}:
+    get:
+      summary: Xem chi tiết một đề xuất điều chỉnh bù trừ sổ cái (US-15)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết đề xuất điều chỉnh sổ cái
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestEnvelope'
+        '404':
+          description: Không tìm thấy đề xuất điều chỉnh sổ cái
+
   /invitations/general:
     post:
       summary: Tạo mã mời chung gia phả (US-16)
@@ -4664,3 +4745,102 @@ components:
           example: "Quét và xử lý phiếu tạm ứng quá hạn thành công"
         data:
           $ref: '#/components/schemas/OverdueScanSummary'
+
+    ProposeLedgerAdjustmentRequest:
+      type: object
+      required:
+        - originalTransactionId
+        - proposedAdjustmentAmount
+        - adjustmentReason
+      properties:
+        originalTransactionId:
+          type: string
+          maxLength: 20
+          example: "LDG_2026_001"
+        proposedAdjustmentAmount:
+          type: number
+          example: -5000000.00
+        adjustmentReason:
+          type: string
+          maxLength: 2000
+          example: "Tính nhầm hóa đơn âm thanh, cần bù trừ giảm quỹ sự kiện"
+        evidenceAttachmentUrl:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "https://storage.familyfund.vn/evidence/adj-001.pdf"
+
+    LedgerAdjustmentRequestResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          example: "LAR0001A2B3C4D5E6"
+        originalTransactionId:
+          type: string
+          example: "LDG_2026_001"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        originalTransactionType:
+          type: string
+          enum: [SurplusTransfer, AdjustmentTransaction]
+        originalTransactionAmount:
+          type: number
+          example: 50000000.00
+        proposedAdjustmentAmount:
+          type: number
+          example: -5000000.00
+        adjustmentReason:
+          type: string
+        evidenceAttachmentUrl:
+          type: string
+          nullable: true
+        proposedByAccountId:
+          type: string
+          example: "ACC_TRUONG_CHI"
+        approvalStatus:
+          type: string
+          enum: [Pending, Approved, Rejected]
+          example: "Pending"
+        reviewedByAccountId:
+          type: string
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    LedgerAdjustmentRequestEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
+
+    LedgerAdjustmentRequestListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
