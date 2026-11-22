@@ -16,6 +16,8 @@ import com.familyfund.finance.internal.entity.ImmutableLedger;
 import com.familyfund.finance.internal.entity.LedgerAdjustmentRequest;
 import com.familyfund.finance.internal.repository.ImmutableLedgerRepository;
 import com.familyfund.finance.internal.repository.LedgerAdjustmentRequestRepository;
+import com.familyfund.finance.internal.util.ImmutableLedgerHashCalculator;
+import jakarta.persistence.EntityManager;
 import com.familyfund.genealogy.internal.entity.Clan;
 import com.familyfund.genealogy.internal.entity.FamilyBranch;
 import com.familyfund.genealogy.internal.entity.Member;
@@ -106,6 +108,12 @@ class LedgerAdjustmentIntegrationTest {
     @Autowired
     private LedgerAdjustmentRequestRepository ledgerAdjustmentRequestRepository;
 
+    @Autowired
+    private ImmutableLedgerHashCalculator ledgerHashCalculator;
+
+    @Autowired
+    private EntityManager entityManager;
+
     private record Principal(String getAccountId, String getMemberId) implements MemberLinkedPrincipal {}
 
     @BeforeEach
@@ -147,6 +155,15 @@ class LedgerAdjustmentIntegrationTest {
         eventPersonnelRepository.save(EventPersonnel.builder()
                 .eventId(EVENT_ID).memberId(MEMBER_TREASURER).eventRole(EventRole.EventTreasurer).isReadOnly(false).build());
 
+        Instant tx1Time = Instant.now().minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MICROS);
+        String tx1Hash = ledgerHashCalculator.computeRecordHash(
+                ImmutableLedgerHashCalculator.GENESIS_HASH,
+                TX_ID, CLAN_ID, EVENT_ID, null, null,
+                LedgerTransactionType.SurplusTransfer,
+                new BigDecimal("50000000.00"), new BigDecimal("150000000.00"),
+                "Kết dư sự kiện Đại Lễ Giỗ Tổ",
+                ACCOUNT_TREASURER, ACCOUNT_HEAD, tx1Time
+        );
         immutableLedgerRepository.save(ImmutableLedger.builder()
                 .transactionId(TX_ID)
                 .clanId(CLAN_ID)
@@ -157,9 +174,19 @@ class LedgerAdjustmentIntegrationTest {
                 .description("Kết dư sự kiện Đại Lễ Giỗ Tổ")
                 .createdByAccountId(ACCOUNT_TREASURER)
                 .approvedByAccountId(ACCOUNT_HEAD)
-                .recordHash("hash_us15_001_" + System.nanoTime())
+                .recordHash(tx1Hash)
+                .createdAt(tx1Time)
                 .build());
 
+        Instant tx2Time = Instant.now().minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MICROS);
+        String tx2Hash = ledgerHashCalculator.computeRecordHash(
+                tx1Hash,
+                TX_POS_ID, CLAN_ID, EVENT_ID, null, null,
+                LedgerTransactionType.SurplusTransfer,
+                new BigDecimal("20000000.00"), new BigDecimal("170000000.00"),
+                "Kết dư đợt 2",
+                ACCOUNT_TREASURER, ACCOUNT_HEAD, tx2Time
+        );
         immutableLedgerRepository.save(ImmutableLedger.builder()
                 .transactionId(TX_POS_ID)
                 .clanId(CLAN_ID)
@@ -170,7 +197,8 @@ class LedgerAdjustmentIntegrationTest {
                 .description("Kết dư đợt 2")
                 .createdByAccountId(ACCOUNT_TREASURER)
                 .approvedByAccountId(ACCOUNT_HEAD)
-                .recordHash("hash_us15_002_" + System.nanoTime())
+                .recordHash(tx2Hash)
+                .createdAt(tx2Time)
                 .build());
     }
 
@@ -306,6 +334,256 @@ class LedgerAdjustmentIntegrationTest {
                         .header(TenantFilter.HEADER_CLAN_ID, OTHER_CLAN_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("US-59 E2E: Duyệt nối tiếp 2 đề xuất bù trừ -> ghi Append-Only, tính running_balance và xác thực SHA-256 hash chain từ PostgreSQL")
+    void reviewAdjustment_approveAndSequentialChain_e2eSuccess() throws Exception {
+        // 1. Thủ quỹ đề xuất bù trừ âm (-5tr) trên giao dịch LDG_US15_001 (50tr)
+        String propose1Json = """
+                {
+                    "originalTransactionId": "LDG_US15_001",
+                    "proposedAdjustmentAmount": -5000000.00,
+                    "adjustmentReason": "Giảm trừ hóa đơn thuê rạp dư"
+                }
+                """;
+        String propose1Res = mockMvc.perform(post("/api/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(propose1Json))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reqId1 = com.jayway.jsonpath.JsonPath.read(propose1Res, "$.data.requestId");
+
+        // 2. Trưởng tộc duyệt đề xuất -> running_balance mới tính từ bản ghi mới nhất LDG_US15_002 (170tr - 5tr = 165tr)
+        String approve1Json = """
+                {
+                    "requestId": "%s",
+                    "approved": true,
+                    "description": "Duyệt bù trừ giảm 5tr hóa đơn rạp"
+                }
+                """.formatted(reqId1);
+        String approve1Res = mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approve1Json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.adjustmentRequest.approvalStatus").value("Approved"))
+                .andExpect(jsonPath("$.data.adjustmentRequest.reviewedByAccountId").value(ACCOUNT_HEAD))
+                .andExpect(jsonPath("$.data.ledgerEntry.transactionType").value("AdjustmentTransaction"))
+                .andExpect(jsonPath("$.data.ledgerEntry.adjustmentRequestId").value(reqId1))
+                .andExpect(jsonPath("$.data.ledgerEntry.originalTransactionId").value(TX_ID))
+                .andExpect(jsonPath("$.data.ledgerEntry.amount").value(-5000000.00))
+                .andExpect(jsonPath("$.data.ledgerEntry.runningBalance").value(165000000.00))
+                .andReturn().getResponse().getContentAsString();
+
+        String newTxId1 = com.jayway.jsonpath.JsonPath.read(approve1Res, "$.data.ledgerEntry.transactionId");
+        assertThat(newTxId1).startsWith("LDG");
+
+        // Flush + Clear để đọc lại TIMESTAMPTZ thực tế từ PostgreSQL và xác thực SHA-256 round-trip
+        entityManager.flush();
+        entityManager.clear();
+
+        ImmutableLedger txPosFromDb = immutableLedgerRepository.findById(TX_POS_ID).orElseThrow();
+        ImmutableLedger entry1FromDb = immutableLedgerRepository.findById(newTxId1).orElseThrow();
+        assertThat(ledgerHashCalculator.verifyRecordHash(entry1FromDb, txPosFromDb.getRecordHash())).isTrue();
+
+        // 3. Chặn duyệt lại lần 2 cùng một requestId -> 400 Bad Request
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approve1Json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // 4. Trưởng tộc tự đề xuất (+10tr) và tự duyệt -> nối tiếp chuỗi hash vào entry1FromDb (165tr + 10tr = 175tr)
+        String propose2Json = """
+                {
+                    "originalTransactionId": "LDG_US15_002",
+                    "proposedAdjustmentAmount": 10000000.00,
+                    "adjustmentReason": "Bổ sung tiền hoàn cọc dịch vụ"
+                }
+                """;
+        String propose2Res = mockMvc.perform(post("/api/v1/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(propose2Json))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reqId2 = com.jayway.jsonpath.JsonPath.read(propose2Res, "$.data.requestId");
+
+        String approve2Res = mockMvc.perform(post("/api/v1/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "request_id": "%s",
+                                    "approved": true
+                                }
+                                """.formatted(reqId2)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ledgerEntry.runningBalance").value(175000000.00))
+                .andReturn().getResponse().getContentAsString();
+        String newTxId2 = com.jayway.jsonpath.JsonPath.read(approve2Res, "$.data.ledgerEntry.transactionId");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        ImmutableLedger entry2FromDb = immutableLedgerRepository.findById(newTxId2).orElseThrow();
+        assertThat(ledgerHashCalculator.verifyRecordHash(entry2FromDb, entry1FromDb.getRecordHash())).isTrue();
+    }
+
+    @Test
+    @DisplayName("US-59 E2E: Chặn phê duyệt (400) nếu running_balance mới < 0 và giữ nguyên trạng thái Pending")
+    void reviewAdjustment_negativeBalanceGuard_e2eBlocksAndPreservesState() throws Exception {
+        String proposeRes = mockMvc.perform(post("/api/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "originalTransactionId": "LDG_US15_001",
+                                    "proposedAdjustmentAmount": -999000000.00,
+                                    "adjustmentReason": "Kiểm tra vượt quá số dư quỹ chung"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reqId = com.jayway.jsonpath.JsonPath.read(proposeRes, "$.data.requestId");
+        int ledgerCountBefore = immutableLedgerRepository.findByClanIdOrderByCreatedAtDesc(CLAN_ID).size();
+
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "requestId": "%s",
+                                    "approved": true
+                                }
+                                """.formatted(reqId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(immutableLedgerRepository.findByClanIdOrderByCreatedAtDesc(CLAN_ID)).hasSize(ledgerCountBefore);
+        assertThat(ledgerAdjustmentRequestRepository.findById(reqId).orElseThrow().getApprovalStatus())
+                .isEqualTo(LedgerAdjustmentStatus.Pending);
+    }
+
+    @Test
+    @DisplayName("US-59 E2E: Từ chối đề xuất yêu cầu rejectionReason, không ghi sổ cái và cho phép lập đề xuất mới")
+    void reviewAdjustment_rejectFlow_doesNotWriteLedgerAndAllowsResubmit() throws Exception {
+        String proposeRes = mockMvc.perform(post("/api/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "originalTransactionId": "LDG_US15_001",
+                                    "proposedAdjustmentAmount": -2000000.00,
+                                    "adjustmentReason": "Đề xuất chờ kiểm tra hóa đơn"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reqId = com.jayway.jsonpath.JsonPath.read(proposeRes, "$.data.requestId");
+        int ledgerCountBefore = immutableLedgerRepository.findByClanIdOrderByCreatedAtDesc(CLAN_ID).size();
+
+        // Từ chối thiếu lý do -> 400
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "requestId": "%s",
+                                    "approved": false,
+                                    "rejectionReason": "   "
+                                }
+                                """.formatted(reqId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // Từ chối hợp lệ (snake_case) -> 200
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "request_id": "%s",
+                                    "approved": false,
+                                    "rejection_reason": "Thiếu biên bản đối chiếu có chữ ký Ban tổ chức"
+                                }
+                                """.formatted(reqId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.adjustmentRequest.approvalStatus").value("Rejected"))
+                .andExpect(jsonPath("$.data.adjustmentRequest.rejectionReason")
+                        .value("Thiếu biên bản đối chiếu có chữ ký Ban tổ chức"))
+                .andExpect(jsonPath("$.data.ledgerEntry").doesNotExist());
+
+        assertThat(immutableLedgerRepository.findByClanIdOrderByCreatedAtDesc(CLAN_ID)).hasSize(ledgerCountBefore);
+
+        // Có thể gửi đề xuất mới cho cùng giao dịch gốc sau khi đề xuất cũ bị từ chối
+        mockMvc.perform(post("/api/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "originalTransactionId": "LDG_US15_001",
+                                    "proposedAdjustmentAmount": -2000000.00,
+                                    "adjustmentReason": "Đã bổ sung biên bản đối chiếu đầy đủ"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.approvalStatus").value("Pending"));
+    }
+
+    @Test
+    @DisplayName("US-59 E2E: Thủ quỹ sự kiện bị chặn 403 khi duyệt; duyệt khác dòng họ trả 404")
+    void reviewAdjustment_securityAndMultiTenancy() throws Exception {
+        String proposeRes = mockMvc.perform(post("/api/ledger/propose-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "originalTransactionId": "LDG_US15_001",
+                                    "proposedAdjustmentAmount": -1000000.00,
+                                    "adjustmentReason": "Kiểm tra phân quyền duyệt"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String reqId = com.jayway.jsonpath.JsonPath.read(proposeRes, "$.data.requestId");
+
+        String approveJson = """
+                {
+                    "requestId": "%s",
+                    "approved": true
+                }
+                """.formatted(reqId);
+
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_TREASURER, MEMBER_TREASURER, "MEMBER")))
+                        .header(TenantFilter.HEADER_CLAN_ID, CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approveJson))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/ledger/review-adjustment")
+                        .with(authentication(auth(ACCOUNT_HEAD, MEMBER_HEAD, "CLAN_HEAD")))
+                        .header(TenantFilter.HEADER_CLAN_ID, OTHER_CLAN_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approveJson))
                 .andExpect(status().isNotFound());
     }
 }

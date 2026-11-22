@@ -3,7 +3,9 @@ package com.familyfund.finance.internal.controller;
 import com.familyfund.core.dto.ApiResponse;
 import com.familyfund.finance.api.dto.LedgerAdjustmentStatus;
 import com.familyfund.finance.internal.dto.request.ProposeLedgerAdjustmentRequest;
+import com.familyfund.finance.internal.dto.request.ReviewLedgerAdjustmentRequest;
 import com.familyfund.finance.internal.dto.response.LedgerAdjustmentRequestResponse;
+import com.familyfund.finance.internal.dto.response.ReviewLedgerAdjustmentResponse;
 import com.familyfund.finance.internal.service.LedgerAdjustmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * REST Controller for proposing and querying ledger adjustment requests (US-15).
+ * REST Controller for proposing, reviewing and querying ledger adjustment requests (US-15 / US-59).
  *
  * <p>Supports both canonical {@code /api/v1/ledger} and standard {@code /api/ledger} routes.</p>
  */
@@ -42,6 +44,20 @@ public class LedgerAdjustmentController {
         LedgerAdjustmentRequestResponse response = ledgerAdjustmentService.proposeAdjustment(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Tạo đề xuất điều chỉnh bù trừ sổ cái thành công"));
+    }
+
+    /**
+     * API Trưởng tộc / Admin phê duyệt hoặc từ chối đề xuất bù trừ Sổ cái (US-59).
+     */
+    @PostMapping("/review-adjustment")
+    @PreAuthorize("hasAnyRole('CLAN_HEAD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<ReviewLedgerAdjustmentResponse>> reviewAdjustment(
+            @Valid @RequestBody ReviewLedgerAdjustmentRequest request) {
+        ReviewLedgerAdjustmentResponse response = ledgerAdjustmentService.reviewAdjustment(request);
+        String message = Boolean.TRUE.equals(request.approved())
+                ? "Phê duyệt đề xuất điều chỉnh và ghi bút toán bù trừ vào sổ cái thành công"
+                : "Từ chối đề xuất điều chỉnh sổ cái thành công";
+        return ResponseEntity.ok(ApiResponse.success(response, message));
     }
 
     /**
