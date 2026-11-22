@@ -101,4 +101,14 @@ public class EventQueryServiceImpl implements EventQueryService {
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasEventRoleInClan(String clanId, String memberId, EventRole eventRole) {
+        if (clanId == null || clanId.isBlank() || memberId == null || memberId.isBlank() || eventRole == null) {
+            return false;
+        }
+        return eventPersonnelRepository.existsByClanIdAndMemberIdAndEventRole(
+                clanId.trim(), memberId.trim(), eventRole);
+    }
 }

@@ -1423,6 +1423,284 @@ paths:
         '200':
           description: Danh sách các bút toán sổ cái bất biến
 
+  /ledger/propose-adjustment:
+    post:
+      summary: Đề xuất bù trừ sai sót giao dịch Sổ cái bất biến (US-15)
+      description: |
+        Tạo bản ghi đề xuất bù trừ (`LEDGER_ADJUSTMENT_REQUEST`) ở trạng thái `Pending` liên kết tới
+        `original_transaction_id` trong sổ cái bất biến (`IMMUTABLE_LEDGER`), kèm số tiền bù trừ (`+` hoặc `-`, khác `0`),
+        lý do giải trình và đường dẫn bằng chứng tùy chọn.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposeLedgerAdjustmentRequest'
+      responses:
+        '201':
+          description: Tạo đề xuất điều chỉnh bù trừ sổ cái thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestEnvelope'
+        '400':
+          description: Số tiền bằng 0, dữ liệu không hợp lệ hoặc giao dịch gốc đang có đề xuất Pending
+        '403':
+          description: Không có quyền (chỉ EventTreasurer, HeadOfOrganizer của sự kiện liên quan, ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Không tìm thấy giao dịch sổ cái gốc trong dòng họ hiện tại
+
+  /ledger/review-adjustment:
+    post:
+      summary: Trưởng tộc phê duyệt hoặc từ chối đề xuất bù trừ Sổ cái (US-59)
+      description: |
+        Nếu phê duyệt (`approved: true`), mở DB Transaction kèm khóa dòng đề xuất & khóa dòng họ,
+        tính `running_balance` mới, sinh mã băm SHA-256 nối chuỗi (`record_hash`) và INSERT bản ghi
+        Append-Only (`AdjustmentTransaction`) vào `immutable_ledgers`.
+        Nếu từ chối (`approved: false`), bắt buộc lưu `rejectionReason` và không ghi sổ cái.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewLedgerAdjustmentRequest'
+      responses:
+        '200':
+          description: Xử lý phê duyệt hoặc từ chối đề xuất bù trừ sổ cái thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewLedgerAdjustmentEnvelope'
+        '400':
+          description: Đề xuất đã xử lý trước đó, thiếu lý do từ chối, hoặc số dư Quỹ chung mới sẽ bị âm
+        '403':
+          description: Không có quyền (chỉ dành cho ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Không tìm thấy đề xuất điều chỉnh sổ cái trong dòng họ hiện tại
+        '409':
+          description: Xung đột dữ liệu đồng thời (ví dụ đề xuất đã có bút toán ghi sổ)
+
+  /ledger/adjustments:
+    get:
+      summary: Tra cứu danh sách đề xuất điều chỉnh bù trừ sổ cái (US-15)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: originalTransactionId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Approved, Rejected]
+      responses:
+        '200':
+          description: Danh sách đề xuất điều chỉnh sổ cái
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestListEnvelope'
+
+  /ledger/adjustments/{requestId}:
+    get:
+      summary: Xem chi tiết một đề xuất điều chỉnh bù trừ sổ cái (US-15)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết đề xuất điều chỉnh sổ cái
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAdjustmentRequestEnvelope'
+        '404':
+          description: Không tìm thấy đề xuất điều chỉnh sổ cái
+
+  /ledger/balance:
+    get:
+      summary: Xem số dư khả dụng hiện tại của Quỹ chung dòng họ (US-60)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Số dư khả dụng Quỹ chung và tổng đề xuất chi đang chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonFundBalanceEnvelope'
+
+  /ledger/disbursements:
+    post:
+      summary: Đề xuất chi Quỹ chung cho các việc lớn (US-60)
+      description: |
+        Kiểm tra số dư khả dụng (`running_balance >= amount`), tạo bản ghi đề xuất ở trạng thái `Pending`.
+        Chỉ cho phép `ROLE_CLAN_HEAD`, `ROLE_ADMIN`, `ROLE_BRANCH_HEAD` hoặc thành viên đang giữ vai trò
+        `EventTreasurer` trong dòng họ.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposeCommonFundDisbursementRequest'
+      responses:
+        '201':
+          description: Tạo đề xuất chi Quỹ chung thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonFundDisbursementEnvelope'
+        '400':
+          description: Số dư Quỹ chung không đủ hoặc dữ liệu đầu vào không hợp lệ
+        '403':
+          description: Không có quyền lập đề xuất chi Quỹ chung
+        '404':
+          description: Không tìm thấy thành viên thụ hưởng trong dòng họ hiện tại
+    get:
+      summary: Tra cứu danh sách đề xuất chi Quỹ chung theo dòng họ (US-60)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Approved, Rejected]
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CommonFundExpenseCategory'
+      responses:
+        '200':
+          description: Danh sách đề xuất chi Quỹ chung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonFundDisbursementListEnvelope'
+
+  /ledger/disbursements/{requestId}:
+    get:
+      summary: Xem chi tiết một đề xuất chi Quỹ chung (US-60)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết đề xuất chi Quỹ chung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonFundDisbursementEnvelope'
+        '404':
+          description: Không tìm thấy đề xuất chi Quỹ chung
+
+  /ledger/disbursements/{requestId}/review:
+    post:
+      summary: Trưởng tộc phê duyệt (kèm mật khẩu xác nhận) hoặc từ chối chi Quỹ chung (US-60)
+      description: |
+        Nếu `approved: true`, bắt buộc gửi `confirmPassword` (mật khẩu tài khoản Trưởng tộc/Admin) để xác thực BCrypt,
+        mở DB Transaction kèm khóa dòng phiếu & khóa dòng họ, kiểm tra chặt `running_balance >= amount`,
+        ghi bút toán chi âm (`CommonFundDisbursement`) vào `immutable_ledgers`, giảm `running_balance` và nối chuỗi SHA-256.
+        Nếu `approved: false`, bắt buộc lưu `rejectionReason` và không ghi sổ cái.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCommonFundDisbursementRequest'
+      responses:
+        '200':
+          description: Xử lý phê duyệt hoặc từ chối đề xuất chi Quỹ chung thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCommonFundDisbursementEnvelope'
+        '400':
+          description: Sai mật khẩu xác nhận, thiếu lý do từ chối, phiếu đã xử lý hoặc số dư Quỹ chung không đủ
+        '403':
+          description: Không có quyền (chỉ dành cho ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Không tìm thấy đề xuất chi Quỹ chung trong dòng họ hiện tại
+        '409':
+          description: Xung đột dữ liệu đồng thời (phiếu chi đã có bút toán ghi sổ)
+
+  /ledger/review-disbursement:
+    post:
+      summary: Route phẳng phê duyệt hoặc từ chối chi Quỹ chung (US-60)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCommonFundDisbursementRequest'
+      responses:
+        '200':
+          description: Xử lý phê duyệt hoặc từ chối đề xuất chi Quỹ chung thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCommonFundDisbursementEnvelope'
+        '400':
+          description: Sai mật khẩu xác nhận, thiếu requestId/lý do từ chối, hoặc số dư không đủ
+        '403':
+          description: Không có quyền (chỉ dành cho ROLE_CLAN_HEAD hoặc ROLE_ADMIN)
+        '404':
+          description: Không tìm thấy đề xuất chi Quỹ chung
+        '409':
+          description: Xung đột dữ liệu đồng thời
+
   /invitations/general:
     post:
       summary: Tạo mã mời chung gia phả (US-16)
@@ -4664,3 +4942,398 @@ components:
           example: "Quét và xử lý phiếu tạm ứng quá hạn thành công"
         data:
           $ref: '#/components/schemas/OverdueScanSummary'
+
+    ProposeLedgerAdjustmentRequest:
+      type: object
+      required:
+        - originalTransactionId
+        - proposedAdjustmentAmount
+        - adjustmentReason
+      properties:
+        originalTransactionId:
+          type: string
+          maxLength: 20
+          example: "LDG_2026_001"
+        proposedAdjustmentAmount:
+          type: number
+          example: -5000000.00
+        adjustmentReason:
+          type: string
+          maxLength: 2000
+          example: "Tính nhầm hóa đơn âm thanh, cần bù trừ giảm quỹ sự kiện"
+        evidenceAttachmentUrl:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "https://storage.familyfund.vn/evidence/adj-001.pdf"
+
+    LedgerAdjustmentRequestResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          example: "LAR0001A2B3C4D5E6"
+        originalTransactionId:
+          type: string
+          example: "LDG_2026_001"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        originalTransactionType:
+          type: string
+          enum: [SurplusTransfer, AdjustmentTransaction]
+        originalTransactionAmount:
+          type: number
+          example: 50000000.00
+        proposedAdjustmentAmount:
+          type: number
+          example: -5000000.00
+        adjustmentReason:
+          type: string
+        evidenceAttachmentUrl:
+          type: string
+          nullable: true
+        proposedByAccountId:
+          type: string
+          example: "ACC_TRUONG_CHI"
+        approvalStatus:
+          type: string
+          enum: [Pending, Approved, Rejected]
+          example: "Pending"
+        reviewedByAccountId:
+          type: string
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    LedgerAdjustmentRequestEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
+
+    LedgerAdjustmentRequestListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
+
+    ReviewLedgerAdjustmentRequest:
+      type: object
+      required:
+        - requestId
+        - approved
+      properties:
+        requestId:
+          type: string
+          maxLength: 20
+          example: "LAR0001A2B3C4D5E6"
+        approved:
+          type: boolean
+          example: true
+        rejectionReason:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: "Chứng từ đối soát chưa hợp lệ, vui lòng bổ sung hóa đơn gốc"
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: "Bù trừ giảm chi phí thuê rạp theo hóa đơn đối soát #12"
+
+    ImmutableLedgerEntryResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          example: "LDG0001A2B3C4D5E6"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        adjustmentRequestId:
+          type: string
+          nullable: true
+          example: "LAR0001A2B3C4D5E6"
+        disbursementRequestId:
+          type: string
+          nullable: true
+          example: "CFD0001A2B3C4D5E6"
+        originalTransactionId:
+          type: string
+          nullable: true
+          example: "LDG_2026_001"
+        transactionType:
+          type: string
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          example: "AdjustmentTransaction"
+        amount:
+          type: number
+          example: -5000000.00
+        runningBalance:
+          type: number
+          example: 165000000.00
+        description:
+          type: string
+        createdByAccountId:
+          type: string
+          example: "ACC_TREASURER"
+        approvedByAccountId:
+          type: string
+          example: "ACC_CLAN_HEAD"
+        recordHash:
+          type: string
+          minLength: 64
+          maxLength: 64
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        createdAt:
+          type: string
+          format: date-time
+
+    ReviewLedgerAdjustmentResponse:
+      type: object
+      properties:
+        adjustmentRequest:
+          $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
+        ledgerEntry:
+          allOf:
+            - $ref: '#/components/schemas/ImmutableLedgerEntryResponse'
+          nullable: true
+
+    ReviewLedgerAdjustmentEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ReviewLedgerAdjustmentResponse'
+
+    CommonFundExpenseCategory:
+      type: string
+      enum: [TempleMaintenance, ReliefSupport, Scholarship, Ceremony, Other]
+      example: "TempleMaintenance"
+
+    ProposeCommonFundDisbursementRequest:
+      type: object
+      required:
+        - title
+        - category
+        - amount
+        - purpose
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: "Tu sửa mái ngói Từ đường năm 2026"
+        category:
+          $ref: '#/components/schemas/CommonFundExpenseCategory'
+        amount:
+          type: number
+          minimum: 0.01
+          example: 45000000.00
+        beneficiaryName:
+          type: string
+          maxLength: 255
+          nullable: true
+          example: "Đội thợ nề làng Đồng Kỵ"
+        beneficiaryMemberId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "MEM_001"
+        purpose:
+          type: string
+          maxLength: 2000
+          example: "Thay thế ngói âm dương dột nát khu vực hậu cung theo nghị quyết họ"
+        attachmentUrl:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "https://storage.familyfund.vn/disbursements/quote-001.pdf"
+
+    ReviewCommonFundDisbursementRequest:
+      type: object
+      required:
+        - approved
+      properties:
+        requestId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "CFD0001A2B3C4D5E6"
+        approved:
+          type: boolean
+          example: true
+        confirmPassword:
+          type: string
+          format: password
+          maxLength: 200
+          nullable: true
+          example: "ClanHead@123"
+        rejectionReason:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: "Cần bổ sung 2 báo giá đối chiếu từ nhà thầu khác"
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: "Duyệt giải ngân đợt 1 tu sửa mái ngói Từ đường"
+
+    CommonFundDisbursementResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          example: "CFD0001A2B3C4D5E6"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/CommonFundExpenseCategory'
+        amount:
+          type: number
+          example: 45000000.00
+        beneficiaryName:
+          type: string
+          nullable: true
+        beneficiaryMemberId:
+          type: string
+          nullable: true
+        purpose:
+          type: string
+        attachmentUrl:
+          type: string
+          nullable: true
+        proposedByAccountId:
+          type: string
+        approvalStatus:
+          type: string
+          enum: [Pending, Approved, Rejected]
+        reviewedByAccountId:
+          type: string
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        ledgerTransactionId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ReviewCommonFundDisbursementResponse:
+      type: object
+      properties:
+        disbursementRequest:
+          $ref: '#/components/schemas/CommonFundDisbursementResponse'
+        ledgerEntry:
+          allOf:
+            - $ref: '#/components/schemas/ImmutableLedgerEntryResponse'
+          nullable: true
+
+    CommonFundBalanceResponse:
+      type: object
+      properties:
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        availableBalance:
+          type: number
+          example: 100000000.00
+        pendingDisbursementAmount:
+          type: number
+          example: 45000000.00
+        latestTransactionId:
+          type: string
+          nullable: true
+          example: "LDG_2026_001"
+        latestTransactionAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CommonFundDisbursementEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CommonFundDisbursementResponse'
+
+    CommonFundDisbursementListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommonFundDisbursementResponse'
+
+    ReviewCommonFundDisbursementEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ReviewCommonFundDisbursementResponse'
+
+    CommonFundBalanceEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CommonFundBalanceResponse'

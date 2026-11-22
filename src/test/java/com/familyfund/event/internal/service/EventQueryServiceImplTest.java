@@ -139,4 +139,15 @@ class EventQueryServiceImplTest {
         assertEquals(5, summary.get().totalVegetarianMeals());
         assertEquals(30, summary.get().totalSavoryMeals());
     }
+
+    @Test
+    @DisplayName("Should verify contextual event role within clan")
+    void hasEventRoleInClan() {
+        when(eventPersonnelRepository.existsByClanIdAndMemberIdAndEventRole(
+                CLAN_ID, "MEM_TREAS", EventRole.EventTreasurer)).thenReturn(true);
+
+        assertTrue(eventQueryService.hasEventRoleInClan(CLAN_ID, "MEM_TREAS", EventRole.EventTreasurer));
+        assertFalse(eventQueryService.hasEventRoleInClan(null, "MEM_TREAS", EventRole.EventTreasurer));
+        assertFalse(eventQueryService.hasEventRoleInClan(CLAN_ID, " ", EventRole.EventTreasurer));
+    }
 }
