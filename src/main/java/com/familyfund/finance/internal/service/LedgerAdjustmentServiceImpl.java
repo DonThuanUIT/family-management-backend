@@ -8,12 +8,18 @@ import com.familyfund.core.tenant.TenantContext;
 import com.familyfund.event.api.EventQueryService;
 import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.finance.api.dto.LedgerAdjustmentStatus;
+import com.familyfund.finance.api.dto.LedgerTransactionType;
 import com.familyfund.finance.internal.dto.request.ProposeLedgerAdjustmentRequest;
+import com.familyfund.finance.internal.dto.request.ReviewLedgerAdjustmentRequest;
+import com.familyfund.finance.internal.dto.response.ImmutableLedgerEntryResponse;
 import com.familyfund.finance.internal.dto.response.LedgerAdjustmentRequestResponse;
+import com.familyfund.finance.internal.dto.response.ReviewLedgerAdjustmentResponse;
 import com.familyfund.finance.internal.entity.ImmutableLedger;
 import com.familyfund.finance.internal.entity.LedgerAdjustmentRequest;
 import com.familyfund.finance.internal.repository.ImmutableLedgerRepository;
 import com.familyfund.finance.internal.repository.LedgerAdjustmentRequestRepository;
+import com.familyfund.finance.internal.util.ImmutableLedgerHashCalculator;
+import com.familyfund.finance.internal.util.ImmutableLedgerIdGenerator;
 import com.familyfund.finance.internal.util.LedgerAdjustmentRequestIdGenerator;
 import com.familyfund.identity.api.IdentityRoleCommandService;
 import com.familyfund.identity.api.dto.AccountSummaryDto;
@@ -27,16 +33,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Service implementation for creating and querying ledger adjustment requests (US-15).
+ * Service implementation for creating, reviewing and querying ledger adjustment requests (US-15 / US-59).
  */
 @Slf4j
 @Service
@@ -46,6 +56,8 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
     private final LedgerAdjustmentRequestRepository ledgerAdjustmentRequestRepository;
     private final ImmutableLedgerRepository immutableLedgerRepository;
     private final LedgerAdjustmentRequestIdGenerator requestIdGenerator;
+    private final ImmutableLedgerIdGenerator ledgerIdGenerator;
+    private final ImmutableLedgerHashCalculator ledgerHashCalculator;
     private final EventQueryService eventQueryService;
     private final IdentityRoleCommandService identityRoleCommandService;
     private final NotificationService notificationService;
@@ -80,7 +92,11 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
 
         String proposerAccountId = currentUserProvider.currentAccountId().orElse("SYSTEM");
         String evidenceUrl = normalizeBlank(request.evidenceAttachmentUrl());
-        String requestId = generateUniqueRequestId();
+        String requestId = generateUniqueId(
+                requestIdGenerator::generate,
+                ledgerAdjustmentRequestRepository::existsById,
+                "đề xuất điều chỉnh sổ cái"
+        );
 
         LedgerAdjustmentRequest entity = LedgerAdjustmentRequest.builder()
                 .requestId(requestId)
@@ -100,6 +116,45 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
         notifyClanHeadsOnProposed(saved, originalTx);
 
         return toResponse(saved, originalTx);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ReviewLedgerAdjustmentResponse reviewAdjustment(ReviewLedgerAdjustmentRequest request) {
+        validateReviewerAuthorization();
+
+        String rejectionReason = normalizeBlank(request.rejectionReason());
+        if (!Boolean.TRUE.equals(request.approved()) && rejectionReason == null) {
+            throw new BusinessRuleException(
+                    "Lý do từ chối không được để trống khi từ chối đề xuất điều chỉnh sổ cái");
+        }
+
+        String clanId = normalizeBlank(TenantContext.getClanId());
+        String requestId = request.requestId().trim();
+
+        LedgerAdjustmentRequest entity = ledgerAdjustmentRequestRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Đề xuất điều chỉnh sổ cái", "requestId", requestId));
+
+        ImmutableLedger originalTx = immutableLedgerRepository.findById(entity.getOriginalTransactionId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Giao dịch sổ cái gốc", "originalTransactionId", entity.getOriginalTransactionId()));
+
+        if (clanId != null && !clanId.equals(originalTx.getClanId())) {
+            throw new ResourceNotFoundException("Đề xuất điều chỉnh sổ cái", "requestId", requestId);
+        }
+
+        if (entity.getApprovalStatus() != LedgerAdjustmentStatus.Pending) {
+            throw new BusinessRuleException(
+                    "Đề xuất điều chỉnh sổ cái " + requestId + " đã được xử lý trước đó (trạng thái hiện tại: "
+                            + entity.getApprovalStatus() + ")");
+        }
+
+        String reviewerAccountId = currentUserProvider.currentAccountId().orElse("SYSTEM");
+        if (Boolean.TRUE.equals(request.approved())) {
+            return handleApproval(entity, originalTx, reviewerAccountId, request);
+        }
+        return handleRejection(entity, originalTx, reviewerAccountId, rejectionReason);
     }
 
     @Override
@@ -169,6 +224,123 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
                 "Chỉ Thủ quỹ sự kiện, Trưởng ban tổ chức hoặc Trưởng tộc mới có quyền đề xuất điều chỉnh bút toán sổ cái");
     }
 
+    private void validateReviewerAuthorization() {
+        if (currentUserProvider.hasAuthority(SystemRoles.ADMIN)
+                || currentUserProvider.hasAuthority(SystemRoles.CLAN_HEAD)) {
+            return;
+        }
+        throw new AccessDeniedException(
+                "Chỉ Trưởng tộc hoặc Quản trị viên mới có quyền phê duyệt/từ chối đề xuất điều chỉnh sổ cái");
+    }
+
+    private ReviewLedgerAdjustmentResponse handleApproval(
+            LedgerAdjustmentRequest entity,
+            ImmutableLedger originalTx,
+            String reviewerAccountId,
+            ReviewLedgerAdjustmentRequest request) {
+        immutableLedgerRepository.acquireClanLedgerLock(originalTx.getClanId());
+
+        Optional<ImmutableLedger> latestOpt =
+                immutableLedgerRepository.findFirstByClanIdOrderByCreatedAtDescTransactionIdDesc(
+                        originalTx.getClanId());
+
+        BigDecimal currentBalance = latestOpt.map(ImmutableLedger::getRunningBalance).orElse(BigDecimal.ZERO);
+        BigDecimal adjustmentAmount = entity.getProposedAdjustmentAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal newRunningBalance = currentBalance.add(adjustmentAmount).setScale(2, RoundingMode.HALF_UP);
+
+        if (newRunningBalance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessRuleException(
+                    "Không thể phê duyệt đề xuất " + entity.getRequestId()
+                            + ": số dư Quỹ chung sau bù trừ sẽ bị âm ("
+                            + newRunningBalance.toPlainString() + "đ)");
+        }
+
+        String previousHash = latestOpt.map(ImmutableLedger::getRecordHash)
+                .orElse(ImmutableLedgerHashCalculator.GENESIS_HASH);
+        Instant entryTimestamp = resolveMonotonicTimestamp(latestOpt.orElse(null));
+        String transactionId = generateUniqueId(
+                ledgerIdGenerator::generate,
+                immutableLedgerRepository::existsById,
+                "giao dịch sổ cái"
+        );
+
+        String customDesc = normalizeBlank(request.description());
+        String description = customDesc != null
+                ? customDesc
+                : "Bù trừ giao dịch " + originalTx.getTransactionId()
+                        + " (" + entity.getRequestId() + "): " + entity.getAdjustmentReason();
+
+        String recordHash = ledgerHashCalculator.computeRecordHash(
+                previousHash,
+                transactionId,
+                originalTx.getClanId(),
+                originalTx.getEventId(),
+                entity.getRequestId(),
+                originalTx.getTransactionId(),
+                LedgerTransactionType.AdjustmentTransaction,
+                adjustmentAmount,
+                newRunningBalance,
+                description,
+                entity.getProposedByAccountId(),
+                reviewerAccountId,
+                entryTimestamp
+        );
+
+        ImmutableLedger newLedger = ImmutableLedger.builder()
+                .transactionId(transactionId)
+                .clanId(originalTx.getClanId())
+                .eventId(originalTx.getEventId())
+                .adjustmentRequestId(entity.getRequestId())
+                .originalTransactionId(originalTx.getTransactionId())
+                .transactionType(LedgerTransactionType.AdjustmentTransaction)
+                .amount(adjustmentAmount)
+                .runningBalance(newRunningBalance)
+                .description(description)
+                .createdByAccountId(entity.getProposedByAccountId())
+                .approvedByAccountId(reviewerAccountId)
+                .recordHash(recordHash)
+                .createdAt(entryTimestamp)
+                .build();
+
+        ImmutableLedger savedLedger = immutableLedgerRepository.saveAndFlush(newLedger);
+
+        entity.setApprovalStatus(LedgerAdjustmentStatus.Approved);
+        entity.setReviewedByAccountId(reviewerAccountId);
+        entity.setRejectionReason(null);
+        entity.setReviewedAt(entryTimestamp);
+        LedgerAdjustmentRequest savedRequest = ledgerAdjustmentRequestRepository.save(entity);
+
+        log.info("US-59: Đã duyệt đề xuất {} và ghi bút toán bù trừ {} (số dư mới: {}, hash: {}...)",
+                savedRequest.getRequestId(), savedLedger.getTransactionId(), newRunningBalance,
+                recordHash.substring(0, 12));
+
+        notifyProposerOnReviewed(savedRequest, originalTx, savedLedger);
+
+        return new ReviewLedgerAdjustmentResponse(
+                toResponse(savedRequest, originalTx),
+                toLedgerResponse(savedLedger)
+        );
+    }
+
+    private ReviewLedgerAdjustmentResponse handleRejection(
+            LedgerAdjustmentRequest entity,
+            ImmutableLedger originalTx,
+            String reviewerAccountId,
+            String rejectionReason) {
+        Instant reviewedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        entity.setApprovalStatus(LedgerAdjustmentStatus.Rejected);
+        entity.setReviewedByAccountId(reviewerAccountId);
+        entity.setRejectionReason(rejectionReason);
+        entity.setReviewedAt(reviewedAt);
+
+        LedgerAdjustmentRequest savedRequest = ledgerAdjustmentRequestRepository.save(entity);
+        log.info("US-59: Đã từ chối đề xuất {} bởi tài khoản {}", savedRequest.getRequestId(), reviewerAccountId);
+
+        notifyProposerOnReviewed(savedRequest, originalTx, null);
+
+        return new ReviewLedgerAdjustmentResponse(toResponse(savedRequest, originalTx), null);
+    }
+
     private void notifyClanHeadsOnProposed(LedgerAdjustmentRequest saved, ImmutableLedger originalTx) {
         try {
             List<AccountSummaryDto> activeAccounts =
@@ -177,9 +349,7 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
                 return;
             }
 
-            String formattedSignAmount = saved.getProposedAdjustmentAmount().compareTo(BigDecimal.ZERO) > 0
-                    ? "+" + saved.getProposedAdjustmentAmount().toPlainString()
-                    : saved.getProposedAdjustmentAmount().toPlainString();
+            String formattedSignAmount = formatSignedAmount(saved.getProposedAdjustmentAmount());
 
             for (AccountSummaryDto acc : activeAccounts) {
                 boolean isClanHead = (acc.roles() != null && acc.roles().contains(SystemRoles.CLAN_HEAD))
@@ -204,6 +374,41 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
         }
     }
 
+    private void notifyProposerOnReviewed(
+            LedgerAdjustmentRequest saved,
+            ImmutableLedger originalTx,
+            ImmutableLedger newLedger) {
+        String recipientId = saved.getProposedByAccountId();
+        if (recipientId == null || recipientId.isBlank() || "SYSTEM".equals(recipientId)) {
+            return;
+        }
+        try {
+            boolean approved = newLedger != null;
+            String title = approved
+                    ? "Đề xuất điều chỉnh sổ cái đã được duyệt: " + saved.getRequestId()
+                    : "Đề xuất điều chỉnh sổ cái bị từ chối: " + saved.getRequestId();
+            String content = approved
+                    ? "Đề xuất " + saved.getRequestId() + " đã được phê duyệt và ghi bút toán "
+                            + newLedger.getTransactionId() + " (" + formatSignedAmount(newLedger.getAmount())
+                            + "đ). Số dư Quỹ chung mới: " + newLedger.getRunningBalance().toPlainString() + "đ."
+                    : "Đề xuất " + saved.getRequestId() + " cho giao dịch " + saved.getOriginalTransactionId()
+                            + " đã bị từ chối. Lý do: " + saved.getRejectionReason();
+
+            notificationService.notify(NotificationCommand.builder()
+                    .clanId(originalTx.getClanId())
+                    .recipientAccountId(recipientId)
+                    .category(NotificationCategory.Finance)
+                    .title(title)
+                    .content(content)
+                    .referenceType("LEDGER_ADJUSTMENT_REQUEST")
+                    .referenceId(saved.getRequestId())
+                    .build());
+        } catch (RuntimeException ex) {
+            log.warn("US-59: Không thể gửi thông báo kết quả duyệt đề xuất {}: {}",
+                    saved.getRequestId(), ex.getMessage());
+        }
+    }
+
     private LedgerAdjustmentRequestResponse toResponse(LedgerAdjustmentRequest entity, ImmutableLedger originalTx) {
         return new LedgerAdjustmentRequestResponse(
                 entity.getRequestId(),
@@ -224,14 +429,52 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
         );
     }
 
-    private String generateUniqueRequestId() {
+    private ImmutableLedgerEntryResponse toLedgerResponse(ImmutableLedger entry) {
+        return new ImmutableLedgerEntryResponse(
+                entry.getTransactionId(),
+                entry.getClanId(),
+                entry.getEventId(),
+                entry.getAdjustmentRequestId(),
+                entry.getOriginalTransactionId(),
+                entry.getTransactionType(),
+                entry.getAmount(),
+                entry.getRunningBalance(),
+                entry.getDescription(),
+                entry.getCreatedByAccountId(),
+                entry.getApprovedByAccountId(),
+                entry.getRecordHash(),
+                entry.getCreatedAt()
+        );
+    }
+
+    private Instant resolveMonotonicTimestamp(ImmutableLedger latestLedger) {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        if (latestLedger != null && latestLedger.getCreatedAt() != null) {
+            Instant latestMicros = latestLedger.getCreatedAt().truncatedTo(ChronoUnit.MICROS);
+            if (!now.isAfter(latestMicros)) {
+                return latestMicros.plus(1, ChronoUnit.MICROS);
+            }
+        }
+        return now;
+    }
+
+    private String generateUniqueId(
+            Supplier<String> generator,
+            Predicate<String> existsById,
+            String entityLabel) {
         for (int i = 0; i < 5; i++) {
-            String candidate = requestIdGenerator.generate();
-            if (!ledgerAdjustmentRequestRepository.existsById(candidate)) {
+            String candidate = generator.get();
+            if (!existsById.test(candidate)) {
                 return candidate;
             }
         }
-        throw new IllegalStateException("Không thể sinh mã đề xuất điều chỉnh sổ cái duy nhất sau 5 lần thử");
+        throw new IllegalStateException("Không thể sinh mã " + entityLabel + " duy nhất sau 5 lần thử");
+    }
+
+    private static String formatSignedAmount(BigDecimal amount) {
+        return amount.compareTo(BigDecimal.ZERO) > 0
+                ? "+" + amount.toPlainString()
+                : amount.toPlainString();
     }
 
     private static String normalizeBlank(String value) {

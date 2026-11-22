@@ -2,12 +2,14 @@ package com.familyfund.finance.internal.service;
 
 import com.familyfund.finance.api.dto.LedgerAdjustmentStatus;
 import com.familyfund.finance.internal.dto.request.ProposeLedgerAdjustmentRequest;
+import com.familyfund.finance.internal.dto.request.ReviewLedgerAdjustmentRequest;
 import com.familyfund.finance.internal.dto.response.LedgerAdjustmentRequestResponse;
+import com.familyfund.finance.internal.dto.response.ReviewLedgerAdjustmentResponse;
 
 import java.util.List;
 
 /**
- * Service interface for proposing and querying immutable ledger adjustment requests (US-15).
+ * Service interface for proposing, reviewing and querying immutable ledger adjustment requests (US-15 / US-59).
  */
 public interface LedgerAdjustmentService {
 
@@ -16,6 +18,13 @@ public interface LedgerAdjustmentService {
      * linked to an existing {@code immutable_ledgers} entry.
      */
     LedgerAdjustmentRequestResponse proposeAdjustment(ProposeLedgerAdjustmentRequest request);
+
+    /**
+     * Reviews (approves or rejects) a pending ledger adjustment proposal (US-59).
+     * When approved, atomically appends an {@code AdjustmentTransaction} entry into
+     * {@code immutable_ledgers} with updated {@code running_balance} and SHA-256 hash chain.
+     */
+    ReviewLedgerAdjustmentResponse reviewAdjustment(ReviewLedgerAdjustmentRequest request);
 
     /**
      * Retrieves detailed information of a ledger adjustment request by ID.
