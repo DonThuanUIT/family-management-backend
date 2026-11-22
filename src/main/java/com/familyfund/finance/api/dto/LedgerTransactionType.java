@@ -6,9 +6,11 @@ package com.familyfund.finance.api.dto;
  * <ul>
  *   <li>{@link #SurplusTransfer} - Transfer of surplus/deficit funds after an event settlement.</li>
  *   <li>{@link #AdjustmentTransaction} - Compensating adjustment transaction linked to an approved adjustment request.</li>
+ *   <li>{@link #CommonFundDisbursement} - Approved expenditure disbursed from the clan common fund (US-60).</li>
  * </ul>
  */
 public enum LedgerTransactionType {
     SurplusTransfer,
-    AdjustmentTransaction
+    AdjustmentTransaction,
+    CommonFundDisbursement
 }

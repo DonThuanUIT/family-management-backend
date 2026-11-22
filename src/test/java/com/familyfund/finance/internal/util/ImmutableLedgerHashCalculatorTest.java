@@ -144,4 +144,49 @@ class ImmutableLedgerHashCalculatorTest {
 
         assertThat(calculator.verifyRecordHash(null, prevHash)).isFalse();
     }
+
+    @Test
+    @DisplayName("US-60: Hỗ trợ CommonFundDisbursement và phát hiện giả mạo disbursementRequestId")
+    void verifyRecordHash_disbursementRequestId_tamperDetection() {
+        Instant ts = Instant.parse("2026-11-22T08:00:00.123456Z");
+        String prevHash = "d".repeat(64);
+        String validHash = calculator.computeRecordHash(
+                prevHash, "LDG_CFD_01", "CLN_01", null, null, "CFD_001", null,
+                LedgerTransactionType.CommonFundDisbursement, new BigDecimal("-45000000.00"),
+                new BigDecimal("55000000.00"), "Chi tu sửa mái ngói Từ đường",
+                "ACC_TREAS", "ACC_HEAD", ts
+        );
+
+        ImmutableLedger validDisbursement = ImmutableLedger.builder()
+                .transactionId("LDG_CFD_01")
+                .clanId("CLN_01")
+                .disbursementRequestId("CFD_001")
+                .transactionType(LedgerTransactionType.CommonFundDisbursement)
+                .amount(new BigDecimal("-45000000.00"))
+                .runningBalance(new BigDecimal("55000000.00"))
+                .description("Chi tu sửa mái ngói Từ đường")
+                .createdByAccountId("ACC_TREAS")
+                .approvedByAccountId("ACC_HEAD")
+                .recordHash(validHash)
+                .createdAt(ts)
+                .build();
+
+        assertThat(calculator.verifyRecordHash(validDisbursement, prevHash)).isTrue();
+
+        ImmutableLedger tamperedDisbursementRef = ImmutableLedger.builder()
+                .transactionId("LDG_CFD_01")
+                .clanId("CLN_01")
+                .disbursementRequestId("CFD_999")
+                .transactionType(LedgerTransactionType.CommonFundDisbursement)
+                .amount(new BigDecimal("-45000000.00"))
+                .runningBalance(new BigDecimal("55000000.00"))
+                .description("Chi tu sửa mái ngói Từ đường")
+                .createdByAccountId("ACC_TREAS")
+                .approvedByAccountId("ACC_HEAD")
+                .recordHash(validHash)
+                .createdAt(ts)
+                .build();
+
+        assertThat(calculator.verifyRecordHash(tamperedDisbursementRef, prevHash)).isFalse();
+    }
 }

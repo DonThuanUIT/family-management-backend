@@ -23,7 +23,8 @@ public class ImmutableLedgerHashCalculator {
     public static final String GENESIS_HASH = "GENESIS";
 
     /**
-     * Computes a 64-character lowercase hexadecimal SHA-256 hash chained to {@code previousHash}.
+     * Computes a 64-character lowercase hexadecimal SHA-256 hash chained to {@code previousHash}
+     * without a disbursement reference (backward-compatible 13-arg signature for US-59).
      */
     public String computeRecordHash(
             String previousHash,
@@ -31,6 +32,44 @@ public class ImmutableLedgerHashCalculator {
             String clanId,
             String eventId,
             String adjustmentRequestId,
+            String originalTransactionId,
+            LedgerTransactionType transactionType,
+            BigDecimal amount,
+            BigDecimal runningBalance,
+            String description,
+            String createdByAccountId,
+            String approvedByAccountId,
+            Instant createdAt
+    ) {
+        return computeRecordHash(
+                previousHash,
+                transactionId,
+                clanId,
+                eventId,
+                adjustmentRequestId,
+                null,
+                originalTransactionId,
+                transactionType,
+                amount,
+                runningBalance,
+                description,
+                createdByAccountId,
+                approvedByAccountId,
+                createdAt
+        );
+    }
+
+    /**
+     * Computes a 64-character lowercase hexadecimal SHA-256 hash chained to {@code previousHash},
+     * including both {@code adjustmentRequestId} (US-59) and {@code disbursementRequestId} (US-60).
+     */
+    public String computeRecordHash(
+            String previousHash,
+            String transactionId,
+            String clanId,
+            String eventId,
+            String adjustmentRequestId,
+            String disbursementRequestId,
             String originalTransactionId,
             LedgerTransactionType transactionType,
             BigDecimal amount,
@@ -62,6 +101,7 @@ public class ImmutableLedgerHashCalculator {
                 clanId,
                 nullToEmpty(eventId),
                 nullToEmpty(adjustmentRequestId),
+                nullToEmpty(disbursementRequestId),
                 nullToEmpty(originalTransactionId),
                 transactionType.name(),
                 formatMonetaryAmount(amount),
@@ -104,6 +144,7 @@ public class ImmutableLedgerHashCalculator {
                 entry.getClanId(),
                 entry.getEventId(),
                 entry.getAdjustmentRequestId(),
+                entry.getDisbursementRequestId(),
                 entry.getOriginalTransactionId(),
                 entry.getTransactionType(),
                 entry.getAmount(),

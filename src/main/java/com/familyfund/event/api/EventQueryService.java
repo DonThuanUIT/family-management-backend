@@ -42,4 +42,10 @@ public interface EventQueryService {
      * for a given event (US-48).
      */
     Set<String> findOrganizerMemberIds(String eventId);
+
+    /**
+     * Checks whether a member currently holds a specific contextual event role (e.g., {@code EventTreasurer})
+     * in any event belonging to the specified clan (US-60).
+     */
+    boolean hasEventRoleInClan(String clanId, String memberId, EventRole eventRole);
 }

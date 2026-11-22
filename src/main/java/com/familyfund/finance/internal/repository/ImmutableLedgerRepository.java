@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,10 @@ public interface ImmutableLedgerRepository extends JpaRepository<ImmutableLedger
     Integer acquireClanLedgerLock(@Param("clanId") String clanId);
 
     Optional<ImmutableLedger> findFirstByClanIdOrderByCreatedAtDescTransactionIdDesc(String clanId);
+
+    Optional<ImmutableLedger> findByDisbursementRequestId(String disbursementRequestId);
+
+    List<ImmutableLedger> findByDisbursementRequestIdIn(Collection<String> disbursementRequestIds);
 
     Optional<ImmutableLedger> findByTransactionIdAndClanId(String transactionId, String clanId);
 

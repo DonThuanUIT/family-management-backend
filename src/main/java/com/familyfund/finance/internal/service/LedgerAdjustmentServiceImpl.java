@@ -430,21 +430,7 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
     }
 
     private ImmutableLedgerEntryResponse toLedgerResponse(ImmutableLedger entry) {
-        return new ImmutableLedgerEntryResponse(
-                entry.getTransactionId(),
-                entry.getClanId(),
-                entry.getEventId(),
-                entry.getAdjustmentRequestId(),
-                entry.getOriginalTransactionId(),
-                entry.getTransactionType(),
-                entry.getAmount(),
-                entry.getRunningBalance(),
-                entry.getDescription(),
-                entry.getCreatedByAccountId(),
-                entry.getApprovedByAccountId(),
-                entry.getRecordHash(),
-                entry.getCreatedAt()
-        );
+        return ImmutableLedgerEntryResponse.fromEntity(entry);
     }
 
     private Instant resolveMonotonicTimestamp(ImmutableLedger latestLedger) {

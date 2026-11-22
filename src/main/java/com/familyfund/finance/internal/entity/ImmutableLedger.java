@@ -44,6 +44,9 @@ public class ImmutableLedger {
     @Column(name = "adjustment_request_id", length = 20, unique = true, updatable = false)
     private String adjustmentRequestId;
 
+    @Column(name = "disbursement_request_id", length = 20, unique = true, updatable = false)
+    private String disbursementRequestId;
+
     @Column(name = "original_transaction_id", length = 20, updatable = false)
     private String originalTransactionId;
 
