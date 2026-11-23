@@ -163,23 +163,56 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String paramName = ex.getName();
-        Object rawValue = ex.getValue();
-        Class<?> requiredType = ex.getRequiredType();
+        String formattedValue = formatRejectedValue(ex.getValue());
+        Class<?> enumType = resolveEnumTargetType(ex);
 
         String message;
-        if (requiredType != null && requiredType.isEnum()) {
-            String allowedValues = Arrays.stream(requiredType.getEnumConstants())
+        if (enumType != null) {
+            String allowedValues = Arrays.stream(enumType.getEnumConstants())
                     .map(Object::toString)
                     .collect(Collectors.joining(", "));
-            message = "Tham số '" + paramName + "' có giá trị không hợp lệ ('" + rawValue
+            message = "Tham số '" + paramName + "' có giá trị không hợp lệ ('" + formattedValue
                     + "'). Giá trị hợp lệ: [" + allowedValues + "]";
         } else {
-            message = "Tham số '" + paramName + "' có kiểu dữ liệu không hợp lệ ('" + rawValue + "')";
+            message = "Tham số '" + paramName + "' có kiểu dữ liệu không hợp lệ ('" + formattedValue + "')";
         }
 
-        log.warn("Parameter type mismatch on '{}': value='{}'", paramName, rawValue);
+        log.warn("Parameter type mismatch on '{}': value='{}'", paramName, formattedValue);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(message));
+    }
+
+    private static String formatRejectedValue(Object rawValue) {
+        if (rawValue == null) {
+            return "null";
+        }
+        if (rawValue instanceof Object[] array) {
+            return Arrays.toString(array);
+        }
+        return String.valueOf(rawValue);
+    }
+
+    private static Class<?> resolveEnumTargetType(MethodArgumentTypeMismatchException ex) {
+        Class<?> requiredType = ex.getRequiredType();
+        if (requiredType != null && requiredType.isEnum()) {
+            return requiredType;
+        }
+        if (ex.getParameter() != null) {
+            Class<?> elementType = org.springframework.core.ResolvableType
+                    .forMethodParameter(ex.getParameter())
+                    .getGeneric(0)
+                    .resolve();
+            if (elementType != null && elementType.isEnum()) {
+                return elementType;
+            }
+            if (requiredType != null && requiredType.isArray()) {
+                Class<?> componentType = requiredType.getComponentType();
+                if (componentType != null && componentType.isEnum()) {
+                    return componentType;
+                }
+            }
+        }
+        return null;
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)

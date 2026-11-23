@@ -103,4 +103,18 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
+
+    @Test
+    @DisplayName("Repeated List<Enum> query param with invalid value -> 400 with clean array text and allowed enum values")
+    void invalidRepeatedEnumListQueryParam_Returns400WithCleanMessage() throws Exception {
+        mockMvc.perform(authenticated(get("/api/v1/ledger"))
+                        .param("transactionType", "SurplusTransfer")
+                        .param("transactionType", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("[Ljava.lang.String;@"))))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("[SurplusTransfer, INVALID]")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement")));
+    }
 }
