@@ -292,12 +292,15 @@ class ImmutableLedgerProtectionIntegrationTest {
         assertThat(truncateEx.getMessage()).contains("SECURITY VIOLATION [NFR-01]");
         assertThat(truncateEx.getMessage()).contains("TRUNCATE");
 
-        // ON DELETE RESTRICT ngăn xóa events đã ghi vào immutable_ledgers (SQLSTATE 23001 restrict_violation)
+        // ON DELETE RESTRICT ngăn xóa events đã ghi vào immutable_ledgers
+        // (PostgreSQL <= 17 trả SQLSTATE 23503 foreign_key_violation; PostgreSQL >= 18 trả 23001 restrict_violation)
         SQLException deleteEventEx = assertSqlFailureWithSavepoint(
                 "DELETE FROM events WHERE event_id = ?",
                 ps -> ps.setString(1, EVENT_ID));
-        assertThat(deleteEventEx.getSQLState()).isEqualTo("23001");
-        assertThat(deleteEventEx.getMessage()).contains("immutable_ledgers");
+        assertThat(deleteEventEx.getSQLState()).isIn("23001", "23503");
+        assertThat(deleteEventEx.getMessage())
+                .contains("immutable_ledgers")
+                .contains("immutable_ledgers_event_id_fkey");
     }
 
     @Test
