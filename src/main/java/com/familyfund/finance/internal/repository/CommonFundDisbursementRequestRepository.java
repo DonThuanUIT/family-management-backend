@@ -41,4 +41,6 @@ public interface CommonFundDisbursementRequestRepository extends JpaRepository<C
               AND r.approvalStatus = com.familyfund.finance.api.dto.CommonFundDisbursementStatus.Pending
             """)
     BigDecimal sumPendingAmountByClanId(@Param("clanId") String clanId);
+
+    long countByClanIdAndApprovalStatus(String clanId, CommonFundDisbursementStatus approvalStatus);
 }

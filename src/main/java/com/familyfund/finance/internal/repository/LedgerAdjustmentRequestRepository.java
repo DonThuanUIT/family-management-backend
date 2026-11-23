@@ -33,6 +33,14 @@ public interface LedgerAdjustmentRequestRepository extends JpaRepository<LedgerA
     );
 
     @Query("""
+            SELECT COUNT(r) FROM LedgerAdjustmentRequest r
+            JOIN ImmutableLedger l ON r.originalTransactionId = l.transactionId
+            WHERE l.clanId = :clanId
+              AND r.approvalStatus = com.familyfund.finance.api.dto.LedgerAdjustmentStatus.Pending
+            """)
+    long countPendingByClanId(@Param("clanId") String clanId);
+
+    @Query("""
             SELECT r FROM LedgerAdjustmentRequest r
             JOIN ImmutableLedger l ON r.originalTransactionId = l.transactionId
             WHERE (:clanId IS NULL OR l.clanId = :clanId)
