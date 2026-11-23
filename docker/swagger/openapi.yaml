@@ -1541,6 +1541,11 @@ paths:
   /ledger/balance:
     get:
       summary: Xem số dư khả dụng hiện tại của Quỹ chung dòng họ (US-60)
+      description: |
+        > **Chính sách bất biến Sổ cái (NFR-01 / US-61):** Toàn bộ nhánh `/api/ledger/**` và `/api/v1/ledger/**`
+        > cấm tuyệt đối các HTTP method `PUT`, `PATCH`, `DELETE` cho mọi vai trò (kể cả `ROLE_ADMIN`, `ROLE_CLAN_HEAD`).
+        > Mọi yêu cầu cố tình sử dụng các method này sẽ bị chặn ngay tại Security Filter với mã HTTP `405 Method Not Allowed`,
+        > header `Allow: GET, POST, HEAD, OPTIONS` và mã lỗi `LEDGER_IMMUTABILITY_VIOLATION`.
       tags:
         - Finance & Vouchers
       security:
@@ -1552,6 +1557,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommonFundBalanceEnvelope'
+
+  /ledger/verify-integrity:
+    get:
+      summary: Kiểm toán toàn vẹn chuỗi mã băm SHA-256 của Sổ cái Quỹ chung (US-61 / NFR-01)
+      description: |
+        Duyệt toàn bộ lịch sử `immutable_ledgers` của dòng họ hiện tại theo thứ tự thời gian từ mốc `GENESIS`,
+        xác minh:
+        1. Liên kết `previousHash` khớp `recordHash` của bản ghi liền trước,
+        2. Mã băm SHA-256 (`recordHash`) khớp 100% nội dung giao dịch,
+        3. Tính liên tục của `runningBalance` giữa các mắt xích liền kề.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Báo cáo trạng thái toàn vẹn chuỗi băm SHA-256 của Sổ cái Quỹ chung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerIntegrityReportEnvelope'
+        '400':
+          description: Thiếu ngữ cảnh dòng họ (X-Clan-Id / clanId)
 
   /ledger/disbursements:
     post:
@@ -5109,6 +5137,10 @@ components:
         approvedByAccountId:
           type: string
           example: "ACC_CLAN_HEAD"
+        previousHash:
+          type: string
+          example: "GENESIS"
+          description: "Mã băm SHA-256 của giao dịch liền trước trong cùng dòng họ (hoặc GENESIS với bản ghi đầu tiên)"
         recordHash:
           type: string
           minLength: 64
@@ -5337,3 +5369,74 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/CommonFundBalanceResponse'
+
+    LedgerIntegrityBrokenLink:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          nullable: true
+          example: "LDG0001A2B3C4D5E6"
+        chainIndex:
+          type: integer
+          example: 2
+        reason:
+          type: string
+          example: "Mã băm SHA-256 (recordHash) không khớp với dữ liệu giao dịch"
+        expectedPreviousHash:
+          type: string
+          nullable: true
+        actualPreviousHash:
+          type: string
+          nullable: true
+        expectedRecordHash:
+          type: string
+          nullable: true
+        actualRecordHash:
+          type: string
+          nullable: true
+
+    LedgerIntegrityReportResponse:
+      type: object
+      properties:
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        valid:
+          type: boolean
+          example: true
+        totalEntries:
+          type: integer
+          example: 12
+        verifiedEntries:
+          type: integer
+          example: 12
+        genesisAnchor:
+          type: string
+          example: "GENESIS"
+        latestTransactionId:
+          type: string
+          nullable: true
+          example: "LDG0001A2B3C4D5E6"
+        latestRecordHash:
+          type: string
+          nullable: true
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        brokenLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerIntegrityBrokenLink'
+        verifiedAt:
+          type: string
+          format: date-time
+
+    LedgerIntegrityReportEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LedgerIntegrityReportResponse'
