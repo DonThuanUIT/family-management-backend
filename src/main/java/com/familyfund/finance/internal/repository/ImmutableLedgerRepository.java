@@ -5,17 +5,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Append-only Spring Data repository for {@link ImmutableLedger} (NFR-01 / US-61).
+ * Append-only Spring Data repository for {@link ImmutableLedger} (NFR-01 / US-61 / US-62).
  * Intentionally extends {@link Repository} rather than {@code JpaRepository} / {@code CrudRepository}
  * so no {@code delete*} methods are exposed at compile time.
  */
 @org.springframework.stereotype.Repository
-public interface ImmutableLedgerRepository extends Repository<ImmutableLedger, String>, ImmutableLedgerWriteGuard {
+public interface ImmutableLedgerRepository
+        extends Repository<ImmutableLedger, String>, ImmutableLedgerWriteGuard, ImmutableLedgerQueryRepository {
 
     Optional<ImmutableLedger> findById(String transactionId);
 
@@ -42,4 +44,21 @@ public interface ImmutableLedgerRepository extends Repository<ImmutableLedger, S
     List<ImmutableLedger> findByClanIdOrderByCreatedAtDesc(String clanId);
 
     List<ImmutableLedger> findByClanIdOrderByCreatedAtAscTransactionIdAsc(String clanId);
+
+    List<ImmutableLedger> findByClanIdAndTransactionIdIn(String clanId, Collection<String> transactionIds);
+
+    List<ImmutableLedger> findByClanIdAndOriginalTransactionIdInOrderByCreatedAtAscTransactionIdAsc(
+            String clanId,
+            Collection<String> originalTransactionIds
+    );
+
+    Optional<ImmutableLedger> findFirstByClanIdAndCreatedAtLessThanOrderByCreatedAtDescTransactionIdDesc(
+            String clanId,
+            Instant beforeInstant
+    );
+
+    Optional<ImmutableLedger> findFirstByClanIdAndCreatedAtLessThanEqualOrderByCreatedAtDescTransactionIdDesc(
+            String clanId,
+            Instant upToInstant
+    );
 }
