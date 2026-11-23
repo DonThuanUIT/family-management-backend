@@ -1414,7 +1414,7 @@ paths:
       description: |
         Tra cứu danh sách các bút toán trong `immutable_ledgers` thuộc dòng họ hiện tại (`X-Clan-Id` / JWT `clanId`).
         Hỗ trợ lọc theo khoảng thời gian (`from`, `to` định dạng `yyyy-MM-dd` múi giờ Việt Nam `Asia/Ho_Chi_Minh` hoặc ISO-8601),
-        loại giao dịch (`transactionType`: `SurplusTransfer`, `AdjustmentTransaction`, `CommonFundDisbursement`),
+        loại giao dịch (`transactionType`: `SurplusTransfer`, `AdjustmentTransaction`, `CommonFundDisbursement`, `OpeningBalanceCarryForward`),
         sự kiện (`eventId`), từ khóa (`keyword`), chỉ lấy các giao dịch có liên quan bù trừ (`onlyWithAdjustments`),
         sắp xếp theo thời gian (`sortDirection`: `DESC` hoặc `ASC`) và phân trang (`page`, `size`).
 
@@ -1450,7 +1450,7 @@ paths:
             type: array
             items:
               type: string
-              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
         - name: eventId
           in: query
           required: false
@@ -1527,7 +1527,7 @@ paths:
             type: array
             items:
               type: string
-              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
         - name: eventId
           in: query
           required: false
@@ -1751,6 +1751,102 @@ paths:
                 $ref: '#/components/schemas/LedgerIntegrityReportEnvelope'
         '400':
           description: Thiếu ngữ cảnh dòng họ (X-Clan-Id / clanId)
+
+  /ledger/annual-audit:
+    post:
+      summary: Kiểm toán định kỳ & chốt số dư đầu kỳ Sổ cái Quỹ chung
+      description: |
+        So sánh số tiền thực kiểm (`actualBalance`) với số dư lũy kế mới nhất (`running_balance`) trên `immutable_ledgers`:
+        - Yêu cầu quyền `ROLE_CLAN_HEAD` hoặc `ROLE_ADMIN`.
+        - Kiểm tra bắt buộc trước khi kiểm toán: chuỗi băm SHA-256 toàn vẹn 100%, không còn đề xuất bù trừ (US-15)
+          hoặc đề xuất chi Quỹ chung (US-60) ở trạng thái `Pending`, và năm kiểm toán (`auditYear`) chưa từng chốt khớp (`Matched`).
+        - **Nếu KHỚP (`actualBalance == systemBalance`):** Tự động ghi bút toán niêm phong `OpeningBalanceCarryForward`
+          (`amount = 0.00`, `runningBalance = systemBalance`, `originalTransactionId = null`) vào `immutable_ledgers` kèm chữ ký SHA-256
+          để chốt số dư đầu kỳ mới cho năm `auditYear + 1`, lưu biên bản trạng thái `Matched` và thông báo tới Trưởng tộc.
+        - **Nếu LỆCH (`actualBalance != systemBalance`):** Tự động sinh đề xuất bù trừ US-15 (`LedgerAdjustmentRequest` ở trạng thái `Pending`)
+          với số tiền chênh lệch có dấu `actualBalance - systemBalance`, lưu biên bản trạng thái `DiscrepancyDetected`. Sau khi Trưởng tộc duyệt
+          bù trừ qua `POST /ledger/review-adjustment`, có thể gọi lại kiểm toán để đối khớp và chốt `Matched`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnualLedgerAuditRequest'
+      responses:
+        '201':
+          description: Thực hiện kiểm toán định kỳ thành công (Matched hoặc DiscrepancyDetected kèm đề xuất US-15)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAnnualAuditEnvelope'
+        '400':
+          description: Dữ liệu đầu vào không hợp lệ, còn đề xuất Pending (US-15/US-60) hoặc sổ cái rỗng chưa có bút toán gốc để tạo bù trừ
+        '403':
+          description: Không có quyền Trưởng tộc/Admin hoặc phát hiện vi phạm toàn vẹn chuỗi SHA-256 (`LEDGER_IMMUTABILITY_VIOLATION`)
+        '404':
+          description: Không tìm thấy `referenceTransactionId` trong dòng họ hiện tại
+        '409':
+          description: Kỳ kiểm toán năm `auditYear` đã được chốt khớp số dư đầu kỳ trước đó
+
+  /ledger/annual-audits:
+    get:
+      summary: Tra cứu danh sách biên bản kiểm toán định kỳ Sổ cái Quỹ chung
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: auditYear
+          in: query
+          required: false
+          description: Lọc theo năm kiểm toán (2000..2100)
+          schema:
+            type: integer
+            example: 2026
+        - name: status
+          in: query
+          required: false
+          description: Lọc theo trạng thái kiểm toán (`Matched` hoặc `DiscrepancyDetected`)
+          schema:
+            $ref: '#/components/schemas/LedgerAnnualAuditStatus'
+      responses:
+        '200':
+          description: Danh sách biên bản kiểm toán định kỳ Sổ cái Quỹ chung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAnnualAuditListEnvelope'
+        '400':
+          description: Tham số năm hoặc trạng thái kiểm toán không hợp lệ
+
+  /ledger/annual-audits/{auditId}:
+    get:
+      summary: Xem chi tiết một biên bản kiểm toán định kỳ Sổ cái Quỹ chung
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: auditId
+          in: path
+          required: true
+          description: Mã biên bản kiểm toán (`AUD...`)
+          schema:
+            type: string
+            example: "AUD0001A2B3C4D5E6"
+      responses:
+        '200':
+          description: Chi tiết biên bản kiểm toán định kỳ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerAnnualAuditEnvelope'
+        '404':
+          description: Không tìm thấy biên bản kiểm toán trong dòng họ hiện tại
 
   /ledger/disbursements:
     post:
@@ -5184,7 +5280,7 @@ components:
           example: "EVT-GIO-TO-2026"
         originalTransactionType:
           type: string
-          enum: [SurplusTransfer, AdjustmentTransaction]
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
         originalTransactionAmount:
           type: number
           example: 50000000.00
@@ -5292,8 +5388,9 @@ components:
           example: "LDG_2026_001"
         transactionType:
           type: string
-          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
           example: "AdjustmentTransaction"
+          description: Loại giao dịch Sổ cái bất biến
         amount:
           type: number
           example: -5000000.00
@@ -5621,8 +5718,9 @@ components:
           example: "LDG0001A2B3C4D5E6"
         transactionType:
           type: string
-          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
           example: "AdjustmentTransaction"
+          description: Loại giao dịch Sổ cái bất biến
         amount:
           type: number
           example: -5000000.00
@@ -5708,7 +5806,7 @@ components:
           example: "LDG_2026_001"
         transactionType:
           type: string
-          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement, OpeningBalanceCarryForward]
           example: "SurplusTransfer"
         amount:
           type: number
@@ -5853,3 +5951,138 @@ components:
           example: "Lấy chi tiết giao dịch Sổ cái Quỹ chung thành công"
         data:
           $ref: '#/components/schemas/LedgerHistoryItemResponse'
+
+    LedgerAnnualAuditStatus:
+      type: string
+      enum: [Matched, DiscrepancyDetected]
+      example: "Matched"
+
+    AnnualLedgerAuditRequest:
+      type: object
+      required:
+        - actualBalance
+      properties:
+        actualBalance:
+          type: number
+          minimum: 0.00
+          example: 95000000.00
+          description: Số tiền thực kiểm ngoài thực tế (VNĐ, >= 0)
+        auditYear:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          nullable: true
+          example: 2026
+          description: Năm kiểm toán (mặc định năm hiện tại theo múi giờ Việt Nam nếu bỏ trống)
+        referenceTransactionId:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "LDG0001A2B3C4D5E6"
+          description: Mã giao dịch gốc tùy chọn để gắn đề xuất bù trừ US-15 nếu phát hiện lệch (mặc định dùng giao dịch mới nhất của dòng họ)
+        notes:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: "Kiểm quỹ cuối năm 2026 tại Từ đường có sự chứng kiến của Ban tài chính"
+        evidenceAttachmentUrl:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "https://storage.familyfund.vn/audits/bien-ban-2026.pdf"
+
+    LedgerAnnualAuditResponse:
+      type: object
+      properties:
+        auditId:
+          type: string
+          example: "AUD0001A2B3C4D5E6"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        auditYear:
+          type: integer
+          example: 2026
+        nextPeriodYear:
+          type: integer
+          example: 2027
+        auditDate:
+          type: string
+          format: date-time
+        systemBalance:
+          type: number
+          example: 100000000.00
+        actualBalance:
+          type: number
+          example: 95000000.00
+        discrepancyAmount:
+          type: number
+          example: -5000000.00
+        auditStatus:
+          $ref: '#/components/schemas/LedgerAnnualAuditStatus'
+        referenceTransactionId:
+          type: string
+          nullable: true
+          example: "LDG_2026_001"
+        adjustmentRequestId:
+          type: string
+          nullable: true
+          example: "LAR0001A2B3C4D5E6"
+        closingTransactionId:
+          type: string
+          nullable: true
+          example: "LDG0002A2B3C4D5E6"
+        openingBalanceNextPeriod:
+          type: number
+          nullable: true
+          example: 95000000.00
+        auditorAccountId:
+          type: string
+          example: "ACC_CLAN_HEAD"
+        auditorDisplayName:
+          type: string
+          nullable: true
+          example: "Nguyễn Trọng Hoàng"
+        notes:
+          type: string
+          nullable: true
+        evidenceAttachmentUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        autoGeneratedAdjustmentRequest:
+          allOf:
+            - $ref: '#/components/schemas/LedgerAdjustmentRequestResponse'
+          nullable: true
+        closingLedgerEntry:
+          allOf:
+            - $ref: '#/components/schemas/ImmutableLedgerEntryResponse'
+          nullable: true
+
+    LedgerAnnualAuditEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Kiểm toán năm 2026 khớp số dư và đã chốt số dư đầu kỳ mới thành công"
+        data:
+          $ref: '#/components/schemas/LedgerAnnualAuditResponse'
+
+    LedgerAnnualAuditListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Tra cứu lịch sử kiểm toán định kỳ Sổ cái Quỹ chung thành công"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerAnnualAuditResponse'
