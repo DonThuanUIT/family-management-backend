@@ -94,4 +94,13 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.success").value(false));
     }
+
+    @Test
+    @DisplayName("Invalid enum query param -> 400 (not 500)")
+    void invalidEnumQueryParam_Returns400() throws Exception {
+        mockMvc.perform(authenticated(get("/api/v1/ledger/disbursements"))
+                        .param("status", "INVALID_STATUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
 }

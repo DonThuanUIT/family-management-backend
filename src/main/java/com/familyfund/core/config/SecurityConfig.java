@@ -2,6 +2,7 @@ package com.familyfund.core.config;
 
 import com.familyfund.core.security.JwtAuthenticationEntryPoint;
 import com.familyfund.core.security.JwtAuthenticationFilter;
+import com.familyfund.core.security.LedgerImmutabilityHttpFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,16 +56,27 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/join-requests/**").authenticated()
                         // Swagger & Documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // NFR-01 / US-61: Defense-in-depth blocking all HTTP mutation verbs on immutable ledger endpoints
+                        .requestMatchers(HttpMethod.PUT, "/api/ledger", "/api/ledger/**", "/api/v1/ledger", "/api/v1/ledger/**").denyAll()
+                        .requestMatchers(HttpMethod.PATCH, "/api/ledger", "/api/ledger/**", "/api/v1/ledger", "/api/v1/ledger/**").denyAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/ledger", "/api/ledger/**", "/api/v1/ledger", "/api/v1/ledger/**").denyAll()
                         // Any other request must be authenticated
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new LedgerImmutabilityHttpFilter(), JwtAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        org.springframework.web.cors.CorsConfiguration ledgerCorsConfig = new org.springframework.web.cors.CorsConfiguration();
+        ledgerCorsConfig.setAllowedOriginPatterns(java.util.List.of("*"));
+        ledgerCorsConfig.setAllowedMethods(java.util.List.of("GET", "POST", "HEAD", "OPTIONS"));
+        ledgerCorsConfig.setAllowedHeaders(java.util.List.of("*"));
+        ledgerCorsConfig.setAllowCredentials(true);
+
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
         configuration.setAllowedOriginPatterns(java.util.List.of("*"));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -72,6 +84,10 @@ public class SecurityConfig {
         configuration.setAllowCredentials(true);
 
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/ledger", ledgerCorsConfig);
+        source.registerCorsConfiguration("/api/ledger/**", ledgerCorsConfig);
+        source.registerCorsConfiguration("/api/v1/ledger", ledgerCorsConfig);
+        source.registerCorsConfiguration("/api/v1/ledger/**", ledgerCorsConfig);
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
