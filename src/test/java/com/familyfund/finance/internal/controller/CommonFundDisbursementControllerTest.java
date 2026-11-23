@@ -149,7 +149,7 @@ class CommonFundDisbursementControllerTest {
                 "LDG0001CFD", "CLN_01", null, null, "CFD0001TEST", null,
                 LedgerTransactionType.CommonFundDisbursement, new BigDecimal("-45000000.00"),
                 new BigDecimal("55000000.00"), "Chi tu sửa mái ngói",
-                "ACC_TREASURER", "ACC_HEAD", "b".repeat(64), now
+                "ACC_TREASURER", "ACC_HEAD", "GENESIS", "b".repeat(64), now
         );
 
         when(commonFundDisbursementService.reviewDisbursement(

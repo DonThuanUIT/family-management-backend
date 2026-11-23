@@ -174,6 +174,7 @@ class LedgerAdjustmentIntegrationTest {
                 .description("Kết dư sự kiện Đại Lễ Giỗ Tổ")
                 .createdByAccountId(ACCOUNT_TREASURER)
                 .approvedByAccountId(ACCOUNT_HEAD)
+                .previousHash(ImmutableLedgerHashCalculator.GENESIS_HASH)
                 .recordHash(tx1Hash)
                 .createdAt(tx1Time)
                 .build());
@@ -197,6 +198,7 @@ class LedgerAdjustmentIntegrationTest {
                 .description("Kết dư đợt 2")
                 .createdByAccountId(ACCOUNT_TREASURER)
                 .approvedByAccountId(ACCOUNT_HEAD)
+                .previousHash(tx1Hash)
                 .recordHash(tx2Hash)
                 .createdAt(tx2Time)
                 .build());
@@ -390,6 +392,7 @@ class LedgerAdjustmentIntegrationTest {
 
         ImmutableLedger txPosFromDb = immutableLedgerRepository.findById(TX_POS_ID).orElseThrow();
         ImmutableLedger entry1FromDb = immutableLedgerRepository.findById(newTxId1).orElseThrow();
+        assertThat(entry1FromDb.getPreviousHash()).isEqualTo(txPosFromDb.getRecordHash());
         assertThat(ledgerHashCalculator.verifyRecordHash(entry1FromDb, txPosFromDb.getRecordHash())).isTrue();
 
         // 3. Chặn duyệt lại lần 2 cùng một requestId -> 400 Bad Request

@@ -22,6 +22,7 @@ public record ImmutableLedgerEntryResponse(
         String description,
         String createdByAccountId,
         String approvedByAccountId,
+        String previousHash,
         String recordHash,
         Instant createdAt
 ) {
@@ -43,6 +44,7 @@ public record ImmutableLedgerEntryResponse(
                 entry.getDescription(),
                 entry.getCreatedByAccountId(),
                 entry.getApprovedByAccountId(),
+                entry.getPreviousHash(),
                 entry.getRecordHash(),
                 entry.getCreatedAt()
         );

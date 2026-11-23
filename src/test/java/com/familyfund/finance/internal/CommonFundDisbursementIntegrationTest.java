@@ -188,6 +188,7 @@ class CommonFundDisbursementIntegrationTest {
                 .description("Số dư Quỹ chung ban đầu")
                 .createdByAccountId(ACCOUNT_TREASURER)
                 .approvedByAccountId(ACCOUNT_HEAD)
+                .previousHash(ImmutableLedgerHashCalculator.GENESIS_HASH)
                 .recordHash(baseHash)
                 .createdAt(baseTime)
                 .build());
@@ -301,6 +302,7 @@ class CommonFundDisbursementIntegrationTest {
 
         ImmutableLedger baseFromDb = immutableLedgerRepository.findById(BASE_TX_ID).orElseThrow();
         ImmutableLedger disbursementEntryFromDb = immutableLedgerRepository.findById(txId1).orElseThrow();
+        assertThat(disbursementEntryFromDb.getPreviousHash()).isEqualTo(baseFromDb.getRecordHash());
         assertThat(ledgerHashCalculator.verifyRecordHash(disbursementEntryFromDb, baseFromDb.getRecordHash())).isTrue();
 
         // 5. Duyệt phiếu 2 (50tr > số dư còn lại 40tr) -> bị chặn 400 Bad Request, phiếu 2 vẫn Pending

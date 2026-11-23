@@ -176,6 +176,60 @@ public class IdentityRoleCommandServiceImpl implements IdentityRoleCommandServic
         return accountRoleRepository.existsByIdAccountIdAndIdRoleId(accountId.trim(), roleId.trim());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, String> findAccountDisplayNames(Collection<String> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> normalizedIds = accountIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        if (normalizedIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<UserAccount> accounts = userAccountRepository.findAllById(normalizedIds);
+        if (accounts.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, MemberSummaryDto> membersById = new HashMap<>();
+        for (UserAccount account : accounts) {
+            String memberId = account.getMemberId();
+            if (memberId != null && !memberId.isBlank()) {
+                String cleanMemberId = memberId.trim();
+                if (!membersById.containsKey(cleanMemberId)) {
+                    genealogyQueryService.findMemberSummary(cleanMemberId)
+                            .ifPresent(summary -> membersById.put(cleanMemberId, summary));
+                }
+            }
+        }
+
+        Map<String, String> displayNames = new HashMap<>();
+        for (UserAccount account : accounts) {
+            String displayName = null;
+            if (account.getMemberId() != null && !account.getMemberId().isBlank()) {
+                MemberSummaryDto member = membersById.get(account.getMemberId().trim());
+                if (member != null && member.fullName() != null && !member.fullName().isBlank()) {
+                    displayName = member.fullName().trim();
+                }
+            }
+            if (displayName == null && account.getPhoneNumber() != null && !account.getPhoneNumber().isBlank()) {
+                displayName = account.getPhoneNumber().trim();
+            }
+            if (displayName == null && account.getEmail() != null && !account.getEmail().isBlank()) {
+                displayName = account.getEmail().trim();
+            }
+            if (displayName == null) {
+                displayName = account.getAccountId();
+            }
+            displayNames.put(account.getAccountId(), displayName);
+        }
+        return displayNames;
+    }
+
     private AccountSummaryDto toAccountSummaryDto(UserAccount account) {
         Set<String> roleCodes = account.getRoles() != null
                 ? account.getRoles().stream().map(SystemRole::getRoleId).collect(Collectors.toSet())

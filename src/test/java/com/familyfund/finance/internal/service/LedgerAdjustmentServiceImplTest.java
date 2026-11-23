@@ -421,6 +421,7 @@ class LedgerAdjustmentServiceImplTest {
         assertThat(response.ledgerEntry().runningBalance()).isEqualByComparingTo("165000000.00");
         assertThat(response.ledgerEntry().createdByAccountId()).isEqualTo(CALLER_ACCOUNT_ID);
         assertThat(response.ledgerEntry().approvedByAccountId()).isEqualTo(CLAN_HEAD_ACCOUNT_ID);
+        assertThat(response.ledgerEntry().previousHash()).isEqualTo(latestLedger.getRecordHash());
         assertThat(response.ledgerEntry().recordHash()).matches("^[0-9a-f]{64}$");
 
         ArgumentCaptor<ImmutableLedger> savedLedgerCaptor = ArgumentCaptor.forClass(ImmutableLedger.class);

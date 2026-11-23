@@ -298,6 +298,7 @@ public class LedgerAdjustmentServiceImpl implements LedgerAdjustmentService {
                 .description(description)
                 .createdByAccountId(entity.getProposedByAccountId())
                 .approvedByAccountId(reviewerAccountId)
+                .previousHash(previousHash)
                 .recordHash(recordHash)
                 .createdAt(entryTimestamp)
                 .build();

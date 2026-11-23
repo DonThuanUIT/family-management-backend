@@ -1,7 +1,10 @@
 package com.familyfund.core.exception;
 
 import com.familyfund.core.dto.ApiResponse;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,12 +14,17 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Centralized exception handler providing consistent API error responses.
@@ -89,12 +97,42 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(LedgerImmutabilityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLedgerImmutabilityViolation(LedgerImmutabilityViolationException ex) {
+        log.warn("SECURITY VIOLATION [NFR-01]: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.errorWithCode(LedgerImmutabilityViolationException.ERROR_CODE, ex.getMessage()));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        if (isLedgerImmutabilityDbViolation(ex)) {
+            log.warn("SECURITY VIOLATION [NFR-01] DB trigger/constraint blocked ledger mutation: {}",
+                    ex.getMostSpecificCause().getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.errorWithCode(
+                            LedgerImmutabilityViolationException.ERROR_CODE,
+                            "Vi phạm bảo mật sổ cái bất biến (NFR-01): Thao tác sửa/xóa hoặc ghi sai chuỗi băm trên sổ cái bị từ chối ở tầng cơ sở dữ liệu."));
+        }
         // Last line of defence (PK/UNIQUE/FK/CHECK). Do not leak SQL details to clients.
         log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("Request conflicts with existing data"));
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataAccessException(DataAccessException ex) {
+        if (isLedgerImmutabilityDbViolation(ex)) {
+            log.warn("SECURITY VIOLATION [NFR-01] DB trigger blocked ledger mutation: {}",
+                    ex.getMostSpecificCause().getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.errorWithCode(
+                            LedgerImmutabilityViolationException.ERROR_CODE,
+                            "Vi phạm bảo mật sổ cái bất biến (NFR-01): Thao tác sửa/xóa hoặc ghi sai chuỗi băm trên sổ cái bị từ chối ở tầng cơ sở dữ liệu."));
+        }
+        log.error("Database access error: ", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Internal server error: " + ex.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -120,6 +158,80 @@ public class GlobalExceptionHandler {
         log.warn("Malformed request body: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Malformed JSON request body"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String paramName = ex.getName();
+        String formattedValue = formatRejectedValue(ex.getValue());
+        Class<?> enumType = resolveEnumTargetType(ex);
+
+        String message;
+        if (enumType != null) {
+            String allowedValues = Arrays.stream(enumType.getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            message = "Tham số '" + paramName + "' có giá trị không hợp lệ ('" + formattedValue
+                    + "'). Giá trị hợp lệ: [" + allowedValues + "]";
+        } else {
+            message = "Tham số '" + paramName + "' có kiểu dữ liệu không hợp lệ ('" + formattedValue + "')";
+        }
+
+        log.warn("Parameter type mismatch on '{}': value='{}'", paramName, formattedValue);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message));
+    }
+
+    private static String formatRejectedValue(Object rawValue) {
+        if (rawValue == null) {
+            return "null";
+        }
+        if (rawValue instanceof Object[] array) {
+            return Arrays.toString(array);
+        }
+        return String.valueOf(rawValue);
+    }
+
+    private static Class<?> resolveEnumTargetType(MethodArgumentTypeMismatchException ex) {
+        Class<?> requiredType = ex.getRequiredType();
+        if (requiredType != null && requiredType.isEnum()) {
+            return requiredType;
+        }
+        if (ex.getParameter() != null) {
+            Class<?> elementType = org.springframework.core.ResolvableType
+                    .forMethodParameter(ex.getParameter())
+                    .getGeneric(0)
+                    .resolve();
+            if (elementType != null && elementType.isEnum()) {
+                return elementType;
+            }
+            if (requiredType != null && requiredType.isArray()) {
+                Class<?> componentType = requiredType.getComponentType();
+                if (componentType != null && componentType.isEnum()) {
+                    return componentType;
+                }
+            }
+        }
+        return null;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParameter(MissingServletRequestParameterException ex) {
+        log.warn("Missing required request parameter '{}'", ex.getParameterName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Thiếu tham số bắt buộc '" + ex.getParameterName() + "'"));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            String path = violation.getPropertyPath() != null ? violation.getPropertyPath().toString() : "param";
+            errors.put(path, violation.getMessage());
+        }
+        log.warn("Constraint violation on request: {}", errors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Invalid request parameters", errors));
     }
 
     // Multipart resolution can fail before Spring selects a controller, so this must be global.
@@ -152,8 +264,38 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
+        if (isLedgerImmutabilityDbViolation(ex)) {
+            log.warn("SECURITY VIOLATION [NFR-01] blocked ledger mutation: {}", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.errorWithCode(
+                            LedgerImmutabilityViolationException.ERROR_CODE,
+                            "Vi phạm bảo mật sổ cái bất biến (NFR-01): Thao tác sửa/xóa hoặc ghi sai chuỗi băm trên sổ cái bị từ chối ở tầng cơ sở dữ liệu."));
+        }
         log.error("Unhandled server error: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Internal server error: " + ex.getMessage()));
+    }
+
+    private static boolean isLedgerImmutabilityDbViolation(Throwable ex) {
+        Throwable cursor = ex;
+        while (cursor != null) {
+            String message = cursor.getMessage();
+            if (message != null && (message.contains("SECURITY VIOLATION [NFR-01]")
+                    || message.contains("immutable_ledgers_event_id_fkey")
+                    || message.contains("immutable_ledgers_adjustment_request_id_fkey")
+                    || message.contains("immutable_ledgers_disbursement_request_id_fkey")
+                    || message.contains("chk_immutable_ledgers_record_hash_sha256")
+                    || message.contains("chk_immutable_ledgers_previous_hash_sha256"))) {
+                return true;
+            }
+            if (cursor instanceof SQLException sqlEx
+                    && "42501".equals(sqlEx.getSQLState())
+                    && message != null
+                    && message.contains("immutable_ledgers")) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 }

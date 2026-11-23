@@ -225,7 +225,7 @@ class LedgerAdjustmentControllerTest {
                 "LDG0001ADJ", "CLN_01", "EVT_01", "LAR0001TEST", null, "LDG_001",
                 LedgerTransactionType.AdjustmentTransaction, new BigDecimal("-5000000.00"),
                 new BigDecimal("165000000.00"), "Bù trừ giảm chi phí âm thanh",
-                "ACC_TREASURER", "ACC_HEAD", "a".repeat(64), now
+                "ACC_TREASURER", "ACC_HEAD", "GENESIS", "a".repeat(64), now
         );
         ReviewLedgerAdjustmentResponse response = new ReviewLedgerAdjustmentResponse(reqDto, ledgerDto);
 

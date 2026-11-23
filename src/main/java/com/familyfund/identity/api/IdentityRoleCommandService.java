@@ -76,4 +76,12 @@ public interface IdentityRoleCommandService {
      * @return true if held, false otherwise
      */
     boolean hasRole(String accountId, String roleId);
+
+    /**
+     * Batch-resolves human-readable display names for a collection of user account IDs (US-62).
+     *
+     * @param accountIds collection of account IDs
+     * @return map of accountId to displayName
+     */
+    Map<String, String> findAccountDisplayNames(Collection<String> accountIds);
 }

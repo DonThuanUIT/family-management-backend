@@ -1408,20 +1408,191 @@ paths:
         '201':
           description: Ghi nhận đóng góp thành công
 
-  /ledger/immutable:
+  /ledger:
     get:
-      summary: Tra cứu Sổ cái Quỹ chung bất biến (Audit Trail NFR-01)
+      summary: Tra cứu lịch sử Sổ cái Quỹ chung bất biến & luồng tiền kèm liên kết bù trừ hai chiều (US-62)
+      description: |
+        Tra cứu danh sách các bút toán trong `immutable_ledgers` thuộc dòng họ hiện tại (`X-Clan-Id` / JWT `clanId`).
+        Hỗ trợ lọc theo khoảng thời gian (`from`, `to` định dạng `yyyy-MM-dd` múi giờ Việt Nam `Asia/Ho_Chi_Minh` hoặc ISO-8601),
+        loại giao dịch (`transactionType`: `SurplusTransfer`, `AdjustmentTransaction`, `CommonFundDisbursement`),
+        sự kiện (`eventId`), từ khóa (`keyword`), chỉ lấy các giao dịch có liên quan bù trừ (`onlyWithAdjustments`),
+        sắp xếp theo thời gian (`sortDirection`: `DESC` hoặc `ASC`) và phân trang (`page`, `size`).
+
+        **Liên kết hai chiều (Bidirectional Linking):**
+        - Nếu bút toán là `AdjustmentTransaction`, trường `originalTransaction` luôn trả về thông tin tóm tắt của giao dịch gốc
+          (`original_transaction_id`) ngay cả khi giao dịch gốc nằm ngoài trang hoặc bộ lọc hiện tại.
+        - Nếu bút toán gốc từng bị điều chỉnh bởi 1 hoặc nhiều `AdjustmentTransaction`, mảng `adjustmentTransactions` trả về
+          đầy đủ danh sách các giao dịch bù trừ theo thứ tự thời gian kèm `netAdjustedAmount = amount + sum(adjustments)`.
       tags:
         - Finance & Vouchers
+      security:
+        - BearerAuth: []
       parameters:
+        - name: from
+          in: query
+          required: false
+          description: Thời điểm bắt đầu lọc (hỗ trợ `yyyy-MM-dd` theo giờ Việt Nam `+07:00` hoặc ISO-8601 `Instant`/`OffsetDateTime`)
+          schema:
+            type: string
+            example: "2026-01-01"
+        - name: to
+          in: query
+          required: false
+          description: Thời điểm kết thúc lọc (hỗ trợ `yyyy-MM-dd` tính đến 23:59:59.999999+07:00 hoặc ISO-8601)
+          schema:
+            type: string
+            example: "2026-12-31"
+        - name: transactionType
+          in: query
+          required: false
+          description: Lọc theo một hoặc nhiều loại giao dịch Sổ cái
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+        - name: eventId
+          in: query
+          required: false
+          description: Lọc theo mã sự kiện liên quan
+          schema:
+            type: string
+            example: "EVT-GIO-TO-2026"
+        - name: keyword
+          in: query
+          required: false
+          description: Tìm kiếm theo mã giao dịch, mô tả, mã sự kiện, mã đề xuất bù trừ hoặc mã phiếu chi
+          schema:
+            type: string
+        - name: onlyWithAdjustments
+          in: query
+          required: false
+          description: "`true` = chỉ lấy giao dịch bù trừ hoặc giao dịch gốc đã có bù trừ; `false` = chỉ lấy giao dịch chưa từng bù trừ"
+          schema:
+            type: boolean
+        - name: sortDirection
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Trang lịch sử Sổ cái Quỹ chung kèm tổng hợp luồng tiền và liên kết bù trừ hai chiều
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerHistoryPageEnvelope'
+        '400':
+          description: Tham số thời gian, phân trang hoặc hướng sắp xếp không hợp lệ
+
+  /ledger/immutable:
+    get:
+      summary: Tra cứu Sổ cái Quỹ chung bất biến (Alias tương thích ngược của GET /ledger - US-62 / NFR-01)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
         - name: eventId
           in: query
           required: false
           schema:
             type: string
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: onlyWithAdjustments
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: sortDirection
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
       responses:
         '200':
-          description: Danh sách các bút toán sổ cái bất biến
+          description: Danh sách các bút toán sổ cái bất biến có phân trang và tổng hợp luồng tiền
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerHistoryPageEnvelope'
+
+  /ledger/transactions/{transactionId}:
+    get:
+      summary: Xem chi tiết một bút toán Sổ cái Quỹ chung kèm liên kết giao dịch gốc / giao dịch bù trừ (US-62)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "LDG0001A2B3C4D5E6"
+      responses:
+        '200':
+          description: Chi tiết giao dịch Sổ cái Quỹ chung kèm liên kết hai chiều
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerHistoryItemEnvelope'
+        '404':
+          description: Không tìm thấy giao dịch sổ cái trong dòng họ hiện tại
 
   /ledger/propose-adjustment:
     post:
@@ -1541,6 +1712,11 @@ paths:
   /ledger/balance:
     get:
       summary: Xem số dư khả dụng hiện tại của Quỹ chung dòng họ (US-60)
+      description: |
+        > **Chính sách bất biến Sổ cái (NFR-01 / US-61):** Toàn bộ nhánh `/api/ledger/**` và `/api/v1/ledger/**`
+        > cấm tuyệt đối các HTTP method `PUT`, `PATCH`, `DELETE` cho mọi vai trò (kể cả `ROLE_ADMIN`, `ROLE_CLAN_HEAD`).
+        > Mọi yêu cầu cố tình sử dụng các method này sẽ bị chặn ngay tại Security Filter với mã HTTP `405 Method Not Allowed`,
+        > header `Allow: GET, POST, HEAD, OPTIONS` và mã lỗi `LEDGER_IMMUTABILITY_VIOLATION`.
       tags:
         - Finance & Vouchers
       security:
@@ -1552,6 +1728,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommonFundBalanceEnvelope'
+
+  /ledger/verify-integrity:
+    get:
+      summary: Kiểm toán toàn vẹn chuỗi mã băm SHA-256 của Sổ cái Quỹ chung (US-61 / NFR-01)
+      description: |
+        Duyệt toàn bộ lịch sử `immutable_ledgers` của dòng họ hiện tại theo thứ tự thời gian từ mốc `GENESIS`,
+        xác minh:
+        1. Liên kết `previousHash` khớp `recordHash` của bản ghi liền trước,
+        2. Mã băm SHA-256 (`recordHash`) khớp 100% nội dung giao dịch,
+        3. Tính liên tục của `runningBalance` giữa các mắt xích liền kề.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Báo cáo trạng thái toàn vẹn chuỗi băm SHA-256 của Sổ cái Quỹ chung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerIntegrityReportEnvelope'
+        '400':
+          description: Thiếu ngữ cảnh dòng họ (X-Clan-Id / clanId)
 
   /ledger/disbursements:
     post:
@@ -5109,6 +5308,10 @@ components:
         approvedByAccountId:
           type: string
           example: "ACC_CLAN_HEAD"
+        previousHash:
+          type: string
+          example: "GENESIS"
+          description: "Mã băm SHA-256 của giao dịch liền trước trong cùng dòng họ (hoặc GENESIS với bản ghi đầu tiên)"
         recordHash:
           type: string
           minLength: 64
@@ -5337,3 +5540,316 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/CommonFundBalanceResponse'
+
+    LedgerIntegrityBrokenLink:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          nullable: true
+          example: "LDG0001A2B3C4D5E6"
+        chainIndex:
+          type: integer
+          example: 2
+        reason:
+          type: string
+          example: "Mã băm SHA-256 (recordHash) không khớp với dữ liệu giao dịch"
+        expectedPreviousHash:
+          type: string
+          nullable: true
+        actualPreviousHash:
+          type: string
+          nullable: true
+        expectedRecordHash:
+          type: string
+          nullable: true
+        actualRecordHash:
+          type: string
+          nullable: true
+
+    LedgerIntegrityReportResponse:
+      type: object
+      properties:
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        valid:
+          type: boolean
+          example: true
+        totalEntries:
+          type: integer
+          example: 12
+        verifiedEntries:
+          type: integer
+          example: 12
+        genesisAnchor:
+          type: string
+          example: "GENESIS"
+        latestTransactionId:
+          type: string
+          nullable: true
+          example: "LDG0001A2B3C4D5E6"
+        latestRecordHash:
+          type: string
+          nullable: true
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        brokenLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerIntegrityBrokenLink'
+        verifiedAt:
+          type: string
+          format: date-time
+
+    LedgerIntegrityReportEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LedgerIntegrityReportResponse'
+
+    LinkedLedgerTransactionDto:
+      type: object
+      description: Thông tin tóm tắt giao dịch liên kết hai chiều (giao dịch gốc hoặc giao dịch điều chỉnh bù trừ - US-62)
+      properties:
+        transactionId:
+          type: string
+          example: "LDG0001A2B3C4D5E6"
+        transactionType:
+          type: string
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          example: "AdjustmentTransaction"
+        amount:
+          type: number
+          example: -5000000.00
+        runningBalance:
+          type: number
+          example: 95000000.00
+        description:
+          type: string
+          example: "Bù trừ giảm chi phí thuê âm thanh theo hóa đơn đối soát"
+        adjustmentRequestId:
+          type: string
+          nullable: true
+          example: "LAR0001A2B3C4D5E6"
+        adjustmentReason:
+          type: string
+          nullable: true
+          example: "Nhập nhầm số tiền hóa đơn âm thanh"
+        evidenceAttachmentUrl:
+          type: string
+          nullable: true
+          example: "https://storage.familyfund.vn/evidence/adj-001.pdf"
+        createdByAccountId:
+          type: string
+          example: "ACC_TREASURER"
+        createdByName:
+          type: string
+          nullable: true
+          example: "Nguyễn Văn Thủ Quỹ"
+        approvedByAccountId:
+          type: string
+          example: "ACC_CLAN_HEAD"
+        approvedByName:
+          type: string
+          nullable: true
+          example: "Nguyễn Trọng Hoàng"
+        createdAt:
+          type: string
+          format: date-time
+
+    LedgerHistoryItemResponse:
+      type: object
+      description: Chi tiết bút toán Sổ cái Quỹ chung bất biến kèm liên kết hai chiều giữa giao dịch gốc và giao dịch bù trừ (US-62)
+      properties:
+        transactionId:
+          type: string
+          example: "LDG0001A2B3C4D5E6"
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        eventId:
+          type: string
+          nullable: true
+          example: "EVT-GIO-TO-2026"
+        eventName:
+          type: string
+          nullable: true
+          example: "Đại Lễ Giỗ Tổ Xuân 2026"
+        adjustmentRequestId:
+          type: string
+          nullable: true
+          example: "LAR0001A2B3C4D5E6"
+        adjustmentReason:
+          type: string
+          nullable: true
+        evidenceAttachmentUrl:
+          type: string
+          nullable: true
+        disbursementRequestId:
+          type: string
+          nullable: true
+          example: "CFD0001A2B3C4D5E6"
+        disbursementTitle:
+          type: string
+          nullable: true
+          example: "Tu sửa mái ngói Từ đường"
+        disbursementCategory:
+          allOf:
+            - $ref: '#/components/schemas/CommonFundExpenseCategory'
+          nullable: true
+        originalTransactionId:
+          type: string
+          nullable: true
+          example: "LDG_2026_001"
+        transactionType:
+          type: string
+          enum: [SurplusTransfer, AdjustmentTransaction, CommonFundDisbursement]
+          example: "SurplusTransfer"
+        amount:
+          type: number
+          example: 100000000.00
+        runningBalance:
+          type: number
+          example: 100000000.00
+        description:
+          type: string
+        createdByAccountId:
+          type: string
+          example: "ACC_TREASURER"
+        createdByName:
+          type: string
+          nullable: true
+          example: "Nguyễn Văn Thủ Quỹ"
+        approvedByAccountId:
+          type: string
+          example: "ACC_CLAN_HEAD"
+        approvedByName:
+          type: string
+          nullable: true
+          example: "Nguyễn Trọng Hoàng"
+        previousHash:
+          type: string
+          example: "GENESIS"
+        recordHash:
+          type: string
+          minLength: 64
+          maxLength: 64
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        createdAt:
+          type: string
+          format: date-time
+        isAdjustment:
+          type: boolean
+          example: false
+        hasAdjustments:
+          type: boolean
+          example: true
+        adjustmentCount:
+          type: integer
+          example: 1
+        netAdjustedAmount:
+          type: number
+          description: Số tiền hiệu lực sau khi cộng dồn tất cả các giao dịch bù trừ liên kết (amount + sum(adjustments))
+          example: 95000000.00
+        pendingAdjustmentRequestCount:
+          type: integer
+          example: 0
+        originalTransaction:
+          allOf:
+            - $ref: '#/components/schemas/LinkedLedgerTransactionDto'
+          nullable: true
+        adjustmentTransactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinkedLedgerTransactionDto'
+
+    LedgerFlowSummaryResponse:
+      type: object
+      description: Tổng hợp số dư Quỹ chung và luồng tiền thu/chi theo bộ lọc truy vấn (US-62)
+      properties:
+        currentFundBalance:
+          type: number
+          example: 77000000.00
+        latestTransactionId:
+          type: string
+          nullable: true
+          example: "LDG0004A2B3C4D5E6"
+        latestTransactionAt:
+          type: string
+          format: date-time
+          nullable: true
+        openingBalanceBeforePeriod:
+          type: number
+          example: 0.00
+        closingBalanceAtPeriodEnd:
+          type: number
+          example: 77000000.00
+        filteredTransactionCount:
+          type: integer
+          format: int64
+          example: 4
+        filteredTotalInflow:
+          type: number
+          example: 102000000.00
+        filteredTotalOutflow:
+          type: number
+          example: -25000000.00
+        filteredNetAmount:
+          type: number
+          example: 77000000.00
+
+    LedgerHistoryPageResponse:
+      type: object
+      description: Kết quả phân trang lịch sử Sổ cái Quỹ chung kèm tổng hợp luồng tiền (US-62)
+      properties:
+        clanId:
+          type: string
+          example: "CLAN_DEFAULT"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerHistoryItemResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 4
+        totalPages:
+          type: integer
+          example: 1
+        summary:
+          $ref: '#/components/schemas/LedgerFlowSummaryResponse'
+
+    LedgerHistoryPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Tra cứu lịch sử Sổ cái Quỹ chung thành công"
+        data:
+          $ref: '#/components/schemas/LedgerHistoryPageResponse'
+
+    LedgerHistoryItemEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Lấy chi tiết giao dịch Sổ cái Quỹ chung thành công"
+        data:
+          $ref: '#/components/schemas/LedgerHistoryItemResponse'

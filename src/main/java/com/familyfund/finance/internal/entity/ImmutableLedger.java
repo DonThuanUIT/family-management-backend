@@ -1,5 +1,6 @@
 package com.familyfund.finance.internal.entity;
 
+import com.familyfund.core.exception.LedgerImmutabilityViolationException;
 import com.familyfund.finance.api.dto.LedgerTransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -7,6 +8,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreRemove;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -69,6 +72,9 @@ public class ImmutableLedger {
     @Column(name = "approved_by_account_id", length = 20, nullable = false, updatable = false)
     private String approvedByAccountId;
 
+    @Column(name = "previous_hash", length = 64, nullable = false, updatable = false)
+    private String previousHash;
+
     @Column(name = "record_hash", length = 64, unique = true, nullable = false, updatable = false)
     private String recordHash;
 
@@ -80,5 +86,17 @@ public class ImmutableLedger {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
+    }
+
+    @PreUpdate
+    protected void onUpdateAttempt() {
+        throw new LedgerImmutabilityViolationException(
+                "Vi phạm bảo mật sổ cái bất biến (NFR-01): Cấm cập nhật (UPDATE) bản ghi sổ cái " + transactionId);
+    }
+
+    @PreRemove
+    protected void onDeleteAttempt() {
+        throw new LedgerImmutabilityViolationException(
+                "Vi phạm bảo mật sổ cái bất biến (NFR-01): Cấm xóa (DELETE) bản ghi sổ cái " + transactionId);
     }
 }

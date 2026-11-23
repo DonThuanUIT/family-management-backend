@@ -4,6 +4,8 @@ import com.familyfund.event.api.dto.EventRole;
 import com.familyfund.event.api.dto.EventSummaryDto;
 import com.familyfund.event.api.dto.RegistrationSummaryDto;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -48,4 +50,12 @@ public interface EventQueryService {
      * in any event belonging to the specified clan (US-60).
      */
     boolean hasEventRoleInClan(String clanId, String memberId, EventRole eventRole);
+
+    /**
+     * Batch-resolves event names for a collection of event IDs (US-62).
+     *
+     * @param eventIds collection of event IDs
+     * @return map of eventId to eventName
+     */
+    Map<String, String> findEventNamesByIds(Collection<String> eventIds);
 }

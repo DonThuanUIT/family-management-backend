@@ -306,6 +306,7 @@ class CommonFundDisbursementServiceImplTest {
         assertThat(response.ledgerEntry().disbursementRequestId()).isEqualTo("CFD_REV_01");
         assertThat(response.ledgerEntry().amount()).isEqualByComparingTo("-45000000.00");
         assertThat(response.ledgerEntry().runningBalance()).isEqualByComparingTo("55000000.00");
+        assertThat(response.ledgerEntry().previousHash()).isEqualTo(latestLedger.getRecordHash());
         assertThat(response.ledgerEntry().recordHash()).matches("^[0-9a-f]{64}$");
 
         ArgumentCaptor<ImmutableLedger> ledgerCaptor = ArgumentCaptor.forClass(ImmutableLedger.class);
