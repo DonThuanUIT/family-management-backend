@@ -1594,6 +1594,94 @@ paths:
         '404':
           description: Không tìm thấy giao dịch sổ cái trong dòng họ hiện tại
 
+  /ledger/evidence-upload:
+    post:
+      summary: Tải lên biên bản/chứng từ cho đề xuất bù trừ Sổ cái (US-15)
+      description: |
+        Nhận tệp PDF, JPG hoặc PNG tối đa 10 MB, kiểm tra an toàn định dạng và lưu vào kho lưu trữ riêng tư
+        theo `X-Clan-Id`, trả về đường dẫn proxy nội bộ để gắn vào `evidenceAttachmentUrl`.
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: originalTransactionId
+          in: query
+          required: false
+          description: Mã giao dịch gốc (bắt buộc nếu người dùng là Thủ quỹ sự kiện / Trưởng BTC)
+          schema:
+            type: string
+            example: "LDG00K9A2F8X7P4Q2"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Tải lên biên bản chứng từ thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerEvidenceUploadEnvelope'
+        '400':
+          description: Tệp trống hoặc hỏng cấu trúc PDF/ảnh
+        '403':
+          description: Không có quyền tải lên biên bản cho giao dịch này
+        '413':
+          description: Tệp vượt dung lượng tối đa 10 MB
+        '415':
+          description: Định dạng không được hỗ trợ (chỉ chấp nhận PDF, JPG, PNG)
+
+  /ledger/evidence/{fileName}:
+    get:
+      summary: Tải hoặc xem trực tiếp tệp biên bản chứng từ đã lưu (US-15)
+      tags:
+        - Finance & Vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440000.pdf"
+        - name: disposition
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [inline, attachment]
+            default: inline
+      responses:
+        '200':
+          description: Luồng dữ liệu nhị phân của tệp biên bản
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Tên tệp hoặc tham số disposition không hợp lệ
+        '404':
+          description: Không tìm thấy tệp biên bản trong dòng họ hiện tại
+
   /ledger/propose-adjustment:
     post:
       summary: Đề xuất bù trừ sai sót giao dịch Sổ cái bất biến (US-15)
@@ -6086,3 +6174,38 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LedgerAnnualAuditResponse'
+
+    LedgerEvidenceUploadResponse:
+      type: object
+      properties:
+        evidenceUrl:
+          type: string
+          example: "/api/v1/ledger/evidence/550e8400-e29b-41d4-a716-446655440000.pdf"
+        fileName:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440000.pdf"
+        originalFilename:
+          type: string
+          example: "Bien_ban_doi_soat_2026.pdf"
+        mimeType:
+          type: string
+          example: "application/pdf"
+        sizeBytes:
+          type: integer
+          format: int64
+          example: 1468006
+        sha256Checksum:
+          type: string
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+    LedgerEvidenceUploadEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Tải lên biên bản chứng từ thành công"
+        data:
+          $ref: '#/components/schemas/LedgerEvidenceUploadResponse'

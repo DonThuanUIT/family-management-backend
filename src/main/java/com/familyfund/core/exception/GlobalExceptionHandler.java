@@ -1,6 +1,7 @@
 package com.familyfund.core.exception;
 
 import com.familyfund.core.dto.ApiResponse;
+import com.familyfund.core.storage.MediaException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.sql.SQLException;
@@ -232,6 +234,21 @@ public class GlobalExceptionHandler {
         log.warn("Constraint violation on request: {}", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Invalid request parameters", errors));
+    }
+
+    @ExceptionHandler(MediaException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMediaException(MediaException ex) {
+        log.warn("Media error [{} - {}]: {}", ex.getStatus(), ex.getCode(), ex.getMessage());
+        return ResponseEntity.status(ex.getStatus())
+                .body(ApiResponse.errorWithCode(ex.getCode(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingMultipartPart(MissingServletRequestPartException ex) {
+        log.warn("Missing multipart part '{}'", ex.getRequestPartName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.errorWithCode("INVALID_MEDIA_REQUEST",
+                        "Thiếu tệp tải lên bắt buộc '" + ex.getRequestPartName() + "'"));
     }
 
     // Multipart resolution can fail before Spring selects a controller, so this must be global.
